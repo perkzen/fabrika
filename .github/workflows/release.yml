@@ -23,6 +23,10 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
+      # Trusted publishing needs npm >= 11.5.1 for OIDC; the runner's bundled
+      # npm is not guaranteed to be new enough.
+      - run: npm install -g npm@latest
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm compile
