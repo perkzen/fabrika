@@ -5,7 +5,7 @@ description: Choose the type, slug, and preview flag for a ticket's branch. Use 
 
 # Branch naming
 
-The host builds the branch from the pattern in `.fabrika/config.json` — for example `domen/{type}/{ticket}/{slug}`, with the preview prefix in front when preview is true — and creates it. You supply three values: **type**, **slug**, **preview**. Nothing else happens in this step: no branch, no checkout, no file.
+The host builds the branch from the pattern in `.fabrika/config.json` — for example `{user}/{type}/{ticket}/{slug}`, with the preview prefix in front when preview is true — and creates it. You supply three values: **type**, **slug**, **preview**. Nothing else happens in this step: no branch, no checkout, no file.
 
 ## Type
 

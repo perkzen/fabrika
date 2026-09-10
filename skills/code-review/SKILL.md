@@ -18,7 +18,7 @@ The fixed point is the base given in the stage prompt. Capture `git diff <base>.
 
 ## 2. Sources
 
-- **Spec**: `.fabrika/work/spec.md`, with `## Decisions` in `.fabrika/work/plan.md` for intent. `.fabrika/work/architecture.md` and `.fabrika/work/security.md` record the refactors and fixes the earlier stages added on purpose; a change they account for is intended, not creep.
+- **Spec**: `.fabrika/work/spec.md`, with `## Decisions` in `.fabrika/work/plan.md` for intent. `.fabrika/work/refactor.md` and `.fabrika/work/security.md` record the refactors and fixes the earlier stages added on purpose; a change they account for is intended, not creep.
 - **Standards**: whatever the repo documents — `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `CODING_STANDARDS.md`, `docs/` — plus the smell baseline below and the comment rules in `fabrika:code-comments`. A documented repo standard wins over the baseline. Skip anything tooling already enforces (lint, format, typecheck).
 
 ### Smell baseline
@@ -50,7 +50,7 @@ Write both reports to `.fabrika/work/review.md` under `## Standards` and `## Spe
 ## 4. Fix
 
 - Every hard Standards violation and every Spec finding: fix, test-first where behaviour changes (`fabrika:tdd`), one commit per finding.
-- Scope creep: remove it, unless `spec.md` Assumptions, `architecture.md`, or `security.md` record it as intended.
+- Scope creep: remove it, unless `spec.md` Assumptions, `refactor.md`, or `security.md` record it as intended.
 - Judgement calls: fix when the fix stays inside one module; otherwise leave with the reason.
 
 Append `## Fixes` to `review.md`: one line per finding, `fixed (<commit>)` or `left: <reason>`.
@@ -67,7 +67,7 @@ What changed and why, three to six lines.
 The Assumptions from spec.md and the Decisions from plan.md a reviewer should confirm.
 
 ## Refactors
-Architecture candidates implemented, one line each (from architecture.md), or "none".
+Refactor candidates implemented, one line each (from refactor.md), or "none".
 
 ## Security
 Findings fixed or accepted (from security.md), or "no findings".

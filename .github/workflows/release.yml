@@ -1,0 +1,38 @@
+name: Release
+
+# Publishes on a pushed tag: `npm version <x.y.z> && git push --follow-tags`.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm trusted publishing (OIDC) and provenance.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm compile
+
+      # `prepack` builds dist/ on its own, but failing here is a clearer signal.
+      - run: pnpm build
+
+      # No NPM_TOKEN. npm trusted publishing authenticates this workflow over
+      # OIDC (`id-token: write` above), which also signs the provenance
+      # attestation. Configure it once on npmjs.com against this repo and the
+      # `release.yml` workflow name; the package must already exist there, so
+      # the first version is published by hand.
+      - run: npm publish --access public

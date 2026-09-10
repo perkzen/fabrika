@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement .fabrika/work/plan.md slice by slice through tdd, keeping the plan honest as you go. Use in the implement stage, after the plan and before the architecture pass.
+description: Implement .fabrika/work/plan.md slice by slice through tdd, keeping the plan honest as you go. Use in the implement stage, after the plan and before the refactor pass.
 ---
 
 # Implement
@@ -19,4 +19,4 @@ Execute the plan another session wrote: one slice at a time, test-first, committ
 
 ## Done
 
-Every slice in the plan is a passing test, typecheck and the full suite are green locally, and everything is committed. Refactoring waits for the architecture pass; review waits for the review stage.
+Every slice in the plan is a passing test, typecheck and the full suite are green locally, and everything is committed. Refactoring waits for the refactor stage; review waits for the review stage.

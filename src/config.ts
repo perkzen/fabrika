@@ -19,6 +19,7 @@ export type GateStep = typeof GateStep.Type;
 
 export const Config = Schema.Struct({
   base: Schema.String,
+  /** Branch pattern; `{user}` (`git config user.name`, kebab-cased), `{type}`, `{ticket}` and `{slug}` are filled per run. */
   branch: Schema.String,
   /** Prepended to `branch` when the naming call decides the ticket wants a preview deployment. */
   previewPrefix: Schema.optional(Schema.String),
@@ -61,7 +62,7 @@ export const loadConfig = (repoRoot: string) =>
  */
 export const CONFIG_TEMPLATE = `{
   "base": "origin/staging",
-  "branch": "domen/{type}/{ticket}/{slug}",
+  "branch": "{user}/{type}/{ticket}/{slug}",
   "previewPrefix": "preview/",
   "install": "npm ci",
   "gate": [
@@ -91,8 +92,8 @@ export const CONFIG_TEMPLATE = `{
       "gate": true
     },
     {
-      "name": "architecture",
-      "prompt": "architecture.md",
+      "name": "refactor",
+      "prompt": "refactor.md",
       "system": "implement.system.md",
       "gate": true
     },

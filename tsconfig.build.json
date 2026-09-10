@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    // Node will not strip types under node_modules, so the published package
+    // ships JS. This rewrites the `./foo.ts` specifiers to `./foo.js` on emit,
+    // which is what lets the source keep its extensions.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"]
+}

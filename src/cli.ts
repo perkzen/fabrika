@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Console, Effect, FileSystem, Option, Path } from "effect";
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli";

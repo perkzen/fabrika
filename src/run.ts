@@ -1,6 +1,7 @@
 import { Data, Effect, FileSystem, Path } from "effect";
 import { appendFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { runClaudeWithFallback, type Credential } from "./claude.ts";
 import { CONFIG_PATH, type Config, type Stage } from "./config.ts";
 import * as checks from "./checks.ts";
@@ -32,12 +33,28 @@ type State = {
   done: boolean;
 };
 
-const PROMPTS = new URL("../prompts/", import.meta.url).pathname;
+const PROMPTS = fileURLToPath(new URL("../prompts/", import.meta.url));
 
 const fill = (template: string, vars: Record<string, string>) =>
   template.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? "");
 
 const stamp = () => new Date().toLocaleTimeString("en-GB", { hour12: false });
+
+/**
+ * `git config user.name` as a branch-safe segment ("Domen Perko" → `domen-perko`),
+ * for the `{user}` in the branch pattern: the config is committed to the target
+ * repo, so the prefix has to be whoever is running rather than a baked-in name.
+ */
+const gitUser = (repoRoot: string) =>
+  shRun(repoRoot, ["git", "config", "user.name"]).pipe(
+    Effect.catchTag("ShellFailed", () => Effect.succeed("")),
+    Effect.flatMap((name) => {
+      const user = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      return user
+        ? Effect.succeed(user)
+        : Effect.fail(new FabrikaError({ message: "branch pattern uses {user} but git user.name is unset — set it with `git config user.name`" }));
+    }),
+  );
 
 /** `owner/repo` from the remote URL, for `-R` on every gh call: the monorepo has two remotes. */
 const githubRepo = (repoRoot: string, remote: string) =>
@@ -146,7 +163,8 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         if (!named) yield* log(`  naming answer rejected; using the default name`);
         // The namer reads the ticket more carefully than a label regex; its type is the one the stages see.
         if (named) vars.type = named.type;
-        state.branch = branchName(config.branch, ticket, named ?? defaultParts(ticket), config.previewPrefix ?? "");
+        const user = config.branch.includes("{user}") ? yield* gitUser(repoRoot) : "";
+        state.branch = branchName(config.branch, ticket, named ?? defaultParts(ticket), config.previewPrefix ?? "", user);
       }
       yield* save();
     }

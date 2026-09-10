@@ -162,8 +162,15 @@ export const asBranchParts = (raw: unknown): BranchParts | null => {
 /** The deterministic parts: the ticket's own type, a slug cut from the title, preview on. */
 export const defaultParts = (ticket: Ticket): BranchParts => ({ type: ticket.type, slug: slug(ticket.title), preview: true });
 
-export const branchName = (pattern: string, ticket: Ticket, parts: BranchParts = defaultParts(ticket), previewPrefix = ""): string =>
+export const branchName = (
+  pattern: string,
+  ticket: Ticket,
+  parts: BranchParts = defaultParts(ticket),
+  previewPrefix = "",
+  user = "",
+): string =>
   ((parts.preview ? previewPrefix : "") + pattern)
+    .replace("{user}", user)
     .replace("{type}", parts.type)
     .replace("{ticket}", ticket.identifier)
     .replace("{slug}", parts.slug)

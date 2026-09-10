@@ -1,16 +1,37 @@
 {
-  "name": "fabrika",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@perkzen/fabrika",
+  "version": "0.0.1",
+  "description": "An Effect-based runner that drives Claude Code through spec, plan, implement, refactor, security and review stages on a ticket.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/perkzen/fabrika.git"
+  },
   "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=24"
+  },
   "bin": {
-    "fabrika": "./src/cli.ts"
+    "fabrika": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "prompts",
+    ".claude-plugin",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "fabrika": "tsx src/cli.ts",
-    "smoke": "tsx scripts/smoke.ts",
-    "compile": "tsc --noEmit"
+    "fabrika": "node src/cli.ts",
+    "smoke": "node scripts/smoke.ts",
+    "compile": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "version": "node scripts/sync-version.ts"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
@@ -23,7 +44,9 @@
   },
   "pnpm": {
     "peerDependencyRules": {
-      "ignoreMissing": ["redis"]
+      "ignoreMissing": [
+        "redis"
+      ]
     }
   }
 }

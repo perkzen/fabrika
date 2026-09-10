@@ -14,10 +14,10 @@ target repo's own `.claude/skills/` still load alongside.
 | `fabrika:grill-with-docs` | plan (called by `plan`) | plan | plan `## Decisions` |
 | `fabrika:implement` | implement | plan, spec | code, one commit per slice; plan amendments |
 | `fabrika:tdd` | implement, and every fix | spec seams | code + one commit per cycle |
-| `fabrika:codebase-design` | reference for spec, tdd, architecture | — | — |
+| `fabrika:codebase-design` | reference for spec, tdd, refactor | — | — |
 | `fabrika:code-comments` | reference for implement, tdd, code-review | — | — |
-| `fabrika:domain-modeling` | called by spec, grill, architecture | `CONTEXT.md`, `docs/adr/` | glossary entries and ADRs, each its own commit |
-| `fabrika:improve-codebase-architecture` | architecture | branch diff | `.fabrika/work/architecture.md`, refactor commits |
+| `fabrika:domain-modeling` | called by spec, grill, refactor | `CONTEXT.md`, `docs/adr/` | glossary entries and ADRs, each its own commit |
+| `fabrika:improve-codebase-architecture` | refactor | branch diff | `.fabrika/work/refactor.md`, refactor commits |
 | `fabrika:security` | security | branch diff | `.fabrika/work/security.md`, fix commits |
 | `fabrika:code-review` | review | spec, repo standards | `.fabrika/work/review.md`, `.fabrika/work/pr.md`, fix commits |
 | `fabrika:fix-ci` | review rounds, when a PR check fails | the failed steps' log, workflow files, gate config | `.fabrika/work/ci.md`, `fix(ci):` commits, `## Gate gaps` in `pr.md` |

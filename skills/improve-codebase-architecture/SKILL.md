@@ -1,9 +1,9 @@
 ---
 name: improve-codebase-architecture
-description: Find deepening opportunities in the code a branch touched, record them in .fabrika/work/architecture.md, implement the Strong ones, explore the rest. Use after implementation, before security and code review.
+description: Find deepening opportunities in the code a branch touched, record them in .fabrika/work/refactor.md, implement the Strong ones, explore the rest. Use after implementation, before security and code review.
 ---
 
-# Architecture pass
+# Refactor pass
 
 Surface architectural friction in the code this branch touched and turn shallow modules into deep ones where it pays. Vocabulary and principles come from `fabrika:codebase-design` — **module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**; the deletion test; "the interface is the test surface"; "one adapter = hypothetical seam, two = real". Use those terms exactly.
 
@@ -27,7 +27,7 @@ Apply the **deletion test** to anything you suspect is shallow: deleting it woul
 
 ## 3. Record
 
-Write `.fabrika/work/architecture.md`, one entry per candidate:
+Write `.fabrika/work/refactor.md`, one entry per candidate:
 
 ```
 ## <candidate>
@@ -50,7 +50,7 @@ No candidates is a valid outcome; the file then says so and why.
 
 Set each Status to `done (<commit>)`, `declined: <reason>`, or `recorded`.
 
-Side effects go through the `fabrika:domain-modeling` skill as they happen: a deepened module named after a concept not in `CONTEXT.md` gets its glossary entry; a Strong candidate declined for a load-bearing reason (one a future architecture pass would need in order not to re-suggest it) gets an ADR.
+Side effects go through the `fabrika:domain-modeling` skill as they happen: a deepened module named after a concept not in `CONTEXT.md` gets its glossary entry; a Strong candidate declined for a load-bearing reason (one a future refactor pass would need in order not to re-suggest it) gets an ADR.
 
 ## Done
 
