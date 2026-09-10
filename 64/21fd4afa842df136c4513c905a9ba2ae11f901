@@ -1,0 +1,19 @@
+.github/workflows/release.yml
+  s_026019a25f56ea::t_d9ad7ee5ba60b3 26-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6421fd4afa842df136c4513c905a9ba2ae11f901",
+  "prompts": {},
+  "sessions": {
+    "s_026019a25f56ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9abe7f1-108d-4694-a695-d4173655ed82",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
