@@ -1,0 +1,19 @@
+.github/workflows/ci.yml
+  s_d4a70a7d3703f6::t_c6d561289ec006 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "20ac6ccc90e3dc50b68395a2844a75f634bc0800",
+  "prompts": {},
+  "sessions": {
+    "s_d4a70a7d3703f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30c39175-4678-4f28-840f-60ff3e379c03",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
