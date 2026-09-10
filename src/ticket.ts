@@ -137,9 +137,34 @@ export const slug = (title: string): string => {
   return out.join("-") || "ticket";
 };
 
-export const branchName = (pattern: string, ticket: Ticket): string =>
-  pattern
-    .replace("{type}", ticket.type)
+/** What the `fabrika:branch-naming` call returns; the host fills the pattern. */
+export type BranchParts = { readonly type: TicketType; readonly slug: string; readonly preview: boolean };
+
+export const BRANCH_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    type: { type: "string", enum: ["feat", "fix", "chore"] },
+    slug: { type: "string" },
+    preview: { type: "boolean" },
+  },
+  required: ["type", "slug", "preview"],
+});
+
+/** Accepts the model's answer only when it obeys the naming rules; otherwise the caller falls back to the deterministic parts. */
+export const asBranchParts = (raw: unknown): BranchParts | null => {
+  const r = raw as Partial<BranchParts> | undefined;
+  if (!r || (r.type !== "feat" && r.type !== "fix" && r.type !== "chore")) return null;
+  if (typeof r.slug !== "string" || !/^[a-z0-9]+(-[a-z0-9]+){0,5}$/.test(r.slug) || r.slug.length > 40) return null;
+  if (typeof r.preview !== "boolean") return null;
+  return { type: r.type, slug: r.slug, preview: r.preview };
+};
+
+/** The deterministic parts: the ticket's own type, a slug cut from the title, preview on. */
+export const defaultParts = (ticket: Ticket): BranchParts => ({ type: ticket.type, slug: slug(ticket.title), preview: true });
+
+export const branchName = (pattern: string, ticket: Ticket, parts: BranchParts = defaultParts(ticket), previewPrefix = ""): string =>
+  ((parts.preview ? previewPrefix : "") + pattern)
+    .replace("{type}", parts.type)
     .replace("{ticket}", ticket.identifier)
-    .replace("{slug}", slug(ticket.title))
+    .replace("{slug}", parts.slug)
     .replace(/[^A-Za-z0-9/._-]+/g, "-");

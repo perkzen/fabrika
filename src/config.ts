@@ -20,6 +20,8 @@ export type GateStep = typeof GateStep.Type;
 export const Config = Schema.Struct({
   base: Schema.String,
   branch: Schema.String,
+  /** Prepended to `branch` when the naming call decides the ticket wants a preview deployment. */
+  previewPrefix: Schema.optional(Schema.String),
   install: Schema.optional(Schema.String),
   gate: Schema.Array(GateStep),
   stages: Schema.Array(Stage),
@@ -31,6 +33,8 @@ export const Config = Schema.Struct({
     maxRounds: Schema.Number,
     timeoutMinutes: Schema.Number,
   }),
+  /** How long to wait for the PR's checks after a push; defaults to the review timeout. */
+  checks: Schema.optional(Schema.Struct({ timeoutMinutes: Schema.Number })),
   maxIterations: Schema.Number,
 });
 export type Config = typeof Config.Type;
@@ -57,7 +61,8 @@ export const loadConfig = (repoRoot: string) =>
  */
 export const CONFIG_TEMPLATE = `{
   "base": "origin/staging",
-  "branch": "preview/domen/{type}/{ticket}/{slug}",
+  "branch": "domen/{type}/{ticket}/{slug}",
+  "previewPrefix": "preview/",
   "install": "npm ci",
   "gate": [
     { "name": "compile", "run": "npm run compile" },
@@ -73,11 +78,12 @@ export const CONFIG_TEMPLATE = `{
   ],
   "stages": [
     {
-      "name": "plan",
-      "prompt": "plan.md",
+      "name": "spec",
+      "prompt": "spec.md",
       "system": "plan.system.md",
       "mcp": ["linear-ro"]
     },
+    { "name": "plan", "prompt": "plan.md", "system": "plan.system.md" },
     {
       "name": "implement",
       "prompt": "implement.md",
@@ -85,9 +91,21 @@ export const CONFIG_TEMPLATE = `{
       "gate": true
     },
     {
+      "name": "architecture",
+      "prompt": "architecture.md",
+      "system": "implement.system.md",
+      "gate": true
+    },
+    {
+      "name": "security",
+      "prompt": "security.md",
+      "system": "implement.system.md",
+      "gate": true
+    },
+    {
       "name": "review",
       "prompt": "review.md",
-      "system": "review.system.md",
+      "system": "implement.system.md",
       "gate": true
     }
   ],
@@ -104,6 +122,7 @@ export const CONFIG_TEMPLATE = `{
     "maxRounds": 3,
     "timeoutMinutes": 25
   },
+  "checks": { "timeoutMinutes": 30 },
   "maxIterations": 4
 }
 `;

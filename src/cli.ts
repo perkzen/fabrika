@@ -37,7 +37,7 @@ const credentials = [{ name: "default", env: {} }];
 
 /**
  * A stale keychain token fails every `claude -p` while `claude auth status`
- * still says logged in (PLAN.md §Rotation). One cheap call up front beats
+ * still says logged in (seen 2026-09-10 with the desktop app signed in). One cheap call up front beats
  * dying in the plan stage.
  */
 const authProbe = runClaude({ cwd: process.cwd(), prompt: "Reply with exactly: OK", credential: credentials[0]! }).pipe(
@@ -74,7 +74,7 @@ const run = Command.make(
             [
               `ESCALATED: ${e.reason}`,
               `  worktree: ${e.worktree}`,
-              ...(e.prNumber ? [`  PR: #${e.prNumber}`] : []),
+              ...(e.prUrl ? [`  PR: ${e.prUrl}`] : []),
               `  rerun the same command to resume from where it stopped.`,
             ].join("\n"),
           ).pipe(Effect.andThen(Effect.sync(() => process.exit(2)))),

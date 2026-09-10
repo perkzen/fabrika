@@ -2,28 +2,33 @@ import { Data, Effect, FileSystem, Path } from "effect";
 import { appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { runClaudeWithFallback, type Credential } from "./claude.ts";
-import { type Config, type Stage } from "./config.ts";
+import { CONFIG_PATH, type Config, type Stage } from "./config.ts";
+import * as checks from "./checks.ts";
 import * as cubic from "./cubic.ts";
 import { FabrikaError } from "./errors.ts";
 import { runGate, type GateFailure } from "./gate.ts";
 import { mcpConfigFile, resolveServers } from "./mcp.ts";
 import { run as shRun } from "./shell.ts";
-import { branchName, type Ticket } from "./ticket.ts";
+import { asBranchParts, BRANCH_SCHEMA, branchName, defaultParts, type Ticket } from "./ticket.ts";
 import * as wt from "./worktree.ts";
 
 export class Escalated extends Data.TaggedError("Escalated")<{
   readonly reason: string;
   readonly worktree: string;
-  readonly prNumber?: number;
+  readonly prUrl?: string;
 }> {}
 
 /** Persisted after every step so a dead run resumes rather than restarts. */
 type State = {
   sessionId: string | null;
+  /** Chosen once by the naming call; a resume must land on the same branch. */
+  branch: string | null;
   completed: Array<string>;
   prNumber: number | null;
   round: number;
   pushed: Array<string>;
+  /** Actions run ids already rerun once for a suspected flake. */
+  reran: Array<string>;
   done: boolean;
 };
 
@@ -48,7 +53,6 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const repoRoot = process.cwd();
-    const branch = branchName(config.branch, ticket);
     const dir = yield* wt.worktreePath(repoRoot, ticket.identifier);
     const runsDir = path.join(homedir(), ".fabrika", "runs", path.basename(repoRoot), ticket.identifier);
     const stateFile = path.join(runsDir, "state.json");
@@ -66,31 +70,30 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
 
     const state: State = (yield* fs.exists(stateFile))
       ? (JSON.parse(yield* fs.readFileString(stateFile)) as State)
-      : { sessionId: null, completed: [], prNumber: null, round: 0, pushed: [], done: false };
+      : { sessionId: null, branch: null, completed: [], prNumber: null, round: 0, pushed: [], reran: [], done: false };
+    state.reran ??= []; // state files from before checks existed
     const save = () => fs.writeFileString(stateFile, JSON.stringify(state, null, 2));
     if (state.done) return yield* log(`already done: ${ticket.identifier} — remove ${runsDir} to rerun`);
     if (state.sessionId) yield* log(`resuming session ${state.sessionId} (${state.completed.join(", ") || "no stages done"})`);
 
     yield* log(`${ticket.identifier} — ${ticket.title}`);
-    // Fail on a missing or OAuth-only MCP server now, not after a long install.
-    for (const stage of config.stages) if (stage.mcp?.length) yield* resolveServers(repoRoot, stage.mcp);
-    yield* log(`branch ${branch} off ${config.base}`);
-    yield* wt.create(repoRoot, dir, branch, config.base);
-    yield* log(`worktree ${dir}`);
-
-    if (config.install && !(yield* fs.exists(path.join(dir, "node_modules")))) {
-      const started = Date.now();
-      yield* log(`install: ${config.install}`);
-      yield* shRun(dir, ["sh", "-c", config.install]);
-      yield* log(`install: ok (${((Date.now() - started) / 1000).toFixed(0)}s)`);
+    // Fail on a missing prompt file or a missing or OAuth-only MCP server now,
+    // not after a long install — a config from an older `init` can still name
+    // a prompt that no longer ships.
+    for (const stage of config.stages) {
+      for (const file of [stage.prompt, stage.system]) {
+        if (file && !(yield* fs.exists(path.join(PROMPTS, file)))) {
+          return yield* new FabrikaError({ message: `stage ${stage.name}: prompts/${file} does not exist — update the stages in ${CONFIG_PATH}` });
+        }
+      }
+      if (stage.mcp?.length) yield* resolveServers(repoRoot, stage.mcp);
     }
-
-    const vars = {
+    const vars: Record<string, string> = {
       identifier: ticket.identifier,
       title: ticket.title,
       description: ticket.description || "(no description)",
       url_line: ticket.url ? `Link: ${ticket.url}` : "",
-      branch,
+      type: ticket.type,
       base: config.base,
     };
     const prompt = (file: string, extra: Record<string, string> = {}) =>
@@ -103,12 +106,14 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       systemPromptFile?: string;
       mcp?: ReadonlyArray<string>;
       jsonSchema?: string;
+      /** Defaults to the worktree; the naming call runs before it exists. */
+      cwd?: string;
     }) =>
       Effect.scoped(
         Effect.gen(function* () {
           const mcp = opts.mcp?.length ? yield* mcpConfigFile(yield* resolveServers(repoRoot, opts.mcp)) : undefined;
           const result = yield* runClaudeWithFallback({
-            cwd: dir,
+            cwd: opts.cwd ?? dir,
             prompt: opts.prompt,
             credentials,
             resume: state.sessionId,
@@ -125,6 +130,38 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
           return result;
         }),
       );
+
+    // The branch is chosen once. An existing worktree pins it (a state file
+    // from before naming existed has no `branch`); otherwise one short
+    // structured call applies the `fabrika:branch-naming` skill, and the
+    // deterministic parts stand in when the answer breaks the rules.
+    if (state.branch === null) {
+      if (yield* fs.exists(dir)) {
+        state.branch = yield* shRun(dir, ["git", "branch", "--show-current"]);
+      } else {
+        const named = yield* claude({ stage: "branch", prompt: yield* prompt("branch.md"), jsonSchema: BRANCH_SCHEMA, cwd: repoRoot }).pipe(
+          Effect.map((r) => asBranchParts(r.structured)),
+          Effect.catchTag("ClaudeFailed", (e) => log(`  naming call failed (${e.message.slice(0, 80)}); using the default name`).pipe(Effect.as(null))),
+        );
+        if (!named) yield* log(`  naming answer rejected; using the default name`);
+        // The namer reads the ticket more carefully than a label regex; its type is the one the stages see.
+        if (named) vars.type = named.type;
+        state.branch = branchName(config.branch, ticket, named ?? defaultParts(ticket), config.previewPrefix ?? "");
+      }
+      yield* save();
+    }
+    const branch = state.branch;
+    vars.branch = branch;
+    yield* log(`branch ${branch} off ${config.base}`);
+    yield* wt.create(repoRoot, dir, branch, config.base);
+    yield* log(`worktree ${dir}`);
+
+    if (config.install && !(yield* fs.exists(path.join(dir, "node_modules")))) {
+      const started = Date.now();
+      yield* log(`install: ${config.install}`);
+      yield* shRun(dir, ["sh", "-c", config.install]);
+      yield* log(`install: ok (${((Date.now() - started) / 1000).toFixed(0)}s)`);
+    }
 
     const gateFeedback = (f: GateFailure) =>
       `The host-run gate failed at step "${f.name}" (${f.command}). Fix it, commit, and stop.\n\nOutput (tail):\n\n${f.output}`;
@@ -171,12 +208,72 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
 
     const remote = wt.remoteOf(config.base);
     const repo = yield* githubRepo(repoRoot, remote);
+    const prUrl = (n: number) => `https://github.com/${repo}/pull/${n}`;
+    const workDir = path.join(dir, wt.WORK_DIR);
+    /** The stage artifacts outlive the worktree: a human reads them next to the PR. */
+    const keepArtifacts = Effect.gen(function* () {
+      if (!(yield* fs.exists(workDir))) return;
+      const target = path.join(runsDir, "work");
+      yield* fs.makeDirectory(target, { recursive: true });
+      for (const name of yield* fs.readDirectory(workDir)) {
+        yield* fs.copyFile(path.join(workDir, name), path.join(target, name));
+      }
+      yield* log(`artifacts: ${target}`);
+    });
+
+    /**
+     * Keeps the branch mergeable while the base moves. Merge, never rebase:
+     * pushed commits stay put and cubic's per-commit reviews stay valid.
+     * Conflicts go to the agent; the gate runs after any merge. True when
+     * HEAD changed.
+     */
+    const syncWithBase = (prUrlIfAny?: string) =>
+      Effect.gen(function* () {
+        yield* shRun(dir, ["git", "fetch", "--quiet", remote]);
+        const behind = yield* wt.behind(dir, config.base);
+        if (behind === 0) return false;
+        yield* log(`base moved: ${behind} commit(s) behind ${config.base}; merging`);
+        const merged = yield* wt.merge(dir, config.base);
+        if (merged.code !== 0) {
+          const files = yield* wt.conflictedFiles(dir);
+          if (files.length === 0) {
+            return yield* new Escalated({ reason: `git merge ${config.base} failed: ${merged.out.trim().slice(-300)}`, worktree: dir, prUrl: prUrlIfAny });
+          }
+          yield* log(`  ${files.length} conflicted file(s); resolving`);
+          yield* claude({
+            stage: "merge",
+            prompt: yield* prompt("merge.md", { files: files.map((f) => `- ${f}`).join("\n") }),
+            systemPromptFile: path.join(PROMPTS, "implement.system.md"),
+          });
+          const left = yield* wt.conflictedFiles(dir);
+          if (left.length > 0) {
+            return yield* new Escalated({ reason: `merge of ${config.base} left conflicts in ${left.join(", ")}`, worktree: dir, prUrl: prUrlIfAny });
+          }
+          if (yield* wt.mergeInProgress(dir)) {
+            // Resolved but not committed: same safety net as a dirty stage.
+            yield* shRun(dir, ["git", "add", "-A"]);
+            yield* shRun(dir, ["git", "commit", "--quiet", "--no-edit"]);
+          }
+        }
+        const failure = yield* gate();
+        if (failure) {
+          yield* log(`  gate red after merge; one repair pass`);
+          yield* claude({ stage: "merge-gate", prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
+          const again = yield* gate();
+          if (again) return yield* new Escalated({ reason: `gate red after merging ${config.base}: ${again.name}`, worktree: dir, prUrl: prUrlIfAny });
+        }
+        return true;
+      });
 
     if (state.prNumber === null) {
+      yield* syncWithBase();
       yield* log(`pushing ${commits} commit(s) to ${remote}/${branch}`);
       yield* wt.push(dir, remote, branch);
       state.pushed.push(yield* wt.head(dir));
-      const body = [ticket.url ? `Linear: ${ticket.url}` : "", "", ticket.description, "", "---", `Opened by fabrika. Draft until a human reviews.`].join("\n");
+      // The review stage writes the description; the ticket text is the fallback.
+      const prFile = path.join(workDir, "pr.md");
+      const description = (yield* fs.exists(prFile)) ? yield* fs.readFileString(prFile) : ticket.description;
+      const body = [ticket.url ? `Linear: ${ticket.url}` : "", "", description, "", "---", `Opened by fabrika. Draft until a human reviews.`].join("\n");
       const out = yield* shRun(dir, [
         "gh", "pr", "create", "-R", repo, "--head", branch, "--base", wt.baseBranch(config.base),
         "--title", `${ticket.identifier}: ${ticket.title}`, "--body", body, ...(config.pr.draft ? ["--draft"] : []),
@@ -185,7 +282,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       if (!num) return yield* new Escalated({ reason: `gh pr create returned no PR URL: ${out}`, worktree: dir });
       state.prNumber = Number(num);
       yield* save();
-      yield* log(`PR #${state.prNumber} ${out.trim()}`);
+      yield* log(`PR ${prUrl(state.prNumber)}`);
       if (config.pr.emptyCommit) {
         // Vercel skips a deployment created before the PR existed.
         yield* wt.emptyCommit(dir, "chore: trigger preview deployment");
@@ -196,51 +293,97 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     }
     const prNumber = state.prNumber;
 
-    // Cubic loop: done means latest score == requireScore AND zero open threads.
+    // Review loop: done means latest cubic score == requireScore, zero open
+    // threads, AND zero failing checks on the pushed commit.
+    const checksTimeout = config.checks?.timeoutMinutes ?? config.review.timeoutMinutes;
     while (state.round < config.review.maxRounds) {
       state.round += 1;
       yield* save();
       yield* log(`review round ${state.round}/${config.review.maxRounds}`);
+      if (yield* syncWithBase(prUrl(prNumber))) {
+        yield* wt.push(dir, remote, branch);
+        state.pushed = [yield* wt.head(dir)];
+        yield* save();
+      }
       const review = yield* cubic.waitForReview(dir, repo, prNumber, state.pushed, config.review.timeoutMinutes, log);
-      if (!review) return yield* new Escalated({ reason: `no cubic review within ${config.review.timeoutMinutes} min`, worktree: dir, prNumber });
+      if (!review) return yield* new Escalated({ reason: `no cubic review within ${config.review.timeoutMinutes} min`, worktree: dir, prUrl: prUrl(prNumber) });
       const threads = yield* cubic.openThreads(dir, repo, prNumber);
-      yield* log(`  score ${review.score ?? "none"}/5, ${threads.length} open thread(s)`);
-      if (review.score !== null && review.score >= config.review.requireScore && threads.length === 0) {
+      const pushedHead = state.pushed.at(-1)!;
+      const waitChecks = () =>
+        checks.waitForChecks(dir, repo, prNumber, pushedHead, checksTimeout, log).pipe(
+          Effect.flatMap((all) =>
+            all
+              ? Effect.succeed(all.filter((c) => c.bucket === "fail"))
+              : new Escalated({ reason: `checks still pending after ${checksTimeout} min`, worktree: dir, prUrl: prUrl(prNumber) }),
+          ),
+        );
+      let failed = yield* waitChecks();
+      // One rerun per Actions run, for flakes; a failure that survives it is the agent's.
+      const flaky = failed.filter((c) => c.run && !state.reran.includes(c.run.id));
+      if (flaky.length > 0) {
+        for (const c of flaky) {
+          yield* checks.rerunFailed(dir, c);
+          state.reran.push(c.run!.id);
+        }
+        yield* save();
+        yield* log(`  reran ${flaky.length} failed run(s) once in case of flakes`);
+        failed = yield* waitChecks();
+      }
+      yield* log(`  score ${review.score ?? "none"}/5, ${threads.length} open thread(s), ${failed.length} failing check(s)`);
+      const scoreOk = review.score !== null && review.score >= config.review.requireScore;
+      if (scoreOk && threads.length === 0 && failed.length === 0) {
         state.done = true;
         yield* save();
-        yield* log(`done: PR #${prNumber} is clean; removing worktree`);
+        yield* keepArtifacts;
         yield* wt.remove(repoRoot, dir);
+        yield* log(`done: cubic ${review.score}/5, no open threads, checks green — ready for human review: ${prUrl(prNumber)}`);
         return;
       }
-      if (threads.length === 0) {
+      if (threads.length === 0 && failed.length === 0) {
         // Nothing the agent can act on, and the same review would be found again next loop.
         return yield* new Escalated({
-          reason: `cubic score ${review.score ?? "missing"}/5 on PR #${prNumber} with no open threads to act on`,
+          reason: `cubic score ${review.score ?? "missing"}/5 with no open threads or failing checks to act on`,
           worktree: dir,
-          prNumber,
+          prUrl: prUrl(prNumber),
         });
       }
 
       const before = yield* wt.head(dir);
-      const result = yield* claude({
-        stage: "cubic",
-        prompt: yield* prompt("cubic.md", { count: String(threads.length), threads: cubic.renderThreads(threads) }),
-        systemPromptFile: path.join(PROMPTS, "cubic.system.md"),
-        jsonSchema: cubic.DECISION_SCHEMA,
-      });
-      const decisions = ((result.structured as { decisions?: Array<cubic.Decision> } | undefined)?.decisions ?? []).filter(
-        (d) => threads.some((t) => t.id === d.threadId),
-      );
-      if (yield* wt.isDirty(dir)) {
-        yield* shRun(dir, ["git", "add", "-A"]);
-        yield* shRun(dir, ["git", "commit", "--quiet", "-m", "review: address cubic findings"]);
+      let decisions: Array<cubic.Decision> = [];
+      if (threads.length > 0) {
+        const result = yield* claude({
+          stage: "cubic",
+          prompt: yield* prompt("cubic.md", { count: String(threads.length), threads: cubic.renderThreads(threads) }),
+          systemPromptFile: path.join(PROMPTS, "cubic.system.md"),
+          jsonSchema: cubic.DECISION_SCHEMA,
+        });
+        decisions = ((result.structured as { decisions?: Array<cubic.Decision> } | undefined)?.decisions ?? []).filter(
+          (d) => threads.some((t) => t.id === d.threadId),
+        );
+        if (yield* wt.isDirty(dir)) {
+          yield* shRun(dir, ["git", "add", "-A"]);
+          yield* shRun(dir, ["git", "commit", "--quiet", "-m", "review: address cubic findings"]);
+        }
+      }
+      if (failed.length > 0) {
+        const failures: Array<{ check: checks.Check; log: string }> = [];
+        for (const check of failed) failures.push({ check, log: yield* checks.failedLog(dir, check) });
+        yield* claude({
+          stage: "ci",
+          prompt: yield* prompt("ci.md", { count: String(failed.length), sha: pushedHead.slice(0, 7), failures: checks.renderFailures(failures) }),
+          systemPromptFile: path.join(PROMPTS, "implement.system.md"),
+        });
+        if (yield* wt.isDirty(dir)) {
+          yield* shRun(dir, ["git", "add", "-A"]);
+          yield* shRun(dir, ["git", "commit", "--quiet", "-m", "fix(ci): address failing checks"]);
+        }
       }
       const failure = yield* gate();
       if (failure) {
         yield* log(`  gate red after review fixes; one repair pass`);
         yield* claude({ stage: "cubic-gate", prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
         const again = yield* gate();
-        if (again) return yield* new Escalated({ reason: `gate red after cubic round ${state.round}: ${again.name}`, worktree: dir, prNumber });
+        if (again) return yield* new Escalated({ reason: `gate red after cubic round ${state.round}: ${again.name}`, worktree: dir, prUrl: prUrl(prNumber) });
       }
       const touched = yield* wt.filesSince(dir, before);
       if ((yield* wt.head(dir)) !== before) {
@@ -257,5 +400,5 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         if (mayResolve) yield* cubic.resolveThread(dir, repo, d.threadId);
       }
     }
-    return yield* new Escalated({ reason: `not clean after ${config.review.maxRounds} review rounds`, worktree: dir, prNumber });
+    return yield* new Escalated({ reason: `not clean after ${config.review.maxRounds} review rounds`, worktree: dir, prUrl: prUrl(prNumber) });
   });

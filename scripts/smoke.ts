@@ -1,9 +1,10 @@
 /**
- * PLAN.md step 2. Proves the things the loop depends on before any loop code
+ * Proves the things the loop depends on before any loop code
  * exists: a tool call executes, a deny rule holds under
  * --dangerously-skip-permissions, --resume carries context across
- * directories, and --json-schema returns parseable output. Linear MCP is
- * checked only when `linear-ro` is registered.
+ * directories, --json-schema returns parseable output, and fabrika's own
+ * skills load through --plugin-dir on fresh and resumed sessions. Linear MCP
+ * is checked only when `linear-ro` is registered.
  */
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Console, Data, Effect, FileSystem } from "effect";
@@ -55,6 +56,9 @@ const program = Effect.gen(function* () {
   });
   yield* check("bash tool call executed", a.text.includes("fabrika-smoke-ok"));
   yield* check("session_id captured", !!a.sessionId, a.sessionId ?? "");
+  // Read off the init event, not the model's say-so: the stage prompts name
+  // `fabrika:<skill>` and a missing plugin would fail silently otherwise.
+  yield* check("--plugin-dir loads fabrika skills", a.skills.includes("fabrika:tdd"), a.skills.filter((s) => s.startsWith("fabrika:")).join(","));
 
   const events = (yield* fs.readFileString(rawLog))
     .split("\n")
@@ -84,6 +88,7 @@ const program = Effect.gen(function* () {
     prompt: "What exact string did the echo command print earlier in this conversation? Reply with only that string.",
   });
   yield* check("--resume carries context across directories", b.text.includes("fabrika-smoke-ok"), b.text.slice(0, 80));
+  yield* check("--plugin-dir loads on a resumed session", b.skills.includes("fabrika:tdd"));
 
   // C: --json-schema with stream-json.
   const c = yield* runClaude({
@@ -122,7 +127,7 @@ const program = Effect.gen(function* () {
       }),
     );
   } else {
-    yield* Console.log("SKIP linear MCP — register `linear-ro` first: claude mcp add -s user … (PLAN.md §MCP)");
+    yield* Console.log("SKIP linear MCP — register `linear-ro` first: claude mcp add -s user … (README §Quick start)");
   }
 
   yield* Console.log(`\nraw log: ${rawLog}`);

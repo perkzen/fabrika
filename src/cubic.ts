@@ -4,7 +4,7 @@ import type { ChildProcessSpawner } from "effect/unstable/process";
 import { run, type ShellFailed } from "./shell.ts";
 
 /**
- * Everything here was read off live PRs (PLAN.md §Cubic), not assumed. The
+ * Everything here was read off live cubic-reviewed PRs, not assumed. The
  * host owns every GitHub write; the agent only decides.
  */
 export const BOT = "cubic-dev-ai";

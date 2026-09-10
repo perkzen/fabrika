@@ -1,5 +1,3 @@
-Review the diff of this branch against `{{base}}` as a strict senior engineer would before opening a PR for ticket {{identifier}} — {{title}}.
+Run the `fabrika:code-review` skill on this branch; the PR opens when you stop. Base: `{{base}}`. Ticket: {{identifier}} — {{title}}.
 
-Look for: bugs, missing edge cases, tests that do not actually assert the behaviour, dead code, naming that misleads, docs or comments now out of date, anything that violates conventions you can see elsewhere in the repository.
-
-Fix what you find and commit each fix. If the diff is clean, say so and change nothing.
+You were present when this code was written. Use that context for the Spec axis, and read the diff for the Standards axis as a strict senior engineer who was not.

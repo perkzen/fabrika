@@ -1,6 +1,7 @@
 import { Data, Effect, Fiber, FileSystem, Stream } from "effect";
 import type { PlatformError } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { fileURLToPath } from "node:url";
 
 /**
  * Wraps the Claude Code CLI as a subprocess.
@@ -12,7 +13,16 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
  * `--bare` is deliberately absent — bare mode never reads the subscription
  * login and would demand an API key. The cost of that is auto-discovery of
  * the target repo's MCP servers, which `--strict-mcp-config` turns back off.
+ *
+ * fabrika's own skills ride along as a plugin (`skills/`, manifest in
+ * `.claude-plugin/`) via `--plugin-dir`, so a stage prompt can name
+ * `fabrika:tdd` in any target repo. Verified on 2.1.267: the init event lists
+ * the plugin and its skills, and the model invokes them through the Skill
+ * tool in `-p` mode. The flag is per invocation, so it goes on every call,
+ * resumed ones included.
  */
+const PLUGIN_DIR = fileURLToPath(new URL("..", import.meta.url));
+
 export type Credential = {
   readonly name: string;
   readonly env: Record<string, string>;
@@ -39,6 +49,8 @@ export type ClaudeError = ClaudeAuthError | ClaudeRateLimited | ClaudeFailed | P
 
 export type ClaudeResult = {
   readonly sessionId: string | null;
+  /** Skill names the session loaded, from the init event (e.g. `fabrika:tdd`). */
+  readonly skills: ReadonlyArray<string>;
   readonly text: string;
   /** Parsed `structured_output` when the run used `jsonSchema`. */
   readonly structured: unknown;
@@ -69,6 +81,7 @@ type StreamEvent = {
   subtype?: string;
   error?: string;
   session_id?: string;
+  skills?: Array<string>;
   is_error?: boolean;
   result?: string;
   structured_output?: unknown;
@@ -81,6 +94,7 @@ const AUTH_FAILED = new Set(["authentication_failed", "oauth_org_not_allowed"]);
 
 type RunState = {
   sessionId: string | null;
+  skills: Array<string>;
   text: string;
   structured: unknown;
   isError: boolean;
@@ -104,6 +118,8 @@ export const runClaude = (
       // Under -p there is no prompt path: a gated tool call is denied, not
       // asked. The deny list is what keeps this from being a blank cheque.
       "--dangerously-skip-permissions",
+      "--plugin-dir",
+      PLUGIN_DIR,
       "--strict-mcp-config",
       "--mcp-config",
       // A bare `{}` is rejected on 2.1.241; the record itself must be present.
@@ -135,6 +151,7 @@ export const runClaude = (
 
     const state: RunState = {
       sessionId: opts.resume ?? null,
+      skills: [],
       text: "",
       structured: undefined,
       isError: false,
@@ -183,6 +200,7 @@ export const runClaude = (
 
     return {
       sessionId: state.sessionId,
+      skills: state.skills,
       text: state.text,
       structured: state.structured,
       costUsd: state.costUsd,
@@ -198,6 +216,11 @@ function interpret(line: string, state: RunState, onLine?: (line: string) => voi
   }
 
   if (event.session_id) state.sessionId = event.session_id;
+
+  if (event.type === "system" && event.subtype === "init") {
+    state.skills = event.skills ?? [];
+    return;
+  }
 
   if (event.type === "system" && event.subtype === "api_retry") {
     if (event.error && RATE_LIMITED.has(event.error)) state.sawRateLimit = true;
