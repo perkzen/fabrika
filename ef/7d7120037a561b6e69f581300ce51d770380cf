@@ -1,0 +1,166 @@
+prompts/architecture.md
+  s_cdf159c901e58e::t_769085f0992e4d 1
+skills/tdd/mocking.md
+  s_cdf159c901e58e::t_112a975010a7a8 1-59
+prompts/plan.system.md
+  s_cdf159c901e58e::t_0fc105031bb6b3 1,3
+  s_cdf159c901e58e::t_2c27680120ed81 2
+skills/code-review/SKILL.md
+  s_de2be2d6a6209b::t_029e86dc7fd4ff 22,45
+  s_cdf159c901e58e::t_1076561741af6b 21,53
+  s_cdf159c901e58e::t_6f594e30d8aad9 1-20,23-44,46-52,54-81
+skills/security/SKILL.md
+  s_cdf159c901e58e::t_6f594e30d8aad9 1-44
+prompts/security.md
+  s_cdf159c901e58e::t_0fc105031bb6b3 1
+skills/to-tickets/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-78
+prompts/ci.md
+  s_cdf159c901e58e::t_c34b897618521a 1-5
+skills/fix-ci/SKILL.md
+  s_cdf159c901e58e::t_c34b897618521a 1-19
+src/claude.ts
+  s_cdf159c901e58e::t_676ce8fd8311f0 4,16-22,24-25,52-53,84,97,121-122,154,203,220-223
+skills/improve-codebase-architecture/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-57
+.claude-plugin/plugin.json
+  s_cdf159c901e58e::t_b7366456e8c6db 1-5
+skills/codebase-design/DEEPENING.md
+  s_cdf159c901e58e::t_112a975010a7a8 1-37
+skills/codebase-design/SKILL.md
+  s_cdf159c901e58e::t_112a975010a7a8 1-113
+src/worktree.ts
+  s_cdf159c901e58e::t_cadfe0c088d4e9 4,83-96
+  s_cdf159c901e58e::t_676ce8fd8311f0 16-36,44
+skills/tdd/SKILL.md
+  s_cdf159c901e58e::t_112a975010a7a8 1-33,35-37
+  s_de2be2d6a6209b::t_029e86dc7fd4ff 34
+  s_cdf159c901e58e::t_769085f0992e4d 38
+skills/tdd/tests.md
+  s_cdf159c901e58e::t_112a975010a7a8 1-77
+prompts/implement.md
+  s_cdf159c901e58e::t_3eac4d5e6943fa 1,3
+prompts/implement.system.md
+  s_cdf159c901e58e::t_0fc105031bb6b3 1,3-4,6
+src/run.ts
+  s_cdf159c901e58e::t_fbc32109cb80ca 134-146,149-164
+  s_cdf159c901e58e::t_c34b897618521a 6,30-31,73-74,296-298,311-334,339,342,345,352-379
+  s_cdf159c901e58e::t_11191a2b882ea2 96,147-148
+  s_cdf159c901e58e::t_1076561741af6b 80-85,87-89
+  s_cdf159c901e58e::t_4c0fd80c90bb98 12,24-25,91,109-110,116
+  s_cdf159c901e58e::t_dc510277d0b0a0 5,86
+  s_cdf159c901e58e::t_676ce8fd8311f0 18,211-222,273-276,285,309,337,347,386,403
+  s_cdf159c901e58e::t_cadfe0c088d4e9 224-266,269,303-307
+skills/implement/SKILL.md
+  s_cdf159c901e58e::t_2c27680120ed81 16,18
+  s_cdf159c901e58e::t_3eac4d5e6943fa 1-13,15,17,19-22
+  s_de2be2d6a6209b::t_029e86dc7fd4ff 14
+skills/README.md
+  s_cdf159c901e58e::t_769085f0992e4d 10-12,14,20,33-37,40-43,47-49
+  s_cdf159c901e58e::t_4c0fd80c90bb98 9
+  s_cdf159c901e58e::t_882b9aa5d56c01 24
+  s_cdf159c901e58e::t_2c27680120ed81 38,46
+  s_cdf159c901e58e::t_b7366456e8c6db 1-8,13,16-17,21-22,25-32,44-45,50-52
+  s_cdf159c901e58e::t_c34b897618521a 23
+  s_de2be2d6a6209b::t_029e86dc7fd4ff 18,39
+  s_cdf159c901e58e::t_88ced2c2d2800b 19
+  s_cdf159c901e58e::t_3eac4d5e6943fa 15
+skills/domain-modeling/SKILL.md
+  s_cdf159c901e58e::t_88ced2c2d2800b 1-36
+skills/domain-modeling/ADR-FORMAT.md
+  s_cdf159c901e58e::t_88ced2c2d2800b 1-47
+src/config.ts
+  s_cdf159c901e58e::t_676ce8fd8311f0 81-82,86,93-104,108
+  s_cdf159c901e58e::t_4c0fd80c90bb98 23-24,64-65
+  s_cdf159c901e58e::t_c34b897618521a 36-37,125
+src/cubic.ts
+  s_cdf159c901e58e::t_5c81cba05cf00e 7
+skills/plan/SKILL.md
+  s_cdf159c901e58e::t_769085f0992e4d 44
+  s_cdf159c901e58e::t_4d1792ef27680a 1-13,15,17,19-43,45-46
+  s_cdf159c901e58e::t_2c27680120ed81 14,16,18
+skills/to-spec/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-15,17-59
+  s_cdf159c901e58e::t_2c27680120ed81 16
+prompts/cubic.system.md
+  s_cdf159c901e58e::t_0fc105031bb6b3 3
+prompts/review.md
+  s_cdf159c901e58e::t_0fc105031bb6b3 1,3
+src/cli.ts
+  s_cdf159c901e58e::t_676ce8fd8311f0 77
+  s_cdf159c901e58e::t_5c81cba05cf00e 40
+skills/branch-naming/SKILL.md
+  s_cdf159c901e58e::t_4c0fd80c90bb98 1-40
+src/ticket.ts
+  s_cdf159c901e58e::t_4c0fd80c90bb98 140-167,169
+skills/code-comments/SKILL.md
+  s_de2be2d6a6209b::t_d2e332e57f8d6a 1-25
+prompts/plan.md
+  s_cdf159c901e58e::t_11191a2b882ea2 1
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 2
+  s_cdf159c901e58e::t_0fc105031bb6b3 3
+scripts/smoke.ts
+  s_cdf159c901e58e::t_5c81cba05cf00e 2,130
+  s_cdf159c901e58e::t_676ce8fd8311f0 5-7,59-61,91
+prompts/branch.md
+  s_cdf159c901e58e::t_4c0fd80c90bb98 1-8
+prompts/spec.md
+  s_cdf159c901e58e::t_769085f0992e4d 12
+  s_cdf159c901e58e::t_11191a2b882ea2 3
+  s_cdf159c901e58e::t_0fc105031bb6b3 1-2,4-11,13-14
+prompts/merge.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 5
+  s_cdf159c901e58e::t_cadfe0c088d4e9 1-4
+skills/research/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-16
+skills/resolving-merge-conflicts/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-18
+skills/domain-modeling/CONTEXT-FORMAT.md
+  s_cdf159c901e58e::t_88ced2c2d2800b 1-60
+README.md
+  s_cdf159c901e58e::t_cadfe0c088d4e9 8,180
+  s_cdf159c901e58e::t_c34b897618521a 9,30-35,151,184
+  s_cdf159c901e58e::t_4c0fd80c90bb98 96-104,141
+  s_cdf159c901e58e::t_882b9aa5d56c01 152
+  s_cdf159c901e58e::t_5c81cba05cf00e 23
+  s_cdf159c901e58e::t_88ced2c2d2800b 146
+  s_cdf159c901e58e::t_3eac4d5e6943fa 144
+  s_cdf159c901e58e::t_769085f0992e4d 78-82,142-143,145,147
+  s_cdf159c901e58e::t_f95e4aafdfb2d5 6-7,10,20-22,43-51,134-140,148-150,153-170,176,188
+skills/grill-with-docs/SKILL.md
+  s_cdf159c901e58e::t_882b9aa5d56c01 1-36
+src/checks.ts
+  s_cdf159c901e58e::t_c34b897618521a 1-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ef7d7120037a561b6e69f581300ce51d770380cf",
+  "prompts": {},
+  "sessions": {
+    "s_6cce3cbc0ac7fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cf2147e-363e-4a28-917c-8485fef929d4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_cdf159c901e58e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9f1804a-39c0-4e62-92ce-3d02c4d33493",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_de2be2d6a6209b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "222cc16b-dac9-4960-b3d4-0e7d8bbcf525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
