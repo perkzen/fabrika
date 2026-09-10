@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.33.4",
   "bin": {
     "fabrika": "./src/cli.ts"
   },
@@ -17,9 +18,12 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@effect/cli": "^0.77.1",
-    "@effect/platform": "^0.97.2",
-    "@effect/platform-node": "^0.108.2",
-    "effect": "^3.22.2"
+    "@effect/platform-node": "4.0.0-rc.113",
+    "effect": "4.0.0-rc.113"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": ["redis"]
+    }
   }
 }

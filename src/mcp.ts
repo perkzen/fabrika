@@ -1,5 +1,4 @@
-import { FileSystem, Path } from "@effect/platform";
-import { Data, Effect, Schema } from "effect";
+import { Data, Effect, FileSystem, Path, Schema } from "effect";
 import { homedir, tmpdir } from "node:os";
 
 /**
@@ -17,17 +16,17 @@ const McpServer = Schema.Struct({
   type: Schema.optional(Schema.String),
   command: Schema.optional(Schema.String),
   url: Schema.optional(Schema.String),
-  headers: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
-  env: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  env: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 });
 export type McpServer = typeof McpServer.Type;
 
-const Servers = Schema.Record({ key: Schema.String, value: McpServer });
+const Servers = Schema.Record(Schema.String, McpServer);
 
 const ClaudeJson = Schema.Struct({
   mcpServers: Schema.optional(Servers),
   projects: Schema.optional(
-    Schema.Record({ key: Schema.String, value: Schema.Struct({ mcpServers: Schema.optional(Servers) }) }),
+    Schema.Record(Schema.String, Schema.Struct({ mcpServers: Schema.optional(Servers) })),
   ),
 });
 
@@ -44,12 +43,13 @@ export class McpServerNeedsStaticAuth extends Data.TaggedError("McpServerNeedsSt
 }> {}
 
 /** Missing file → empty; a present-but-broken file still fails loudly. */
-const readJsonOrEmpty = <A, I>(schema: Schema.Schema<A, I>, file: string) =>
+const readJsonOrEmpty = <A, I>(schema: Schema.Codec<A, I>, file: string) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     if (!(yield* fs.exists(file))) return undefined;
     const raw = yield* fs.readFileString(file);
-    return yield* Schema.decodeUnknown(Schema.parseJson(schema), { onExcessProperty: "ignore" })(raw);
+    // Unknown keys are stripped by default in Schema v4.
+    return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(raw);
   });
 
 /** user < project (.mcp.json) < local, matching the CLI's own precedence. */

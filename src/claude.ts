@@ -1,7 +1,6 @@
-import { Command, FileSystem } from "@effect/platform";
-import type { CommandExecutor } from "@effect/platform";
-import type { PlatformError } from "@effect/platform/Error";
-import { Data, Effect, Fiber, Stream } from "effect";
+import { Data, Effect, Fiber, FileSystem, Stream } from "effect";
+import type { PlatformError } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 /**
  * Wraps the Claude Code CLI as a subprocess.
@@ -36,7 +35,7 @@ export class ClaudeFailed extends Data.TaggedError("ClaudeFailed")<{
   readonly message: string;
 }> {}
 
-export type ClaudeError = ClaudeAuthError | ClaudeRateLimited | ClaudeFailed | PlatformError;
+export type ClaudeError = ClaudeAuthError | ClaudeRateLimited | ClaudeFailed | PlatformError.PlatformError;
 
 export type ClaudeResult = {
   readonly sessionId: string | null;
@@ -92,11 +91,11 @@ type RunState = {
 
 export const runClaude = (
   opts: ClaudeOptions,
-): Effect.Effect<ClaudeResult, ClaudeError, CommandExecutor.CommandExecutor | FileSystem.FileSystem> =>
+): Effect.Effect<ClaudeResult, ClaudeError, ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
 
-    const args = [
+    const args: Array<string> = [
       "-p",
       opts.prompt,
       "--output-format",
@@ -120,17 +119,19 @@ export const runClaude = (
     // guard, messaging socket, session ids). This also drops a CLAUDE_CONFIG_DIR
     // set in the shell — deliberately: which account a run uses is decided by
     // `Credential.env`, applied after the strip, never by ambient environment.
-    // `extendEnv: false` matters: the default merges process.env back in.
+    // `extendEnv` stays false so the stripped copy below is the whole
+    // environment; setting it true would merge the CLAUDE* vars straight back.
     const env: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {
       if (value !== undefined && !/^CLAUDE/.test(key)) env[key] = value;
     }
     Object.assign(env, opts.credential.env);
 
-    const command = Command.make("claude", ...args).pipe(
-      Command.workingDirectory(opts.cwd),
-      Command.env(env, { extendEnv: false }),
-    );
+    const command = ChildProcess.make("claude", args, {
+      cwd: opts.cwd,
+      env,
+      extendEnv: false,
+    });
 
     const state: RunState = {
       sessionId: opts.resume ?? null,
@@ -152,8 +153,9 @@ export const runClaude = (
 
     const { exitCode, stderr } = yield* Effect.scoped(
       Effect.gen(function* () {
-        const proc = yield* Command.start(command);
-        const stderrFiber = yield* proc.stderr.pipe(Stream.decodeText(), Stream.mkString, Effect.fork);
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const proc = yield* spawner.spawn(command);
+        const stderrFiber = yield* proc.stderr.pipe(Stream.decodeText(), Stream.mkString, Effect.forkChild);
         yield* proc.stdout.pipe(Stream.decodeText(), Stream.splitLines, Stream.runForEach(consume));
         const exitCode = yield* proc.exitCode;
         const stderr = yield* Fiber.join(stderrFiber);
@@ -232,8 +234,8 @@ function interpret(line: string, state: RunState, onLine?: (line: string) => voi
  */
 export const runClaudeWithFallback = (
   opts: Omit<ClaudeOptions, "credential"> & { readonly credentials: ReadonlyArray<Credential> },
-): Effect.Effect<ClaudeResult, ClaudeError, CommandExecutor.CommandExecutor | FileSystem.FileSystem> => {
-  const attempt = (index: number, resume: string | null): Effect.Effect<ClaudeResult, ClaudeError, CommandExecutor.CommandExecutor | FileSystem.FileSystem> => {
+): Effect.Effect<ClaudeResult, ClaudeError, ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem> => {
+  const attempt = (index: number, resume: string | null): Effect.Effect<ClaudeResult, ClaudeError, ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem> => {
     const credential = opts.credentials[index];
     if (!credential) return Effect.die(new Error("No credentials configured"));
     const next = (error: ClaudeRateLimited | ClaudeAuthError) => {

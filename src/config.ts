@@ -1,5 +1,4 @@
-import { FileSystem, Path } from "@effect/platform";
-import { Data, Effect, Schema } from "effect";
+import { Data, Effect, FileSystem, Path, Schema } from "effect";
 
 export const Stage = Schema.Struct({
   name: Schema.String,
@@ -40,7 +39,7 @@ export const CONFIG_PATH = ".fabrika/config.json";
 
 export class ConfigNotFound extends Data.TaggedError("ConfigNotFound")<{ readonly path: string }> {}
 
-export const decodeConfig = Schema.decodeUnknown(Schema.parseJson(Config));
+export const decodeConfig = Schema.decodeUnknownEffect(Schema.fromJsonString(Config));
 
 export const loadConfig = (repoRoot: string) =>
   Effect.gen(function* () {
@@ -58,7 +57,7 @@ export const loadConfig = (repoRoot: string) =>
  */
 export const CONFIG_TEMPLATE = `{
   "base": "origin/staging",
-  "branch": "preview/domen/feat/{ticket}/{slug}",
+  "branch": "preview/domen/{type}/{ticket}/{slug}",
   "install": "npm ci",
   "gate": [
     { "name": "compile", "run": "npm run compile" },

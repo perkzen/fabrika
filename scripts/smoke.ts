@@ -5,9 +5,9 @@
  * directories, and --json-schema returns parseable output. Linear MCP is
  * checked only when `linear-ro` is registered.
  */
-import { Command, FileSystem } from "@effect/platform";
-import { NodeContext, NodeRuntime } from "@effect/platform-node";
-import { Console, Effect } from "effect";
+import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { Console, Data, Effect, FileSystem } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,12 +18,19 @@ import { allServers, mcpConfigFile, resolveServers } from "../src/mcp.ts";
 // path; user-scope ones (`claude mcp add -s user`) apply regardless.
 const repo = "/Users/domen/dev/parakeetai/parakeetai-monorepo";
 
+// A plain `Error` here would collapse the typed error union (ClaudeAuthError
+// extends Error), hiding the tag from catchTag below.
+class SmokeFailed extends Data.TaggedError("SmokeFailed")<{}> {}
+
 const program = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const cwd = mkdtempSync(join(tmpdir(), "fabrika-smoke-"));
-  yield* Command.make("sh", "-c", "git init -q && git commit -q --allow-empty -m init").pipe(
-    Command.workingDirectory(cwd),
-    Command.exitCode,
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  yield* spawner.exitCode(
+    ChildProcess.make("sh", ["-c", "git init -q && git commit -q --allow-empty -m init"], {
+      cwd,
+      extendEnv: true,
+    }),
   );
   const rawLog = join(cwd, "raw.jsonl");
   const credential = { name: "default", env: {} };
@@ -119,7 +126,7 @@ const program = Effect.gen(function* () {
   }
 
   yield* Console.log(`\nraw log: ${rawLog}`);
-  if (results.some((ok) => !ok)) return yield* Effect.fail(new Error("smoke failed"));
+  if (results.some((ok) => !ok)) return yield* new SmokeFailed();
 });
 
 program.pipe(
@@ -128,6 +135,6 @@ program.pipe(
       Effect.andThen(Effect.fail(e)),
     ),
   ),
-  Effect.provide(NodeContext.layer),
+  Effect.provide(NodeServices.layer),
   NodeRuntime.runMain,
 );
