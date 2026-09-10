@@ -1,5 +1,10 @@
 # fabrika
 
+[![npm version](https://img.shields.io/npm/v/@perkzen/fabrika?logo=npm&color=cb3837)](https://www.npmjs.com/package/@perkzen/fabrika)
+[![CI](https://github.com/perkzen/fabrika/actions/workflows/ci.yml/badge.svg)](https://github.com/perkzen/fabrika/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/@perkzen/fabrika?logo=nodedotjs&color=5FA04E)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/@perkzen/fabrika?color=blue)](LICENSE)
+
 A local software factory. A ticket goes in, a reviewed draft pull request
 comes out.
 
