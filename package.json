@@ -1,0 +1,25 @@
+{
+  "name": "fabrika",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "fabrika": "./src/cli.ts"
+  },
+  "scripts": {
+    "fabrika": "tsx src/cli.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "compile": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.77.1",
+    "@effect/platform": "^0.97.2",
+    "@effect/platform-node": "^0.108.2",
+    "effect": "^3.22.2"
+  }
+}
