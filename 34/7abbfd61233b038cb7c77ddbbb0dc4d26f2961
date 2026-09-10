@@ -1,0 +1,36 @@
+src/config.ts
+  s_3c699dbe35dc58::t_5905305fba47be 1-52
+  s_3c699dbe35dc58::t_57480ce98f14e5 76-93
+src/claude.ts
+  s_3c699dbe35dc58::t_5905305fba47be 1-250
+package.json
+  s_3c699dbe35dc58::t_27c9ed8e38f401 6-23
+src/cli.ts
+  s_3c699dbe35dc58::t_5905305fba47be 2-36
+PLAN.md
+  s_3c699dbe35dc58::t_a8b951c21616fc 454-478
+  s_3c699dbe35dc58::t_382257c2875e82 395-396
+  s_3c699dbe35dc58::t_cc0a47820f9777 121-387
+  s_3c699dbe35dc58::t_ee87c55b581b04 435-449
+scripts/smoke.ts
+  s_3c699dbe35dc58::t_cc0a47820f9777 17-19
+  s_3c699dbe35dc58::t_5905305fba47be 2-15,20-133
+src/mcp.ts
+  s_3c699dbe35dc58::t_5905305fba47be 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "347abbfd61233b038cb7c77ddbbb0dc4d26f2961",
+  "prompts": {},
+  "sessions": {
+    "s_3c699dbe35dc58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "088a20c0-8b90-4543-926e-91539cab77b6",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
