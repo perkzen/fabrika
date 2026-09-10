@@ -1,0 +1,19 @@
+README.md
+  s_026019a25f56ea::t_3e217432bc40c7 3-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "eb204b24309f7bcc371206579057bfb8c2b95281",
+  "prompts": {},
+  "sessions": {
+    "s_026019a25f56ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9abe7f1-108d-4694-a695-d4173655ed82",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
