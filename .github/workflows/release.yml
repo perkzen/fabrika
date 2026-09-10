@@ -34,9 +34,11 @@ jobs:
       # `prepack` builds dist/ on its own, but failing here is a clearer signal.
       - run: pnpm build
 
-      # No NPM_TOKEN. npm trusted publishing authenticates this workflow over
-      # OIDC (`id-token: write` above), which also signs the provenance
-      # attestation. Configure it once on npmjs.com against this repo and the
-      # `release.yml` workflow name; the package must already exist there, so
-      # the first version is published by hand.
-      - run: npm publish --access public
+      # Authenticated by the NPM_TOKEN repo secret: a granular access token
+      # scoped to this package with 2FA bypass enabled, which npm requires for
+      # unattended publishing. It expires, so a release failing here with a 404
+      # on PUT usually means the token needs regenerating, not that anything is
+      # wrong with the package.
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
