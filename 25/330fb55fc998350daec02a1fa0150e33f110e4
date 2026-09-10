@@ -1,0 +1,106 @@
+src/ticket.ts
+  s_6cce3cbc0ac7fa::t_d3d2f7c44c5398 2-145
+  s_9b83b1daff21dc::t_c28f848e9dc277 1
+prompts/cubic.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-7
+prompts/implement.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-11
+src/gate.ts
+  s_6cce3cbc0ac7fa::t_d3d2f7c44c5398 1-38
+README.md
+  s_6cce3cbc0ac7fa::t_ea86a9db988325 15-19,94-100,117,119-123,125
+  s_9b83b1daff21dc::t_b0b2f17f39f60a 42,44,47-50,58-59,104
+  s_9b83b1daff21dc::t_d8072df632d367 128-131
+  s_5df74986a187d8::t_def0e3539400df 6,32-34,55-57,60-80,84-87,124
+package.json
+  s_9b83b1daff21dc::t_13ad878feed96d 6,21-27
+src/shell.ts
+  s_9b83b1daff21dc::t_c045d83cd42700 1-3,16-17,24,27,29-35,37,39
+  s_6cce3cbc0ac7fa::t_d3d2f7c44c5398 4-15,18-23,25-26,28,36,38,40-52
+prompts/implement.system.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-6
+src/worktree.ts
+  s_6cce3cbc0ac7fa::t_d3d2f7c44c5398 3-26,28-65
+  s_6cce3cbc0ac7fa::t_42ea56c485fabe 2,27
+  s_9b83b1daff21dc::t_c28f848e9dc277 1
+src/cubic.ts
+  s_6cce3cbc0ac7fa::t_97f95fb47e8423 57-58
+  s_6cce3cbc0ac7fa::t_fc0fe0655f240e 1,4,77-86
+  s_9b83b1daff21dc::t_c28f848e9dc277 2-3,76
+  s_6cce3cbc0ac7fa::t_e5d6802eea7010 5-56,59-75,87-141
+prompts/cubic.system.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-6
+tsconfig.json
+  s_09347a1c0240a9::t_c9175b1d23b152 15
+src/mcp.ts
+  s_9b83b1daff21dc::t_a3fb0a97dd4e81 1,19-20,24,29,46,51-52
+prompts/review.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-5
+prompts/review.system.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-3
+src/claude.ts
+  s_9b83b1daff21dc::t_1c5ef3a4c5735a 1-3,38,94,98,130-134,156-158,237-238
+  s_9b83b1daff21dc::t_ac3327a374359f 122-123
+src/config.ts
+  s_9b83b1daff21dc::t_ee34764ee3eccd 1,42
+  s_5df74986a187d8::t_def0e3539400df 60
+scripts/smoke.ts
+  s_9b83b1daff21dc::t_4c10c4aa68f083 8-10,28-33,138
+  s_09347a1c0240a9::t_c9175b1d23b152 21-24,129
+src/cli.ts
+  s_9b83b1daff21dc::t_78c7cbc7c4bece 2-4,53-54,93-100,104
+  s_6cce3cbc0ac7fa::t_42ea56c485fabe 10,20,45,59,68
+  s_6cce3cbc0ac7fa::t_b49dc9d3027b16 71-87
+  s_6cce3cbc0ac7fa::t_68ca847252d869 5-9,11-12,33-44,46-52,55-58,60-67,69-70,88
+  s_6cce3cbc0ac7fa::t_97f95fb47e8423 101-103
+prompts/plan.system.md
+  s_6cce3cbc0ac7fa::t_f10e93c6e9ab63 1-3
+src/errors.ts
+  s_6cce3cbc0ac7fa::t_42ea56c485fabe 1-7
+src/run.ts
+  s_6cce3cbc0ac7fa::t_e5d6802eea7010 3-6,8-34,36-41,43-56,66-74,77-119,121-215,222-261
+  s_6cce3cbc0ac7fa::t_e6b8cbd6013d4b 2,35,57-65,120
+  s_9b83b1daff21dc::t_3165b063206ec7 1
+  s_6cce3cbc0ac7fa::t_42ea56c485fabe 7,42
+  s_6cce3cbc0ac7fa::t_97f95fb47e8423 75-76,216-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "25330fb55fc998350daec02a1fa0150e33f110e4",
+  "prompts": {},
+  "sessions": {
+    "s_09347a1c0240a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "83735b25-25f8-4eab-ab7f-947539fff90b",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_5df74986a187d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69fbe403-5838-47a1-8326-f0322bccc4b0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_6cce3cbc0ac7fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cf2147e-363e-4a28-917c-8485fef929d4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_9b83b1daff21dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08d384b2-d7d2-4b34-b888-6bd8a36396ab",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
