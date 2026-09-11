@@ -13,6 +13,8 @@ Produce the plan another session will execute: concrete, ordered, and already st
 
 2. **Write** `.fabrika/work/plan.md` from the template below. The first slice is the **tracer bullet**: the thinnest end-to-end path through every layer the feature touches. Every later slice adds one behaviour.
 
+   Size the plan to the change: a one-file fix is a one-slice plan, and a section with nothing real in it — no risk worth naming, no second file — is a heading and nothing else. The next session reads this cold, so what it needs is every file and seam named, not volume.
+
 3. **Grill** the plan with the `fabrika:grill-with-docs` skill. It fills `## Decisions`; fold what it settles back into Goal, Slices, and Files.
 
 4. **Done** when every slice names a test, a seam from the spec, and the code that passes it; every risk has a mitigation or a recorded acceptance; and the grill's frontier is empty. Beyond the plan and what `fabrika:domain-modeling` wrote, change no other file.

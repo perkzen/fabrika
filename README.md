@@ -169,7 +169,7 @@ run finishes.
 | spec | `fabrika:to-spec` | `spec.md` with problem, solution, user stories and recorded assumptions |
 | plan | `fabrika:plan` | `plan.md` with ordered vertical slices and decisions from a self-grill |
 | implement | `fabrika:implement`, `fabrika:tdd` | code, one commit per red-to-green cycle |
-| refactor | `fabrika:improve-codebase-architecture` | `refactor.md`, refactor commits scoped to the branch |
+| refactor | `fabrika:improve-codebase-architecture` | `refactor.md`, refactor commits scoped to the branch — `feat` tickets only, by default |
 | security | `fabrika:security` | `security.md`, High and Medium findings fixed |
 | review | `fabrika:code-review` | `review.md` and `pr.md`, which becomes the PR body |
 

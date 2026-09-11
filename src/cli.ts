@@ -6,9 +6,10 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { runClaude } from "./claude.ts";
-import { CONFIG_PATH, CONFIG_TEMPLATE, decodeConfig, loadConfig } from "./config.ts";
+import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
+import { exec } from "./shell.ts";
 import { fromFile, fromLinear } from "./ticket.ts";
 
 const init = Command.make("init", {}, () =>
@@ -19,11 +20,14 @@ const init = Command.make("init", {}, () =>
     if (yield* fs.exists(target)) {
       return yield* new FabrikaError({ message: `${CONFIG_PATH} already exists — edit it instead.` });
     }
-    // The template is decoded before it is written, so it can never drift
-    // from the schema without `init` itself failing.
-    yield* decodeConfig(CONFIG_TEMPLATE);
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
-    yield* fs.writeFileString(target, CONFIG_TEMPLATE);
+    yield* fs.writeFileString(target, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n");
+    // `JSON.stringify` expands every array; prettier collapses the short ones,
+    // so a repo whose gate runs `prettier --check .` would fail on its own
+    // config. Format it with the target repo's prettier — its config, its
+    // rules — and shrug if there isn't one: the file is valid JSON either way.
+    const prettier = path.join(process.cwd(), "node_modules", ".bin", "prettier");
+    if (yield* fs.exists(prettier)) yield* exec(process.cwd(), [prettier, "--write", CONFIG_PATH]).pipe(Effect.ignore);
     yield* Console.log(`wrote ${CONFIG_PATH}`);
     yield* Console.log("edit: base, branch, gate commands, and the mcp names each stage may use.");
     yield* Console.log("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");

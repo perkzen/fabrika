@@ -10,7 +10,7 @@ import { FabrikaError } from "./errors.ts";
 import { runGate, type GateFailure } from "./gate.ts";
 import { mcpConfigFile, resolveServers } from "./mcp.ts";
 import { run as shRun } from "./shell.ts";
-import { asBranchParts, BRANCH_SCHEMA, branchName, defaultParts, type Ticket } from "./ticket.ts";
+import { asBranchParts, BRANCH_SCHEMA, branchName, defaultParts, type Ticket, type TicketType } from "./ticket.ts";
 import * as wt from "./worktree.ts";
 
 export class Escalated extends Data.TaggedError("Escalated")<{
@@ -21,9 +21,12 @@ export class Escalated extends Data.TaggedError("Escalated")<{
 
 /** Persisted after every step so a dead run resumes rather than restarts. */
 type State = {
-  sessionId: string | null;
+  /** One Claude session per unit of work, by key: the stage, the merge, the review round. */
+  sessions: Record<string, string>;
   /** Chosen once by the naming call; a resume must land on the same branch. */
   branch: string | null;
+  /** The naming call's verdict, kept so a resumed run skips the same stages. */
+  type: TicketType | null;
   completed: Array<string>;
   prNumber: number | null;
   round: number;
@@ -87,11 +90,12 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
 
     const state: State = (yield* fs.exists(stateFile))
       ? (JSON.parse(yield* fs.readFileString(stateFile)) as State)
-      : { sessionId: null, branch: null, completed: [], prNumber: null, round: 0, pushed: [], reran: [], done: false };
+      : { sessions: {}, branch: null, type: null, completed: [], prNumber: null, round: 0, pushed: [], reran: [], done: false };
     state.reran ??= []; // state files from before checks existed
+    state.sessions ??= {}; // state files from before stages had their own sessions
     const save = () => fs.writeFileString(stateFile, JSON.stringify(state, null, 2));
     if (state.done) return yield* log(`already done: ${ticket.identifier} — remove ${runsDir} to rerun`);
-    if (state.sessionId) yield* log(`resuming session ${state.sessionId} (${state.completed.join(", ") || "no stages done"})`);
+    if (state.completed.length > 0) yield* log(`resuming after ${state.completed.join(", ")}`);
 
     yield* log(`${ticket.identifier} — ${ticket.title}`);
     // Fail on a missing prompt file or a missing or OAuth-only MCP server now,
@@ -117,8 +121,16 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       fs.readFileString(path.join(PROMPTS, file)).pipe(Effect.map((t) => fill(t, { ...vars, ...extra })));
 
     let counter = 0;
+    /**
+     * Every call names the session it belongs to. Stages get one each, so
+     * `implement` never sees the spec conversation — only `.fabrika/work/`,
+     * which is the handoff. Within a unit the key repeats, so a gate retry
+     * continues the conversation that wrote the code it is being asked to fix.
+     */
     const claude = (opts: {
       stage: string;
+      /** Session key; defaults to the stage name. */
+      session?: string;
       prompt: string;
       systemPromptFile?: string;
       mcp?: ReadonlyArray<string>;
@@ -129,11 +141,12 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       Effect.scoped(
         Effect.gen(function* () {
           const mcp = opts.mcp?.length ? yield* mcpConfigFile(yield* resolveServers(repoRoot, opts.mcp)) : undefined;
+          const key = opts.session ?? opts.stage;
           const result = yield* runClaudeWithFallback({
             cwd: opts.cwd ?? dir,
             prompt: opts.prompt,
             credentials,
-            resume: state.sessionId,
+            resume: state.sessions[key] ?? null,
             systemPromptFile: opts.systemPromptFile,
             mcpConfigFile: mcp,
             disallowedTools: config.deny,
@@ -141,7 +154,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
             rawLog: path.join(runsDir, `${opts.stage}-${++counter}.jsonl`),
             onLine: (line) => logSync(`  ${line.slice(0, 400).replace(/\n/g, " ")}`),
           });
-          state.sessionId = result.sessionId ?? state.sessionId;
+          if (result.sessionId) state.sessions[key] = result.sessionId;
           yield* save();
           if (result.costUsd !== null) yield* log(`  (${opts.stage}: $${result.costUsd.toFixed(2)})`);
           return result;
@@ -162,13 +175,18 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         );
         if (!named) yield* log(`  naming answer rejected; using the default name`);
         // The namer reads the ticket more carefully than a label regex; its type is the one the stages see.
-        if (named) vars.type = named.type;
+        if (named) state.type = named.type;
         const user = config.branch.includes("{user}") ? yield* gitUser(repoRoot) : "";
         state.branch = branchName(config.branch, ticket, named ?? defaultParts(ticket), config.previewPrefix ?? "", user);
       }
       yield* save();
     }
     const branch = state.branch;
+    // No naming call ran (an existing worktree pinned the branch, or the call
+    // failed): the ticket's own type stands in.
+    state.type ??= ticket.type;
+    const type = state.type;
+    vars.type = type;
     vars.branch = branch;
     yield* log(`branch ${branch} off ${config.base}`);
     yield* wt.create(repoRoot, dir, branch, config.base);
@@ -212,6 +230,10 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       });
 
     for (const stage of config.stages) {
+      if (stage.only && !stage.only.includes(type)) {
+        yield* log(`stage ${stage.name}: skipped (${type} ticket; runs for ${stage.only.join(", ")})`);
+        continue;
+      }
       if (state.completed.includes(stage.name)) {
         yield* log(`stage ${stage.name}: already done`);
         continue;
@@ -260,6 +282,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
           yield* log(`  ${files.length} conflicted file(s); resolving`);
           yield* claude({
             stage: "merge",
+            session: `merge-${state.round}`,
             prompt: yield* prompt("merge.md", { files: files.map((f) => `- ${f}`).join("\n") }),
             systemPromptFile: path.join(PROMPTS, "implement.system.md"),
           });
@@ -276,7 +299,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         const failure = yield* gate();
         if (failure) {
           yield* log(`  gate red after merge; one repair pass`);
-          yield* claude({ stage: "merge-gate", prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
+          yield* claude({ stage: "merge-gate", session: `merge-${state.round}`, prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
           const again = yield* gate();
           if (again) return yield* new Escalated({ reason: `gate red after merging ${config.base}: ${again.name}`, worktree: dir, prUrl: prUrlIfAny });
         }
@@ -371,6 +394,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       if (threads.length > 0) {
         const result = yield* claude({
           stage: "cubic",
+          session: `round-${state.round}`,
           prompt: yield* prompt("cubic.md", { count: String(threads.length), threads: cubic.renderThreads(threads) }),
           systemPromptFile: path.join(PROMPTS, "cubic.system.md"),
           jsonSchema: cubic.DECISION_SCHEMA,
@@ -388,6 +412,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         for (const check of failed) failures.push({ check, log: yield* checks.failedLog(dir, check) });
         yield* claude({
           stage: "ci",
+          session: `round-${state.round}`,
           prompt: yield* prompt("ci.md", { count: String(failed.length), sha: pushedHead.slice(0, 7), failures: checks.renderFailures(failures) }),
           systemPromptFile: path.join(PROMPTS, "implement.system.md"),
         });
@@ -399,7 +424,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       const failure = yield* gate();
       if (failure) {
         yield* log(`  gate red after review fixes; one repair pass`);
-        yield* claude({ stage: "cubic-gate", prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
+        yield* claude({ stage: "cubic-gate", session: `round-${state.round}`, prompt: gateFeedback(failure), systemPromptFile: path.join(PROMPTS, "implement.system.md") });
         const again = yield* gate();
         if (again) return yield* new Escalated({ reason: `gate red after cubic round ${state.round}: ${again.name}`, worktree: dir, prUrl: prUrl(prNumber) });
       }

@@ -92,7 +92,7 @@ a file needs no Linear key at all.
 Each run keeps its state and logs outside the target repo, in
 `~/.fabrika/runs/<repo>/<ticket>/`:
 
-- `state.json`: session id, completed stages, branch name, PR number, review round
+- `state.json`: session ids by key, completed stages, branch name, ticket type, PR number, review round
 - `log.txt`: the human-readable log
 - one raw `stream-json` file per agent call
 - `work/`: a copy of the worktree's `.fabrika/work/` made when the run finishes
@@ -104,11 +104,37 @@ is left in place for a human.
 `.git/info/exclude` (shared by its worktrees), so the stage artifacts never
 land in a commit but survive the worktree.
 
-## One session, many stages
+## Skipping a stage
 
-Every stage resumes the same Claude session, so all stages share one context
-window. That keeps the implementer's knowledge available to the reviewer, at
-the cost of a long transcript by the end.
+A stage with `only` runs for those ticket types and is skipped for the rest —
+the type being the naming call's verdict, not the Linear label, recorded in
+`state.json` so a resumed run skips identically. The shipped config puts
+`only: ["feat"]` on `refactor`: a fix or a chore rarely has architecture worth
+reshaping, and with one session per stage the pass costs a cold start plus a
+full gate run. `security` deliberately has no `only` — a small diff is a small
+security review.
+
+A stage nobody in the repo ever wants is deleted from `stages` instead.
+
+## One session per stage
+
+Each stage gets its own Claude session, so the implementer never inherits the
+spec conversation and the reviewer reads the code cold. What travels between
+stages is `.fabrika/work/` and the commits — written down, not remembered.
+
+Within a unit of work the session is reused, which is what makes a gate retry
+work: the agent being told "compile failed, fix it" is the one that wrote the
+code. The keys in `state.sessions`:
+
+| Key | Covers |
+| --- | --- |
+| `branch` | the naming call |
+| the stage name | the stage and its gate-failure retries |
+| `merge-<round>` | resolving a base merge, and the repair pass after it |
+| `round-<round>` | one review round: cubic threads, CI fixes, the repair pass |
+
+A stage that assumes it remembers an earlier one is a bug in its prompt — the
+inputs have to be named as paths.
 
 ## Review loop details
 
@@ -140,4 +166,7 @@ trusting anything else.
 ## Migrating an old config
 
 A `.fabrika/config.json` written by an older `init` has a three-stage list.
-Copy the `stages` array from `src/config.ts` to adopt the six-stage pipeline.
+Run `fabrika init` in an empty directory and copy the `stages` array out of the
+file it writes — `src/config.ts` holds the same template as a TypeScript object
+now, which is not valid JSON. That is also where `only` shows up, if the
+upgrade is what brings you here.

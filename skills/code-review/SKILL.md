@@ -18,7 +18,7 @@ The fixed point is the base given in the stage prompt. Capture `git diff <base>.
 
 ## 2. Sources
 
-- **Spec**: `.fabrika/work/spec.md`, with `## Decisions` in `.fabrika/work/plan.md` for intent. `.fabrika/work/refactor.md` and `.fabrika/work/security.md` record the refactors and fixes the earlier stages added on purpose; a change they account for is intended, not creep.
+- **Spec**: `.fabrika/work/spec.md`, with `## Decisions` in `.fabrika/work/plan.md` for intent. `.fabrika/work/refactor.md` and `.fabrika/work/security.md` record the refactors and fixes the earlier stages added on purpose; a change they account for is intended, not creep. Either file may be absent — that stage did not run for this ticket, which says nothing about the changes themselves; judge them against the spec.
 - **Standards**: whatever the repo documents — `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `CODING_STANDARDS.md`, `docs/` — plus the smell baseline below and the comment rules in `fabrika:code-comments`. A documented repo standard wins over the baseline. Skip anything tooling already enforces (lint, format, typecheck).
 
 ### Smell baseline
