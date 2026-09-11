@@ -1,0 +1,19 @@
+src/cli.ts
+  s_19c03cecac941b::t_bbdfc08d015e3a 5,8,70-78,138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7eb845a23b6177c740cd5433fb560616c110366b",
+  "prompts": {},
+  "sessions": {
+    "s_19c03cecac941b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f60af8d-8257-467b-9ebd-3c452f42a074",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
