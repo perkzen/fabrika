@@ -6,6 +6,7 @@ target repo's own `.claude/skills/` still load alongside.
 
 | Skill | Stage | Reads | Writes |
 | --- | --- | --- | --- |
+| `fabrika:configure` | `fabrika init`, before any run | CI workflows, lockfile, scripts | `{base, install, gate}` as structured output; the host writes the config |
 | `fabrika:branch-naming` | naming call, before the worktree exists | ticket, repo | `{type, slug, preview}` as structured output; the host builds the branch |
 | `fabrika:to-tickets` | human-invoked, before a run | a spec, plan, or conversation | `.fabrika/tickets/<feature>/<NN>-<slug>.md`, each runnable with `fabrika run --file` |
 | `fabrika:to-spec` | spec | ticket, repo | `.fabrika/work/spec.md` |
@@ -36,7 +37,7 @@ Skill names follow the `engineering/` folder of Matt's repo where a counterpart
 exists (`to-spec`, `to-tickets`, `tdd`, `implement`, `codebase-design`,
 `domain-modeling`, `improve-codebase-architecture`, `code-review`, `research`,
 `resolving-merge-conflicts`, `grill-with-docs`), so the two sets read the same.
-`plan`, `security`, `branch-naming`, `fix-ci`, and `code-comments` are fabrika's own.
+`plan`, `security`, `branch-naming`, `configure`, `fix-ci`, and `code-comments` are fabrika's own.
 
 To use the human-facing ones (`to-tickets`) in an interactive session, load the
 plugin: `claude --plugin-dir /path/to/fabrika`.

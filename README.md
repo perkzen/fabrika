@@ -70,9 +70,15 @@ Then, inside the repo you want to work on:
 fabrika init
 ```
 
-This writes `.fabrika/config.json`. Edit the base branch, the branch-name
-pattern (`{user}` in it is your `git config user.name`, kebab-cased) and the
-gate commands (`compile`, `test`, `lint`, whatever your repo uses). Commit the
+This reads the repo before it writes `.fabrika/config.json`: the default
+branch, the install command from your lockfile, and the gate — the checks CI
+already enforces on a pull request, each one run once to prove it is green on
+an untouched checkout. It prints where every step came from and what it
+dropped, because a gate step that does not pass here would hand the agent
+"fix it" for code it never wrote.
+
+Read the gate, correct anything it guessed wrong, set the branch-name pattern
+(`{user}` in it is your `git config user.name`, kebab-cased), and commit the
 file. The gate for a repo belongs in that repo.
 
 Run a ticket from either source:

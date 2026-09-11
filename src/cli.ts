@@ -6,11 +6,15 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { runClaude } from "./claude.ts";
+import type { Config } from "./config.ts";
 import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
+import { proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
 import { exec } from "./shell.ts";
 import { fromFile, fromLinear } from "./ticket.ts";
+
+const credentials = [{ name: "default", env: {} }];
 
 const init = Command.make("init", {}, () =>
   Effect.gen(function* () {
@@ -20,8 +24,32 @@ const init = Command.make("init", {}, () =>
     if (yield* fs.exists(target)) {
       return yield* new FabrikaError({ message: `${CONFIG_PATH} already exists — edit it instead.` });
     }
+    // The gate is whatever this repo already checks with, so it is read off
+    // the repo rather than shipped: a step that does not exist here would go
+    // red on an untouched checkout, and the agent would be handed "fix it"
+    // for code it never wrote. One structured call proposes the three
+    // repo-specific fields; the host is still the one that writes the file,
+    // so a rejected answer cannot produce a config that will not load.
+    yield* Console.log("reading the repo: base branch, install command, and the checks CI enforces.");
+    yield* Console.log("this runs the candidate commands, so give it a minute.");
+    const rejected = (message: string) => Console.log(`  ${message}`).pipe(Effect.as(null));
+    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, (line) =>
+      console.log(`  ${line.slice(0, 160).replace(/\s+/g, " ")}`),
+    ).pipe(
+      Effect.catchTag("ClaudeAuthError", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
+      Effect.catchTag("ClaudeRateLimited", () => rejected("usage limit hit")),
+      Effect.catchTag("ClaudeFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
+      // What is left is a filesystem or spawn failure — `claude` missing from
+      // PATH is the usual one. `init` still has a config to write, so it says
+      // what went wrong and writes the neutral one rather than dying.
+      Effect.catch((e) => rejected(`could not run the configure call (${String((e as { message?: unknown }).message ?? e).slice(0, 80)})`)),
+    );
+    for (const note of proposal?.notes ?? []) yield* Console.log(`  ${note}`);
+    const config: Config = proposal
+      ? { ...CONFIG_TEMPLATE, base: proposal.base, install: proposal.install, gate: proposal.gate }
+      : CONFIG_TEMPLATE;
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
-    yield* fs.writeFileString(target, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n");
+    yield* fs.writeFileString(target, JSON.stringify(config, null, 2) + "\n");
     // `JSON.stringify` expands every array; prettier collapses the short ones,
     // so a repo whose gate runs `prettier --check .` would fail on its own
     // config. Format it with the target repo's prettier — its config, its
@@ -29,15 +57,17 @@ const init = Command.make("init", {}, () =>
     const prettier = path.join(process.cwd(), "node_modules", ".bin", "prettier");
     if (yield* fs.exists(prettier)) yield* exec(process.cwd(), [prettier, "--write", CONFIG_PATH]).pipe(Effect.ignore);
     yield* Console.log(`wrote ${CONFIG_PATH}`);
-    yield* Console.log("edit: base, branch, gate commands, and the mcp names each stage may use.");
+    if (!proposal) {
+      yield* Console.log("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
+    }
+    yield* Console.log("read the gate before you commit the file: it is what every code stage must pass.");
+    yield* Console.log("edit: branch, and the mcp names each stage may use.");
     yield* Console.log("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");
   }),
 );
 
 /** Secrets live outside the target repo; loaded by explicit path, no dotenv. */
 const ENV_FILE = join(homedir(), ".config", "fabrika", ".env");
-
-const credentials = [{ name: "default", env: {} }];
 
 /**
  * A stale keychain token fails every `claude -p` while `claude auth status`

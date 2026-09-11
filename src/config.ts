@@ -58,20 +58,22 @@ export const loadConfig = (repoRoot: string) =>
     return yield* decodeConfig(raw);
   });
 
-/** Written by `fabrika init`; typed, so it cannot drift from the schema. */
+/**
+ * Written by `fabrika init`; typed, so it cannot drift from the schema.
+ *
+ * `base`, `install` and `gate` are left neutral here and filled in per repo by
+ * the `fabrika:configure` call in `configure.ts`: a gate command that does not
+ * exist in the target repo is worse than no gate at all, because the failing
+ * output goes back to the agent as "fix it" on code it never touched.
+ */
 export const CONFIG_TEMPLATE: Config = {
-  base: "origin/staging",
+  base: "origin/main",
   branch: "{user}/{type}/{ticket}/{slug}",
   previewPrefix: "preview/",
-  install: "npm ci",
-  gate: [
-    { name: "compile", run: "npm run compile" },
-    { name: "test", run: "npm run test" },
-    { name: "integration", run: "npm run test:integration" },
-    { name: "knip", run: "npm run knip" },
-    { name: "format", run: "npm run format:check" },
-    { name: "desktop-compat", run: "npm run check:desktop-compat", when: ["apps/desktop/**", "packages/shared/**"] },
-  ],
+  // Present so `init` keeps the key in this position when it fills one in;
+  // `JSON.stringify` drops it when the repo needs no install step.
+  install: undefined,
+  gate: [],
   stages: [
     { name: "spec", prompt: "spec.md", system: "plan.system.md", mcp: ["linear-ro"] },
     { name: "plan", prompt: "plan.md", system: "plan.system.md" },

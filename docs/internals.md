@@ -10,7 +10,8 @@ is and how to run it; this file covers how it is built.
 | `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>`; auth probe; exit codes |
 | `src/run.ts` | The loop: naming call, worktree, stages with gate feedback, merge base, draft PR, review rounds; `state.json` for resume |
 | `src/claude.ts` | Spawns `claude -p` with fabrika's skills as a `--plugin-dir`, parses `stream-json`, typed errors (`ClaudeAuthError`, `ClaudeRateLimited`, `ClaudeFailed`) |
-| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template |
+| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
+| `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record and its two sources: a Linear issue (one GraphQL POST) or a spec file (frontmatter + first H1) |
 | `src/mcp.ts` | Resolves MCP servers from Claude Code's config scopes into a scoped 0600 temp file |
 | `src/worktree.ts` | Worktree under `~/.fabrika/worktrees/<repo>/<ticket>`, `.fabrika/work/` exclude, changed files, commit count, merge, push |
@@ -52,6 +53,32 @@ into `./foo.js`. `dist/` sits at the same depth as `src/`, so the `new URL("..",
 import.meta.url)` lookups for `PLUGIN_DIR` and `PROMPTS` resolve to the package
 root either way. `erasableSyntaxOnly` in `tsconfig.json` keeps the from-source
 path working by failing the typecheck on syntax Node cannot strip.
+
+## Configuring a repo
+
+`fabrika init` writes the template in `src/config.ts`, but `base`, `install`
+and `gate` are left neutral there and filled in by one structured call that
+applies the `fabrika:configure` skill. They are the fields that cannot be
+shipped: a gate step naming a script the target repo does not have goes red on
+an untouched checkout, and the runner hands that failure to the agent as
+"fix it" for code it never wrote — so the agent spends `maxIterations`
+inventing a way to make a command that should not be there pass.
+
+The call reads the repo's CI workflows first and its scripts second. CI is the
+ground truth because the review loop waits on the PR's checks: a gate that
+differs from CI goes green on the host, pushes, and spends a review round on a
+mismatch that was readable at init. It then **runs each candidate** on the
+untouched checkout and proposes only the green ones, which is the part a
+template or a regex cannot do, and returns a `notes` line per decision that
+`init` prints.
+
+The host still writes the file. `asProposal` in `src/configure.ts` rejects an
+answer whose parts are unusable, and rejects any gate step containing
+`git push`, `gh pr merge`, a publish or an `rm -r`: the config denies those
+tools to every stage, and a gate command is the one place that rule could be
+laundered back in. A rejected or failed call — including `claude` missing from
+PATH — leaves `gate` empty and says so. An empty gate is honest; a wrong one
+is not.
 
 ## Branch naming
 
