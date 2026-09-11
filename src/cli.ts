@@ -2,9 +2,10 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Console, Effect, FileSystem, Option, Path } from "effect";
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runClaude } from "./claude.ts";
 import type { Config } from "./config.ts";
 import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
@@ -66,6 +67,15 @@ const init = Command.make("init", {}, () =>
   }),
 );
 
+/**
+ * Read rather than hard-coded: the two drifted once already, and `npm version`
+ * only bumps package.json and the plugin manifest.
+ */
+const VERSION = ((): string => {
+  const pkg: unknown = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
+  return typeof pkg === "object" && pkg !== null && "version" in pkg && typeof pkg.version === "string" ? pkg.version : "0.0.0";
+})();
+
 /** Secrets live outside the target repo; loaded by explicit path, no dotenv. */
 const ENV_FILE = join(homedir(), ".config", "fabrika", ".env");
 
@@ -125,7 +135,7 @@ const run = Command.make(
 const fabrika = Command.make("fabrika").pipe(Command.withSubcommands([init, run]));
 
 fabrika.pipe(
-  Command.run({ version: "0.1.0" }),
+  Command.run({ version: VERSION }),
   // `Command.run` has already rendered usage and help for its own errors, so
   // those are rethrown untouched; everything else is one of ours and gets a
   // single line instead of a stack trace.
