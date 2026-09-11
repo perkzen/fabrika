@@ -9,7 +9,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # `gh release create` writes a release object against the pushed tag.
+      contents: write
       # Required for npm trusted publishing (OIDC) and provenance.
       id-token: write
     steps:
@@ -42,3 +43,11 @@ jobs:
       - run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The tag alone leaves the repo's Releases panel showing whatever was
+      # last created by hand, which is how v0.0.2 stayed "Latest" after 0.0.3
+      # was on npm. Runs after the publish, so a release only ever names a
+      # version that actually shipped.
+      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
