@@ -75,7 +75,8 @@ branch, the install command from your lockfile, and the gate — the checks CI
 already enforces on a pull request, each one run once to prove it is green on
 an untouched checkout. It prints where every step came from and what it
 dropped, because a gate step that does not pass here would hand the agent
-"fix it" for code it never wrote.
+"fix it" for code it never wrote. It runs those commands in your checkout, so
+expect it to install dependencies and leave whatever `build` normally leaves.
 
 Read the gate, correct anything it guessed wrong, set the branch-name pattern
 (`{user}` in it is your `git config user.name`, kebab-cased), and commit the
