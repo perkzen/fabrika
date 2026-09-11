@@ -1,0 +1,39 @@
+docs/internals.md
+  s_4320ae85698c40::t_7d92c21ccf9179 169-172
+  s_4320ae85698c40::t_ed31647bb1aab4 95,107,109-117
+  s_4320ae85698c40::t_920840e71ef5dc 119-137
+README.md
+  s_4320ae85698c40::t_7d92c21ccf9179 172
+src/config.ts
+  s_4320ae85698c40::t_345d099499a13b 9,79-81
+  s_4320ae85698c40::t_7149e02c6137d0 10
+  s_4320ae85698c40::t_920e5fa4537359 61-73,75-78,82-83,85-90
+  s_4320ae85698c40::t_d52c05ba92768d 31
+prompts/review.md
+  s_4320ae85698c40::t_f6437a9b0287b7 3
+src/cli.ts
+  s_4320ae85698c40::t_4264c0818cdc6e 9,12,24-30
+src/run.ts
+  s_4320ae85698c40::t_0e620cdaa0434e 24-25,95,98,124-129,132-133,144,149,157,285,302,397,415,427
+  s_4320ae85698c40::t_5f596c89f37b87 13,28-29,93,178,185-189,233-236
+skills/plan/SKILL.md
+  s_4320ae85698c40::t_dac2a2b0a638e7 16-17
+skills/code-review/SKILL.md
+  s_4320ae85698c40::t_dac2a2b0a638e7 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a89fb77045d431f36246d682cacb869c5ca8a674",
+  "prompts": {},
+  "sessions": {
+    "s_4320ae85698c40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6e94e8e-f9a0-4917-8a22-0959d45b594f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
