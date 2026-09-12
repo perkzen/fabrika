@@ -108,13 +108,13 @@ export const reviewRounds: Step = {
       let decisions: ReadonlyArray<Decision> = [];
       if (threads.length > 0) {
         const reply = yield* agent.ask({
-          stage: "cubic",
+          stage: reviewer.name,
           session: `round-${round}`,
-          prompt: yield* prompts.render("cubic.md", {
+          prompt: yield* prompts.render(reviewer.prompts.threads, {
             count: String(threads.length),
             threads: reviewer.renderThreads(threads),
           }),
-          systemPromptFile: prompts.file("cubic.system.md"),
+          systemPromptFile: prompts.file(reviewer.prompts.system),
           jsonSchema: reviewer.decisionSchema,
         });
         decisions = ((reply.structured as { decisions?: Array<Decision> } | undefined)?.decisions ?? []).filter((decision) =>
@@ -142,7 +142,7 @@ export const reviewRounds: Step = {
       if (failure) {
         yield* journal.log(`  gate red after review fixes; one repair pass`);
         yield* agent.ask({
-          stage: "cubic-gate",
+          stage: `${reviewer.name}-gate`,
           session: `round-${round}`,
           prompt: gate.feedback(failure),
           systemPromptFile: implementer,

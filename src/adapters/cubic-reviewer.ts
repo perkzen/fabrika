@@ -126,6 +126,7 @@ export const layer = Layer.effect(Reviewer)(
       name: "cubic",
       owns: (checkName: string, checkUrl: string) => /cubic/i.test(checkName) || checkUrl.includes("cubic.dev"),
       decisionSchema: DECISION_SCHEMA,
+      prompts: { threads: "cubic.md", system: "cubic.system.md" },
 
       await: (pr: number, commits: ReadonlyArray<string>, timeoutMinutes: number) =>
         Effect.gen(function* () {

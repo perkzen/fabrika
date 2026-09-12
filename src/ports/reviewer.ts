@@ -43,6 +43,12 @@ export interface Reviewer {
   /** The threads as the agent reads them, and the schema its answer must match. */
   readonly renderThreads: (threads: ReadonlyArray<ReviewThread>) => string;
   readonly decisionSchema: string;
+  /**
+   * The prompt files the agent answers this reviewer's threads with. They
+   * belong to the reviewer, not to the review loop: a reviewer whose findings
+   * arrive in its own shape needs its own instructions for reading them.
+   */
+  readonly prompts: { readonly threads: string; readonly system: string };
 }
 
 export const Reviewer = Context.Service<Reviewer>("Reviewer");

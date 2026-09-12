@@ -184,6 +184,7 @@ export const harness = (script: Script = {}) => {
       owns: (name: string) => /fake/i.test(name),
       renderThreads: (threads) => threads.map((thread) => thread.id).join(","),
       decisionSchema: "{}",
+      prompts: { threads: "threads.md", system: "threads.system.md" },
     }),
   );
 

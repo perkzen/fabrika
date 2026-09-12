@@ -33,7 +33,11 @@ export const layer = (directory: string) =>
       const state: RunState = (yield* fs.exists(file))
         ? { ...empty(), ...(JSON.parse(yield* fs.readFileString(file)) as Partial<RunState>) }
         : empty();
-      const save = fs.writeFileString(file, JSON.stringify(state, null, 2)).pipe(Effect.mapError(asFabrikaError(`writing ${file}`)));
+      // Suspended: the state is mutated in place, so serialising it when the
+      // layer is built would write the same first snapshot forever.
+      const save = Effect.suspend(() => fs.writeFileString(file, JSON.stringify(state, null, 2))).pipe(
+        Effect.mapError(asFabrikaError(`writing ${file}`)),
+      );
       return {
         directory,
         get: () => state,
