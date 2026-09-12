@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { classify } from "../src/adapters/gh-forge.ts";
+import { parseScore } from "../src/adapters/cubic-reviewer.ts";
+import { asProposal } from "../src/configure.ts";
+import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
+
+const ticket: Ticket = { identifier: "PAR-12", title: "Add a new export button", description: "", type: "feat" };
+
+test("a slug drops filler and stays short", () => {
+  assert.equal(slug("Add a new export button"), "export-button");
+  assert.equal(slug("!!!"), "ticket");
+});
+
+test("a branch fills the pattern and prefixes only a preview change", () => {
+  const parts = { type: "fix", slug: "export-button", preview: true } as const;
+  assert.equal(
+    branchName("{user}/{type}/{ticket}/{slug}", ticket, parts, "preview/", "domen-perko"),
+    "preview/domen-perko/fix/PAR-12/export-button",
+  );
+  assert.equal(
+    branchName("{user}/{type}/{ticket}/{slug}", ticket, { ...parts, preview: false }, "preview/", "domen-perko"),
+    "domen-perko/fix/PAR-12/export-button",
+  );
+});
+
+test("a naming answer that breaks the rules is rejected, so the deterministic parts stand in", () => {
+  assert.deepEqual(asBranchParts({ type: "feat", slug: "export-button", preview: true }), {
+    type: "feat",
+    slug: "export-button",
+    preview: true,
+  });
+  assert.equal(asBranchParts({ type: "feature", slug: "x", preview: true }), null, "unknown type");
+  assert.equal(asBranchParts({ type: "feat", slug: "Export Button", preview: true }), null, "not kebab-case");
+  assert.equal(asBranchParts({ type: "feat", slug: "x", preview: "yes" }), null, "preview is not a boolean");
+  assert.equal(asBranchParts(undefined), null);
+});
+
+test("a gate step that would launder a denied tool back in rejects the whole proposal", () => {
+  const base = { base: "origin/main", gate: [{ name: "compile", run: "tsc" }], notes: [] };
+  assert.ok(asProposal(base));
+  for (const run of ["git push origin main", "gh pr merge 3", "npm publish", "rm -rf /"]) {
+    assert.equal(asProposal({ ...base, gate: [{ name: "x", run }] }), null, run);
+  }
+  assert.equal(asProposal({ ...base, install: "git push" }), null, "nor through the install command");
+});
+
+test("a proposal is normalised where it can be and rejected where it cannot", () => {
+  const proposal = asProposal({
+    base: "main",
+    gate: [{ name: "Typecheck", run: "tsc" }, { name: "e2e (chromium)", run: "playwright test" }],
+    notes: ["read from ci.yml"],
+  });
+  assert.equal(proposal?.base, "origin/main", "a bare branch name gets the remote it must have had");
+  assert.deepEqual(proposal?.gate.map((step) => step.name), ["typecheck", "e2e-chromium"]);
+  assert.equal(asProposal({ base: "", gate: [], notes: [] }), null);
+});
+
+test("a check rollup is bucketed, and the reviewer's own check is not waited on", () => {
+  const checks = classify(
+    [
+      { __typename: "CheckRun", name: "test", workflowName: "CI", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: "https://github.com/o/r/actions/runs/9/job/8" },
+      { __typename: "CheckRun", name: "lint", workflowName: "CI", status: "IN_PROGRESS", conclusion: "", detailsUrl: "https://example.test" },
+      { __typename: "StatusContext", context: "vercel", state: "SUCCESS", targetUrl: "https://vercel.test" },
+      { __typename: "StatusContext", context: "cubic review", state: "PENDING", targetUrl: "https://cubic.dev/x" },
+    ],
+    (name, url) => /cubic/i.test(name) || url.includes("cubic.dev"),
+  );
+  assert.deepEqual(
+    checks.map((check) => [check.name, check.state]),
+    [["CI / test", "fail"], ["CI / lint", "pending"], ["vercel", "pass"]],
+  );
+  assert.deepEqual(checks[0]!.job, { repo: "o/r", id: "9", jobId: "8" }, "a rerunnable job is recognised by its URL");
+});
+
+test("a missing score is never a pass", () => {
+  assert.equal(parseScore("<!-- cubic:review-summary:confidence-score:4/5 -->"), 4);
+  assert.equal(parseScore("no score here"), null);
+});

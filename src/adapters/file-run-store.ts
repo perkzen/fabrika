@@ -2,7 +2,8 @@ import { Effect, FileSystem, Layer, Path } from "effect";
 import { asFabrikaError } from "../errors.ts";
 import { RunStore, type RunState } from "../ports/run-store.ts";
 
-const EMPTY: RunState = {
+/** A function, not a constant: spreading a shared literal would hand every state the same arrays. */
+const empty = (): RunState => ({
   sessions: {},
   branch: null,
   type: null,
@@ -12,7 +13,7 @@ const EMPTY: RunState = {
   pushed: [],
   reran: [],
   done: false,
-};
+});
 
 /**
  * `state.json` in the run's directory, read once at the start and written
@@ -30,8 +31,8 @@ export const layer = (directory: string) =>
       yield* fs.makeDirectory(directory, { recursive: true });
       const file = path.join(directory, "state.json");
       const state: RunState = (yield* fs.exists(file))
-        ? { ...EMPTY, ...(JSON.parse(yield* fs.readFileString(file)) as Partial<RunState>) }
-        : { ...EMPTY };
+        ? { ...empty(), ...(JSON.parse(yield* fs.readFileString(file)) as Partial<RunState>) }
+        : empty();
       const save = fs.writeFileString(file, JSON.stringify(state, null, 2)).pipe(Effect.mapError(asFabrikaError(`writing ${file}`)));
       return {
         directory,
