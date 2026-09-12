@@ -1,0 +1,29 @@
+src/adapters/file-run-store.ts
+  s_499177cc5f7b9d::t_be7f2a89689295 36-40
+test/run-store.test.ts
+  s_499177cc5f7b9d::t_815def2da70ab5 1-99
+src/adapters/cubic-reviewer.ts
+  s_499177cc5f7b9d::t_6fa08dcee492df 129
+src/pipeline/steps/review.ts
+  s_499177cc5f7b9d::t_6fa08dcee492df 111,113,117,145
+src/ports/reviewer.ts
+  s_499177cc5f7b9d::t_6fa08dcee492df 46-51
+test/harness.ts
+  s_499177cc5f7b9d::t_6fa08dcee492df 187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "95611815c8e6154c9861f414dc376a8fbd90c02a",
+  "prompts": {},
+  "sessions": {
+    "s_499177cc5f7b9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66b1ed8b-497b-48b0-a2f1-5e0f51c81f9f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
