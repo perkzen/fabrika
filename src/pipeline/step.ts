@@ -1,0 +1,108 @@
+import { Effect } from "effect";
+import type { FabrikaError } from "../errors.ts";
+import type { AgentError } from "../ports/agent.ts";
+import { Agent } from "../ports/agent.ts";
+import { Forge } from "../ports/forge.ts";
+import { Gate } from "../ports/gate.ts";
+import { Journal } from "../ports/journal.ts";
+import { Prompts } from "../ports/prompts.ts";
+import { Reviewer } from "../ports/reviewer.ts";
+import { RunContext } from "../ports/run-context.ts";
+import { RunStore } from "../ports/run-store.ts";
+import { Workspace } from "../ports/workspace.ts";
+import type { Escalated } from "./escalated.ts";
+
+/** Everything a step may reach for. All of it is a port, so all of it is replaceable. */
+export type StepServices =
+  | Agent
+  | Forge
+  | Gate
+  | Journal
+  | Prompts
+  | Reviewer
+  | RunContext
+  | RunStore
+  | Workspace;
+
+export type StepError = Escalated | FabrikaError | AgentError;
+
+/**
+ * One named piece of a run.
+ *
+ * A step is an effect, not a function of the previous step's output: what
+ * travels between steps is the workspace, the artifacts in it and the run's
+ * state — all of it durable, which is what makes a resumed run indis-
+ * tinguishable from one that never died. A step that needed the step before
+ * it to hand it something in memory would be a step that cannot resume.
+ */
+export type Step = {
+  readonly name: string;
+  readonly run: Effect.Effect<void, StepError, StepServices>;
+  /**
+   * A reason to skip this run's step, or `undefined` to run it. A skipped
+   * step is not recorded as completed: the reason is re-evaluated next time,
+   * so a run resumed under a different verdict does the right thing.
+   */
+  readonly skip?: Effect.Effect<string | undefined, StepError, StepServices>;
+  /**
+   * Record the step in the run's `completed` list and skip it on a resume.
+   * For steps that are not naturally idempotent — a stage costs a cold start
+   * and a full gate run, so it is not repeated once it has passed.
+   */
+  readonly once?: boolean;
+};
+
+export type Pipeline = {
+  readonly steps: ReadonlyArray<Step>;
+  readonly run: Effect.Effect<void, StepError, StepServices>;
+};
+
+/**
+ * Assembles a run out of steps.
+ *
+ * The order of a run, and which steps are in it, is data — so a repo that
+ * wants its own step between `implement` and the PR, or a different reviewer
+ * loop entirely, changes this list rather than the driver. Each call returns
+ * a new builder; nothing is mutated in place.
+ */
+export type PipelineBuilder = {
+  readonly step: (step: Step) => PipelineBuilder;
+  readonly steps: (steps: Iterable<Step>) => PipelineBuilder;
+  /** Swaps the step of that name, keeping its position. Unknown names are an error worth failing on early. */
+  readonly replace: (name: string, step: Step) => PipelineBuilder;
+  readonly without: (name: string) => PipelineBuilder;
+  readonly build: () => Pipeline;
+};
+
+const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepServices> =>
+  Effect.gen(function* () {
+    const store = yield* RunStore;
+    const journal = yield* Journal;
+    const done = store.get().completed;
+    if (done.length > 0) yield* journal.log(`resuming after ${done.join(", ")}`);
+    for (const step of steps) {
+      if (step.once && store.get().completed.includes(step.name)) {
+        yield* journal.log(`${step.name}: already done`);
+        continue;
+      }
+      const skip = step.skip ? yield* step.skip : undefined;
+      if (skip) {
+        yield* journal.log(`${step.name}: skipped (${skip})`);
+        continue;
+      }
+      yield* step.run;
+      if (step.once) yield* store.update((state) => void state.completed.push(step.name));
+    }
+  });
+
+export const pipeline = (steps: ReadonlyArray<Step> = []): PipelineBuilder => ({
+  step: (step) => pipeline([...steps, step]),
+  steps: (more) => pipeline([...steps, ...more]),
+  replace: (name, step) => {
+    const at = steps.findIndex((s) => s.name === name);
+    if (at < 0) throw new Error(`no step named ${name} to replace`);
+    return pipeline(steps.map((s, i) => (i === at ? step : s)));
+  },
+  without: (name) => pipeline(steps.filter((s) => s.name !== name)),
+  build: () => ({ steps, run: drive(steps) }),
+});

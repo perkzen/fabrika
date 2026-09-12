@@ -1,6 +1,6 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
-import { runClaude, type Credential } from "./claude.ts";
+import { runClaude, type Credential } from "./infra/claude.ts";
 import { CONFIG_TEMPLATE, type GateStep } from "./config.ts";
 
 /** The three repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */

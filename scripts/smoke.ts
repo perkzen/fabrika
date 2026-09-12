@@ -12,8 +12,8 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runClaude } from "../src/claude.ts";
-import { allServers, mcpConfigFile, resolveServers } from "../src/mcp.ts";
+import { runClaude } from "../src/infra/claude.ts";
+import { allServers, mcpConfigFile, resolveServers } from "../src/infra/mcp.ts";
 
 // Where `fabrika init` will run. Local-scope servers are keyed to this exact
 // path; user-scope ones (`claude mcp add -s user`) apply regardless.
@@ -135,7 +135,7 @@ const program = Effect.gen(function* () {
 });
 
 program.pipe(
-  Effect.catchTag("ClaudeAuthError", (e) =>
+  Effect.catchTag("AgentUnauthorized", (e) =>
     Console.error(`claude cannot authenticate (${e.message.slice(0, 120)}) — run \`claude auth login\` in a terminal`).pipe(
       Effect.andThen(Effect.fail(e)),
     ),

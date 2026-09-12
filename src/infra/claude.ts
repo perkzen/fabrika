@@ -1,8 +1,3 @@
-import { Data, Effect, Fiber, FileSystem, Stream } from "effect";
-import type { PlatformError } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
-import { fileURLToPath } from "node:url";
-
 /**
  * Wraps the Claude Code CLI as a subprocess.
  *
@@ -21,31 +16,18 @@ import { fileURLToPath } from "node:url";
  * tool in `-p` mode. The flag is per invocation, so it goes on every call,
  * resumed ones included.
  */
-const PLUGIN_DIR = fileURLToPath(new URL("..", import.meta.url));
+import { Effect, Fiber, FileSystem, Stream } from "effect";
+import type { PlatformError } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { AgentFailed, AgentRateLimited, AgentUnauthorized } from "../ports/agent.ts";
+import { PLUGIN_DIR } from "../paths.ts";
 
 export type Credential = {
   readonly name: string;
   readonly env: Record<string, string>;
 };
 
-export class ClaudeAuthError extends Data.TaggedError("ClaudeAuthError")<{
-  readonly credential: string;
-  readonly sessionId: string | null;
-  readonly message: string;
-}> {}
-
-export class ClaudeRateLimited extends Data.TaggedError("ClaudeRateLimited")<{
-  readonly credential: string;
-  readonly sessionId: string | null;
-}> {}
-
-export class ClaudeFailed extends Data.TaggedError("ClaudeFailed")<{
-  readonly exitCode: number;
-  readonly sessionId: string | null;
-  readonly message: string;
-}> {}
-
-export type ClaudeError = ClaudeAuthError | ClaudeRateLimited | ClaudeFailed | PlatformError.PlatformError;
+export type ClaudeError = AgentUnauthorized | AgentRateLimited | AgentFailed | PlatformError.PlatformError;
 
 export type ClaudeResult = {
   readonly sessionId: string | null;
@@ -181,17 +163,17 @@ export const runClaude = (
     );
 
     if (state.authFailed) {
-      return yield* new ClaudeAuthError({
+      return yield* new AgentUnauthorized({
         credential: opts.credential.name,
         sessionId: state.sessionId,
         message: state.text || stderr.trim(),
       });
     }
     if (state.sawRateLimit) {
-      return yield* new ClaudeRateLimited({ credential: opts.credential.name, sessionId: state.sessionId });
+      return yield* new AgentRateLimited({ credential: opts.credential.name, sessionId: state.sessionId });
     }
     if (exitCode !== 0 || state.isError) {
-      return yield* new ClaudeFailed({
+      return yield* new AgentFailed({
         exitCode,
         sessionId: state.sessionId,
         message: state.text || stderr.trim(),
@@ -261,14 +243,14 @@ export const runClaudeWithFallback = (
   const attempt = (index: number, resume: string | null): Effect.Effect<ClaudeResult, ClaudeError, ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem> => {
     const credential = opts.credentials[index];
     if (!credential) return Effect.die(new Error("No credentials configured"));
-    const next = (error: ClaudeRateLimited | ClaudeAuthError) => {
+    const next = (error: AgentRateLimited | AgentUnauthorized) => {
       if (index + 1 >= opts.credentials.length) return Effect.fail(error);
       opts.onLine?.(`[credential] ${credential.name} exhausted (${error._tag}), trying the next one`);
       return attempt(index + 1, error.sessionId ?? resume);
     };
     opts.onLine?.(`[credential] ${credential.name}`);
     return runClaude({ ...opts, credential, resume }).pipe(
-      Effect.catchTags({ ClaudeRateLimited: next, ClaudeAuthError: next }),
+      Effect.catchTags({ AgentRateLimited: next, AgentUnauthorized: next }),
     );
   };
   return attempt(0, opts.resume ?? null);

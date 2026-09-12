@@ -6,14 +6,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runClaude } from "./claude.ts";
+import * as fileTickets from "./adapters/file-tickets.ts";
+import * as linearTickets from "./adapters/linear-tickets.ts";
+import { runClaude } from "./infra/claude.ts";
 import type { Config } from "./config.ts";
 import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
 import { proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
-import { exec } from "./shell.ts";
-import { fromFile, fromLinear } from "./ticket.ts";
+import { exec } from "./infra/shell.ts";
 
 const credentials = [{ name: "default", env: {} }];
 
@@ -37,9 +38,9 @@ const init = Command.make("init", {}, () =>
     const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, (line) =>
       console.log(`  ${line.slice(0, 160).replace(/\s+/g, " ")}`),
     ).pipe(
-      Effect.catchTag("ClaudeAuthError", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
-      Effect.catchTag("ClaudeRateLimited", () => rejected("usage limit hit")),
-      Effect.catchTag("ClaudeFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
+      Effect.catchTag("AgentUnauthorized", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
+      Effect.catchTag("AgentRateLimited", () => rejected("usage limit hit")),
+      Effect.catchTag("AgentFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
       // What is left is a filesystem or spawn failure — `claude` missing from
       // PATH is the usual one. `init` still has a config to write, so it says
       // what went wrong and writes the neutral one rather than dying.
@@ -85,7 +86,7 @@ const ENV_FILE = join(homedir(), ".config", "fabrika", ".env");
  * dying in the plan stage.
  */
 const authProbe = runClaude({ cwd: process.cwd(), prompt: "Reply with exactly: OK", credential: credentials[0]! }).pipe(
-  Effect.catchTag("ClaudeAuthError", (e) =>
+  Effect.catchTag("AgentUnauthorized", (e) =>
     new FabrikaError({ message: `claude cannot authenticate (${e.message.slice(0, 120)}) — run \`claude auth login\` in a terminal` }),
   ),
   Effect.asVoid,
@@ -106,11 +107,11 @@ const run = Command.make(
       const config = yield* loadConfig(process.cwd());
       yield* authProbe;
       const record = Option.isSome(file)
-        ? yield* fromFile(file.value)
+        ? yield* fileTickets.source(file.value).fetch
         : yield* Effect.gen(function* () {
             const key = process.env.LINEAR_API_KEY;
             if (!key) return yield* new FabrikaError({ message: `LINEAR_API_KEY is not set; put it in ${ENV_FILE}` });
-            return yield* fromLinear(Option.getOrThrow(ticket), key);
+            return yield* linearTickets.source(Option.getOrThrow(ticket), key).fetch;
           });
       yield* runTicket(config, record, credentials).pipe(
         Effect.catchTag("Escalated", (e) =>
@@ -123,7 +124,7 @@ const run = Command.make(
             ].join("\n"),
           ).pipe(Effect.andThen(Effect.sync(() => process.exit(2)))),
         ),
-        Effect.catchTag("ClaudeRateLimited", () =>
+        Effect.catchTag("AgentRateLimited", () =>
           Console.error("usage limit hit — state is saved; rerun the same command once the window resets").pipe(
             Effect.andThen(Effect.sync(() => process.exit(3))),
           ),
