@@ -5,23 +5,40 @@ is and how to run it; this file covers how it is built.
 
 ## Source layout
 
+A run is a pipeline of steps over a set of ports. Each port is an interface
+with one adapter in production and an in-memory one in the tests; nothing in
+`pipeline/` knows which is behind it.
+
 | Path | Role |
 | --- | --- |
 | `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>`; auth probe; exit codes |
-| `src/run.ts` | The loop: naming call, worktree, stages with gate feedback, merge base, draft PR, review rounds; `state.json` for resume |
-| `src/claude.ts` | Spawns `claude -p` with fabrika's skills as a `--plugin-dir`, parses `stream-json`, typed errors (`ClaudeAuthError`, `ClaudeRateLimited`, `ClaudeFailed`) |
+| `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
+| `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes |
+| `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
+| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge both the PR and the review loop use |
+| `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
+| `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, Linear, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
-| `src/ticket.ts` | The `Ticket` record and its two sources: a Linear issue (one GraphQL POST) or a spec file (frontmatter + first H1) |
-| `src/mcp.ts` | Resolves MCP servers from Claude Code's config scopes into a scoped 0600 temp file |
-| `src/worktree.ts` | Worktree under `~/.fabrika/worktrees/<repo>/<ticket>`, `.fabrika/work/` exclude, changed files, commit count, merge, push |
-| `src/gate.ts` | Sequential host-run gate; stops at the first failure and returns its output tail |
-| `src/cubic.ts` | Reads cubic reviews and threads via `gh`, posts replies, resolves threads under the two conditions |
-| `src/checks.ts` | Reads the PR's checks for the pushed commit via `gh`, waits for them to settle, pulls a failed job's log, reruns once for flakes |
-| `src/shell.ts` | Subprocess helper with interleaved stdout/stderr and an exit code |
+| `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
+| `src/infra/` | The subprocess helper, the Claude CLI wrapper and MCP resolution — implementation details of the adapters |
+| `src/paths.ts` | The one place that resolves the package root, so the lookup works from `src/` and from `dist/` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
-| `scripts/smoke.ts` | CLI behaviour checks (see below) |
+| `test/harness.ts` | Every port in memory, so a step can be exercised with no repository, no GitHub and no agent |
+| `scripts/smoke.ts` | CLI behaviour checks against the real `claude` (see below) |
+
+### Changing a piece of it
+
+- **A different reviewer, code host or agent** is a different adapter and one
+  line in `src/run.ts`. The ports are what the steps are written against, so
+  nothing in `pipeline/` moves.
+- **A different run** — an extra step, a different order, a step dropped — is
+  the builder in `src/pipeline/fabrika.ts`: `.step()`, `.steps()`, `.replace()`
+  and `.without()` return a new builder each time.
+- **A step marked `once`** is recorded in `state.json` and skipped when a run
+  resumes; a step that answers its `skip` with a reason is not recorded, so the
+  reason is reconsidered next time.
 
 Built on [Effect](https://effect.website) 4.x (release candidate), whose core
 package carries the filesystem, path and CLI modules; subprocesses come from
@@ -177,6 +194,18 @@ Done means: the cubic score equals `review.requireScore`, no threads are open,
 and no check on the pushed commit is failing. After `review.maxRounds` rounds
 the run escalates. Merging (never rebasing) keeps pushed commits in place so
 cubic's per-commit reviews stay valid.
+
+## Tests
+
+```bash
+pnpm test
+```
+
+`node --test` over `test/*.test.ts`, no test dependency. The tests run the
+real steps against `test/harness.ts` — every port in memory — so they cover
+the gate-retry loop, the review loop's done condition, the rule that a thread
+is resolved only when a commit touched its file, and the one-rerun-per-flake
+behaviour, in milliseconds and with no network.
 
 ## Smoke test
 
