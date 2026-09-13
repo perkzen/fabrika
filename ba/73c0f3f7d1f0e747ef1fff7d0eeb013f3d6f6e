@@ -1,0 +1,19 @@
+test/pipeline.test.ts
+  s_452e0dc20cfb40::t_8ac4010d0f72b9 123-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ba73c0f3f7d1f0e747ef1fff7d0eeb013f3d6f6e",
+  "prompts": {},
+  "sessions": {
+    "s_452e0dc20cfb40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4524da7e-3317-48d7-8fb6-368534551506",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
