@@ -37,6 +37,10 @@ export type Script = {
   readonly checkedOut?: ReadonlyArray<{ readonly branch: string; readonly path: string }>;
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
+  /** Conflicts still unresolved when `syncWithBase` checks after the agent. */
+  readonly unresolved?: ReadonlyArray<string>;
+  /** Where `checkout` puts the head, so "which tip was merged" is assertable. */
+  readonly remoteTip?: string;
   /** Files reported as touched since a given sha. */
   readonly touched?: ReadonlyArray<string>;
   readonly commits?: number;
@@ -61,6 +65,8 @@ export type Recording = {
   readonly rerun: Array<string>;
   readonly prs: Array<{ title: string; draft: boolean }>;
   readonly removed: Array<string>;
+  /** The tree-shaping calls in order: `checkout:<branch>`, `merge`, `push:<branch>`, `remove`. */
+  readonly workspace: Array<string>;
   readonly state: () => RunState;
 };
 
@@ -75,6 +81,12 @@ const emptyState = (): RunState => ({
   reran: [],
   done: false,
 });
+
+/** The base's tip, so a `sync-<7 chars>` session key is a literal in a test. */
+export const BASE_HEAD = "b45e7ead1234567";
+
+/** Where `checkout` leaves the head, where `create` leaves it on the local one. */
+const REMOTE_TIP = "remote-tip";
 
 /** Answers each call in turn and then repeats its last answer forever. */
 const queue = <A>(values: ReadonlyArray<A>, fallback: A) => {
@@ -98,6 +110,7 @@ export const harness = (script: Script = {}) => {
     rerun: [],
     prs: [],
     removed: [],
+    workspace: [],
     state: () => state,
   };
 
@@ -123,6 +136,14 @@ export const harness = (script: Script = {}) => {
     heads += 1;
     head = `sha${heads}`;
   };
+  /**
+   * A merge derives its head from whatever `checkout` or `create` left, so a
+   * test can see *which* tip was merged rather than only that something was.
+   */
+  const mergedHead = () => {
+    head = `${head}-merged`;
+  };
+  let merging = false;
 
   /** Both renderings at once: the lines a test asserts on, and the events behind them. */
   const record = (entry: RunEvent | string) => {
@@ -172,18 +193,36 @@ export const harness = (script: Script = {}) => {
       githubRepo: Effect.succeed("perkzen/fabrika"),
       checkedOutBranches: Effect.succeed(script.checkedOut ?? []),
       create: () => Effect.void,
+      checkout: (branch: string) =>
+        Effect.sync(() => {
+          recording.workspace.push(`checkout:${branch}`);
+          head = script.remoteTip ?? REMOTE_TIP;
+        }),
       install: () => Effect.succeed(true),
-      remove: Effect.sync(() => void recording.removed.push("/worktree")),
+      remove: Effect.sync(() => (recording.workspace.push("remove"), void recording.removed.push("/worktree"))),
       commitAll: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead(), true)),
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
       head: Effect.sync(() => head),
+      baseHead: Effect.succeed(BASE_HEAD),
       commitCount: Effect.succeed(script.commits ?? 1),
       changedFiles: Effect.succeed(["src/a.ts"]),
       filesSince: () => Effect.succeed(script.touched ?? []),
-      mergeBase: Effect.sync(nextMerge),
-      conflictedFiles: Effect.succeed([]),
-      finishMerge: Effect.succeed(false),
-      push: (branch: string) => Effect.sync(() => void recording.pushed.push(branch)),
+      mergeBase: Effect.sync(() => {
+        recording.workspace.push("merge");
+        const outcome = nextMerge();
+        if (outcome._tag === "Merged") mergedHead();
+        merging = outcome._tag === "Conflicted";
+        return outcome;
+      }),
+      conflictedFiles: Effect.sync(() => script.unresolved ?? []),
+      finishMerge: Effect.sync(() => {
+        if (!merging) return false;
+        merging = false;
+        mergedHead();
+        return true;
+      }),
+      push: (branch: string) =>
+        Effect.sync(() => (recording.workspace.push(`push:${branch}`), void recording.pushed.push(branch))),
     }),
     Layer.succeed(Forge)({
       repo: "perkzen/fabrika",

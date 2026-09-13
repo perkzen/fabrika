@@ -6,6 +6,7 @@ import { Journal, waitFor } from "../ports/journal.ts";
 import { Workspace } from "../ports/workspace.ts";
 import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
+import { syncWithBase, type SyncServices } from "./sync.ts";
 
 /**
  * One sweep: list the operator's open pull requests, pick the conflicted ones
@@ -169,6 +170,48 @@ const select = (
     return { decision: "sync", pr };
   });
 };
+
+/**
+ * One pull request's share of a sweep.
+ *
+ * It fails the way every other step fails — the sweep is the one place that
+ * turns that into a value — and it removes its tree only on the way out
+ * clean, so an escalation leaves exactly what an escalated run leaves.
+ *
+ * No review rounds and no forge call: the reviewer has already ruled on this
+ * branch, and a merge commit is not a new implementation.
+ */
+export const syncPullRequest = (
+  target: SyncTarget,
+): Effect.Effect<{ readonly pushed: string | null }, StepError, SyncServices> =>
+  Effect.gen(function* () {
+    const workspace = yield* Workspace;
+    const journal = yield* Journal;
+
+    yield* workspace.checkout(target.branch);
+    yield* journal.log(`worktree ${workspace.dir}`);
+    if (target.install) {
+      const started = Date.now();
+      yield* journal.log(`install: ${target.install}`);
+      const installed = yield* workspace.install(target.install);
+      yield* journal.log(
+        installed ? `install: ok (${((Date.now() - started) / 1000).toFixed(0)}s)` : `install: skipped (already present)`,
+      );
+    }
+
+    // Read after `checkout` has fetched, so the key names the tip actually
+    // being merged: it changes exactly when the thing being merged changes.
+    const base = yield* workspace.baseHead;
+    const moved = yield* syncWithBase({ prUrl: target.url, session: `sync-${base.slice(0, 7)}` });
+    if (!moved) {
+      yield* workspace.remove;
+      return { pushed: null };
+    }
+    yield* workspace.push(target.branch);
+    const head = yield* workspace.head;
+    yield* workspace.remove;
+    return { pushed: head };
+  });
 
 export const sweep = (
   options: SweepOptions,

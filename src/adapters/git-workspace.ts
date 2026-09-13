@@ -134,6 +134,40 @@ export const layer = (options: WorkspaceOptions) =>
               : git(["worktree", "add", "-b", branch, dir, base], repoRoot);
           }).pipe(Effect.mapError((e) => (e instanceof FabrikaError ? e : asFabrikaError("creating the worktree")(e)))),
 
+        /**
+         * A sweep's entry into a tree. It hard-resets to `<remote>/<branch>`:
+         * the local branch that survived `worktree remove` can hold an
+         * escalated run's tip or a history someone rewrote, and a merge
+         * computed against that resolves conflicts nobody has. Fenced by the
+         * selection rule that skips a branch checked out anywhere on this
+         * machine, so it only ever runs against fabrika's own tree (ADR-0004).
+         */
+        checkout: (branch: string) =>
+          Effect.gen(function* () {
+            yield* excludeWorkDir;
+            yield* git(["fetch", "--quiet", remote], repoRoot);
+            const tip = `${remote}/${branch}`;
+            const known = yield* git(["rev-parse", "--verify", "--quiet", tip], repoRoot).pipe(
+              Effect.orElseSucceed(() => ""),
+            );
+            if (!known) {
+              return yield* new FabrikaError({ message: `${tip} does not exist — nothing to check out` });
+            }
+            if (yield* fs.exists(dir)) {
+              const current = yield* git(["branch", "--show-current"]);
+              if (current !== branch) {
+                return yield* new FabrikaError({ message: `${dir} exists on branch ${current}, expected ${branch}` });
+              }
+            } else {
+              yield* fs.makeDirectory(path.dirname(dir), { recursive: true });
+              const existing = yield* git(["branch", "--list", branch], repoRoot);
+              yield* existing
+                ? git(["worktree", "add", dir, branch], repoRoot)
+                : git(["worktree", "add", "-b", branch, dir, tip], repoRoot);
+            }
+            yield* git(["reset", "--hard", tip]);
+          }).pipe(Effect.mapError((e) => (e instanceof FabrikaError ? e : asFabrikaError("checking out the branch")(e)))),
+
         install: (command: string) =>
           Effect.gen(function* () {
             if (yield* fs.exists(path.join(dir, "node_modules"))) return false;
@@ -152,6 +186,7 @@ export const layer = (options: WorkspaceOptions) =>
           }),
         emptyCommit: (message: string) => git(["commit", "--quiet", "--allow-empty", "-m", message]).pipe(Effect.asVoid),
         head: git(["rev-parse", "HEAD"]),
+        baseHead: git(["rev-parse", base], repoRoot),
         commitCount: git(["rev-list", "--count", `${base}..HEAD`]).pipe(Effect.map(Number)),
         changedFiles: git(["diff", "--name-only", `${base}...HEAD`]).pipe(Effect.map(lines)),
         filesSince: (sha: string) => git(["diff", "--name-only", `${sha}..HEAD`]).pipe(Effect.map(lines)),

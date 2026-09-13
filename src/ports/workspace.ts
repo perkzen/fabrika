@@ -48,6 +48,13 @@ export interface Workspace {
 
   /** Creates the tree on `branch` off a freshly fetched base, or reuses one already on it. */
   readonly create: (branch: string) => Effect.Effect<void, FabrikaError>;
+  /**
+   * Puts the tree on `branch` *as the remote has it*, discarding any local
+   * tip. A second operation beside `create` rather than a flag on it: a run
+   * resumes through `create`, where unpushed commits are the run's own work.
+   * See ADR-0004.
+   */
+  readonly checkout: (branch: string) => Effect.Effect<void, FabrikaError>;
   /** Runs the dependency install; `false` when the tree already had its dependencies. */
   readonly install: (command: string) => Effect.Effect<boolean, FabrikaError>;
   readonly remove: Effect.Effect<void, FabrikaError>;
@@ -56,6 +63,8 @@ export interface Workspace {
   readonly commitAll: (message: string) => Effect.Effect<boolean, FabrikaError>;
   readonly emptyCommit: (message: string) => Effect.Effect<void, FabrikaError>;
   readonly head: Effect.Effect<string, FabrikaError>;
+  /** The base's tip after a fetch — the commit a merge would bring in. */
+  readonly baseHead: Effect.Effect<string, FabrikaError>;
   /** Commits on this branch that the base does not have. */
   readonly commitCount: Effect.Effect<number, FabrikaError>;
   /** Files this branch changes against the base. */

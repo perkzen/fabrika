@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { FabrikaError } from "../src/errors.ts";
 import { Escalated } from "../src/pipeline/escalated.ts";
-import { sweep, type Placement, type SweepOptions, type SyncTarget } from "../src/pipeline/sweep.ts";
+import { sweep, syncPullRequest, type Placement, type SweepOptions, type SyncTarget } from "../src/pipeline/sweep.ts";
 import { AgentRateLimited } from "../src/ports/agent.ts";
 import type { PullRequestDetail } from "../src/ports/forge.ts";
+import type { MergeOutcome } from "../src/ports/workspace.ts";
 import { exercise } from "./harness.ts";
 
 /** A conflicted, on-base, fabrika-free pull request; every case overrides what it is about. */
@@ -282,4 +283,67 @@ test("two pull requests with the same identifier get two different keys", async 
     ],
     "the number is in the key so two open pull requests can never resolve to one path",
   );
+});
+
+const target: SyncTarget = {
+  number: 42,
+  url: "https://github.com/perkzen/fabrika/pull/42",
+  branch: "branch-42",
+  identifier: "FAB-5",
+  title: "Conflicted PRs pile up",
+  key: "FAB-5-42",
+};
+
+const conflicted: MergeOutcome = { _tag: "Conflicted", behind: 2, files: ["src/a.ts"] };
+
+test("a worker merges the branch as the forge has it, not as the tree left it", async () => {
+  const { exit, failed, recording } = await exercise(syncPullRequest(target), { merge: [conflicted] });
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.workspace, ["checkout:branch-42", "merge", "push:branch-42", "remove"]);
+  assert.equal(
+    (exit as { pushed: string | null }).pushed,
+    "remote-tip-merged",
+    "the pushed head derives from the tip `checkout` fetched, not from the one the tree was left on",
+  );
+  assert.deepEqual(
+    recording.agent.map((call) => call.session ?? call.stage),
+    ["sync-b45e7ea"],
+    "the session is named after the base tip, so a retry against an unmoved base lands in the conversation that saw the conflict",
+  );
+});
+
+test("a worker with nothing to merge answers no push and still takes its tree with it", async () => {
+  const { exit, failed, recording } = await exercise(syncPullRequest(target));
+
+  assert.equal(failed, false);
+  assert.equal((exit as { pushed: string | null }).pushed, null);
+  assert.deepEqual(recording.workspace, ["checkout:branch-42", "merge", "remove"]);
+});
+
+test("conflicts the agent left behind escalate and leave the tree for a human", async () => {
+  const { exit, failed, recording } = await exercise(syncPullRequest(target), {
+    merge: [conflicted],
+    unresolved: ["src/a.ts"],
+  });
+
+  assert.equal(failed, true);
+  assert.equal((exit as { _tag: string })._tag, "Escalated");
+  assert.match((exit as { reason: string }).reason, /merge left conflicts in src\/a\.ts/);
+  assert.equal((exit as { worktree: string }).worktree, "/worktree");
+  assert.equal((exit as { prUrl: string }).prUrl, "https://github.com/perkzen/fabrika/pull/42");
+  assert.deepEqual(recording.removed, [], "an escalated sync leaves its tree exactly as an escalated run does");
+});
+
+test("a gate still red after the merge escalates and leaves the tree for a human", async () => {
+  const red = { name: "compile", command: "tsc", output: "boom" };
+  const { exit, failed, recording } = await exercise(syncPullRequest(target), {
+    merge: [{ _tag: "Merged", behind: 2 }],
+    gate: [red, red],
+  });
+
+  assert.equal(failed, true);
+  assert.match((exit as { reason: string }).reason, /gate red after merging the base: compile/);
+  assert.equal((exit as { prUrl: string }).prUrl, "https://github.com/perkzen/fabrika/pull/42");
+  assert.deepEqual(recording.removed, []);
 });
