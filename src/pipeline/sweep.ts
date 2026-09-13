@@ -1,3 +1,12 @@
+/**
+ * One sweep: list the operator's open pull requests, pick the conflicted ones
+ * and hand each to a worker.
+ *
+ * The worker is a parameter because the layer graph one pull request needs —
+ * its own worktree, run directory, gate and agent session — is composition-root
+ * work. What belongs here is which pull requests get one, what their outcomes
+ * add up to, and the lines the operator reads.
+ */
 import { Effect } from "effect";
 import { baseBranch } from "../config.ts";
 import type { FabrikaError } from "../errors.ts";
@@ -9,15 +18,6 @@ import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
 import { syncWithBase, type SyncServices } from "./sync.ts";
 
-/**
- * One sweep: list the operator's open pull requests, pick the conflicted ones
- * and hand each to a worker.
- *
- * The worker is a parameter because the layer graph one pull request needs —
- * its own worktree, run directory, gate and agent session — is composition-root
- * work. What belongs here is which pull requests get one, what their outcomes
- * add up to, and the lines the operator reads.
- */
 export type SyncTarget = {
   readonly number: number;
   readonly url: string;
