@@ -112,3 +112,33 @@ test("green CI with no reviewer finishes the run rather than escalating on a rev
     "done: no review bot, checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
   );
 });
+
+test("a failing check with no reviewer is rerun once, handed to the agent, and the next green round finishes the run", async () => {
+  const { failed, recording } = await exercise(reviewRounds.run, {
+    ...open,
+    reviewer: "none",
+    checks: [[failingCheck], [failingCheck], []],
+  });
+  assert.deepEqual(recording.rerun, ["1"], "rerun once for a flake, the same as with a bot");
+  const ci = recording.agent.find((call) => call.stage === "ci");
+  assert.ok(ci && ci.prompt.includes("the failing log"));
+  assert.ok(
+    recording.log.includes("  no reviewer, 1 failing check(s)"),
+    "the round line names its own subject and claims no score",
+  );
+  assert.equal(failed, false);
+  assert.equal(recording.state().done, true);
+});
+
+test("a check that stays red with no reviewer escalates after maxRounds, with the PR to look at", async () => {
+  const { exit, failed } = await exercise(reviewRounds.run, { ...open, reviewer: "none", checks: [[failingCheck]] });
+  assert.equal(failed, true);
+  assert.match((exit as { reason: string }).reason, /not clean after 3 review rounds/);
+  assert.equal((exit as { prUrl: string }).prUrl, "https://github.com/perkzen/fabrika/pull/7");
+});
+
+test("checks that never settle with no reviewer escalate rather than being passed off as green", async () => {
+  const { exit, failed } = await exercise(reviewRounds.run, { ...open, reviewer: "none", checks: [undefined] });
+  assert.equal(failed, true);
+  assert.match((exit as { reason: string }).reason, /checks still pending/);
+});

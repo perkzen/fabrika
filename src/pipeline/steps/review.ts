@@ -85,9 +85,12 @@ export const reviewRounds: Step = {
         failed = yield* failingChecks(pushedHead);
       }
 
-      yield* journal.log(
-        `  score ${review.score ?? "none"}/5, ${threads.length} open thread(s), ${failed.length} failing check(s)`,
-      );
+      // A round with no reviewer must not imply a verdict in the log either:
+      // it names what decided it instead of reporting a score of "none".
+      const verdict = reviewer.scores
+        ? `score ${review.score ?? "none"}/5, ${threads.length} open thread(s), `
+        : "no reviewer, ";
+      yield* journal.log(`  ${verdict}${failed.length} failing check(s)`);
       const scoreOk = !reviewer.scores || (review.score !== null && review.score >= config.review.requireScore);
       if (scoreOk && threads.length === 0 && failed.length === 0) {
         yield* store.update((state) => void (state.done = true));
@@ -105,8 +108,10 @@ export const reviewRounds: Step = {
         });
         return;
       }
-      if (threads.length === 0 && failed.length === 0) {
-        // Nothing the agent can act on, and the next round would find the same review.
+      if (reviewer.scores && threads.length === 0 && failed.length === 0) {
+        // Nothing the agent can act on, and the next round would find the same
+        // review. A reviewer that seeks no verdict cannot reach here — with no
+        // score to fall short of, the done branch above has already taken it.
         return yield* escalate(
           `${reviewer.name} score ${review.score ?? "missing"}/5 with no open threads or failing checks to act on`,
         );
