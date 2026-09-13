@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
 import { Escalated } from "../src/pipeline/escalated.ts";
+import { codeStage } from "../src/pipeline/steps/stage.ts";
 import { pipeline, type Step } from "../src/pipeline/step.ts";
 import { RunStore } from "../src/ports/run-store.ts";
 import type { RunEvent } from "../src/run-event.ts";
@@ -91,4 +92,22 @@ test("a resumed run shows the step list with the finished steps already done", a
 test("a fresh run names its steps but has nothing to resume after", async () => {
   const { recording } = await exercise(pipeline().step(noop("one")).step(noop("two")).build().run);
   assert.equal(recording.log[0], "steps: one, two");
+});
+
+test("a stage that skipped runs on the resume whose diff grew into its globs, and never twice", async () => {
+  const refactor = codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**"] });
+  const built = pipeline().step(refactor).build();
+
+  const missed = await exercise(built.run, { changed: ["docs/x.md"], state: { completed: [] } });
+  assert.deepEqual(missed.recording.state().completed, [], "a skipped step is not recorded, so it is re-asked");
+  assert.ok(missed.recording.log.includes("refactor: skipped (no changed file matches src/**)"));
+  assert.equal(missed.recording.agent.length, 0);
+
+  const grown = await exercise(built.run, { changed: ["src/a.ts"], state: { completed: [] } });
+  assert.deepEqual(grown.recording.state().completed, ["refactor"], "the diff grew, so the verdict changed");
+  assert.equal(grown.recording.agent.length, 1);
+
+  const again = await exercise(built.run, { changed: ["src/a.ts"], state: { completed: ["refactor"] } });
+  assert.equal(again.recording.agent.length, 0, "a resume cannot double the bill");
+  assert.ok(again.recording.log.includes("refactor: already done"));
 });
