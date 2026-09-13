@@ -394,3 +394,25 @@ test("a sweep whose conflicted pull requests were all skipped does not claim non
     "both were conflicted, so `none conflicted` would be a lie on the one line a cron job reads",
   );
 });
+
+/**
+ * The install is the one step of the worker's order that nothing else pins,
+ * and it is order-sensitive both ways: the tree has to be on the branch before
+ * its lockfile means anything, and its dependencies have to be there before
+ * the gate the merge runs.
+ */
+test("a worker installs the branch's dependencies after checking it out and before merging", async () => {
+  const { failed, recording } = await exercise(
+    syncPullRequest({ ...target, install: "pnpm i --frozen-lockfile" }),
+    { merge: [conflicted] },
+  );
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.workspace, [
+    "checkout:branch-42",
+    "install:pnpm i --frozen-lockfile",
+    "merge",
+    "push:branch-42",
+    "remove",
+  ]);
+});

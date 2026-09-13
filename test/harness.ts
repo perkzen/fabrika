@@ -65,7 +65,7 @@ export type Recording = {
   readonly rerun: Array<string>;
   readonly prs: Array<{ title: string; draft: boolean }>;
   readonly removed: Array<string>;
-  /** The tree-shaping calls in order: `checkout:<branch>`, `merge`, `push:<branch>`, `remove`. */
+  /** The tree-shaping calls in order: `checkout:<branch>`, `install:<command>`, `merge`, `push:<branch>`, `remove`. */
   readonly workspace: Array<string>;
   readonly state: () => RunState;
 };
@@ -198,7 +198,7 @@ export const harness = (script: Script = {}) => {
           recording.workspace.push(`checkout:${branch}`);
           head = script.remoteTip ?? REMOTE_TIP;
         }),
-      install: () => Effect.succeed(true),
+      install: (command: string) => Effect.sync(() => (recording.workspace.push(`install:${command}`), true)),
       remove: Effect.sync(() => (recording.workspace.push("remove"), void recording.removed.push("/worktree"))),
       commitAll: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead(), true)),
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
