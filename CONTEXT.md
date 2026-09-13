@@ -66,3 +66,31 @@ A stretch in which the host is blocked on something it does not control — an
 agent call, the reviewer, the PR's checks. A wait has a subject and sometimes
 a deadline, and is what the live region animates to prove the run is alive.
 _Avoid_: poll, spinner, hang.
+
+### The review loop
+
+**Reviewer**:
+The port one run waits on after its draft PR opens, chosen per repo by
+`review.provider`: what the branch scored, and which of the bot's findings are
+still open. A repo with no review bot has one too — the adapter that reviews
+nothing.
+_Avoid_: review bot — that is the service behind the adapter; code reviewer;
+the `review` code stage, which is the agent reviewing its own diff before the
+PR exists.
+
+**Review bot**:
+The external service a reviewer adapter speaks to, cubic today. Having none is
+a configuration (`review.provider: "none"`), not a missing reviewer.
+_Avoid_: reviewer, linter, CI.
+
+**Review round**:
+One pass of the loop after the draft PR: wait for the reviewer and for the
+pushed commit's checks, hand back whatever is actionable, gate, push. A run
+gets at most `review.maxRounds` of them.
+_Avoid_: iteration, retry, attempt.
+
+**Check**:
+One signal the forge reports on the pushed commit — a CI job or a commit
+status. The reviewer's own check is not one: `owns` takes it out before the
+loop can wait on the signal the loop is producing.
+_Avoid_: status, CI run, test.
