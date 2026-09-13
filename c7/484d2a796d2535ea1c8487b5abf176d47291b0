@@ -1,0 +1,27 @@
+src/infra/screen.ts
+  s_92bcbef4c51d06::t_bbde3889ab4876 95-99,113
+  ai_agent 81
+src/outline.ts
+  s_92bcbef4c51d06::t_27dad7e393f0ba 12-13
+src/infra/frame.ts
+  s_92bcbef4c51d06::t_8ac2cf1de8d802 233-244
+  s_92bcbef4c51d06::t_367a73210c9b4e 126-127,324
+docs/adr/0004-the-run-is-a-screen-hand-rolled-on-the-alternate-buffer.md
+  s_92bcbef4c51d06::t_367a73210c9b4e 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c7484d2a796d2535ea1c8487b5abf176d47291b0",
+  "prompts": {},
+  "sessions": {
+    "s_92bcbef4c51d06": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bdcee6ce-d9aa-4517-8479-fc65ee7d6afe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
