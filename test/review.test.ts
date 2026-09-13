@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { pipeline } from "../src/pipeline/step.ts";
 import { reviewRounds } from "../src/pipeline/steps/review.ts";
 import type { Check } from "../src/ports/forge.ts";
 import type { Review } from "../src/ports/reviewer.ts";
@@ -15,8 +16,11 @@ const failingCheck: Check = {
 };
 const open = { state: { prNumber: 7, branch: "feat/x", pushed: ["sha1"] } };
 
+/** The done: line is the driver's, so the tests that assert it run the step through one. */
+const driven = pipeline().step(reviewRounds).build().run;
+
 test("a clean round finishes the run and takes the worktree with it", async () => {
-  const { failed, recording } = await exercise(reviewRounds.run, { ...open, reviews: [clean], checks: [[]] });
+  const { failed, recording } = await exercise(driven, { ...open, reviews: [clean], checks: [[]] });
   assert.equal(failed, false);
   assert.equal(recording.state().done, true);
   assert.deepEqual(recording.removed, ["/worktree"]);
@@ -103,7 +107,7 @@ test("checks that never settle escalate rather than passing an unknown state off
 });
 
 test("green CI with no reviewer finishes the run rather than escalating on a review nobody sought", async () => {
-  const { failed, recording } = await exercise(reviewRounds.run, { ...open, reviewer: "none", checks: [[]] });
+  const { failed, recording } = await exercise(driven, { ...open, reviewer: "none", checks: [[]] });
   assert.equal(failed, false);
   assert.equal(recording.state().done, true);
   assert.deepEqual(recording.removed, ["/worktree"]);

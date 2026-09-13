@@ -130,3 +130,27 @@ test("a skipped or already-done step gets no end, their one line being their end
   const { recording } = await exercise(built.run, { state: { completed: ["spec"] } });
   assert.deepEqual(ends(recording), [], "neither step ran, so neither has a duration or an outcome");
 });
+
+test("the result is the driver's, and lands after the last step's end", async () => {
+  const finishing: Step = {
+    name: "review",
+    run: Effect.succeed("done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7"),
+  };
+  const { recording } = await exercise(pipeline().step(noop("one")).step(finishing).build().run);
+
+  const tail = recording.log.slice(-2);
+  assert.match(tail[0]!, /^step review: done \(\d+s\)$/);
+  assert.equal(
+    tail[1],
+    "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
+    "the PR URL is the last stdout line of a clean run, after the last step's end",
+  );
+});
+
+test("a run no step returned a line for logs no result", async () => {
+  const { recording } = await exercise(pipeline().step(noop("one")).build().run);
+  assert.ok(
+    !recording.events.some((entry) => typeof entry !== "string" && entry.kind === "result"),
+    "which is what a pipeline built without the review step has always done",
+  );
+});
