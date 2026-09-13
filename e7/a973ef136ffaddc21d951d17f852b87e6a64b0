@@ -1,0 +1,23 @@
+src/configure.ts
+  s_ea6524a97b6b22::t_a2d74ba251726c 98,120
+docs/internals.md
+  ai_agent 194
+src/pipeline/steps/stage.ts
+  s_ea6524a97b6b22::t_a2d74ba251726c 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e7a973ef136ffaddc21d951d17f852b87e6a64b0",
+  "prompts": {},
+  "sessions": {
+    "s_ea6524a97b6b22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92fd0998-e94b-48f0-a74c-b7fcb6b86760",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
