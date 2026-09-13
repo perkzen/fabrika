@@ -1,0 +1,19 @@
+test/select.test.ts
+  s_165718aa85054b::t_7d81b66bb4ed83 182-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "eff24a9a26dd35a08cd48df6f534f920c500d00e",
+  "prompts": {},
+  "sessions": {
+    "s_165718aa85054b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed850da4-7821-49e3-afe1-34ec9478efa0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
