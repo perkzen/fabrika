@@ -17,12 +17,12 @@ import type { RunEvent } from "../run-event.ts";
  * They share one clock, so the file and the console never disagree about when
  * the same event happened.
  */
-export const layer = (file: string, console_?: ConsoleOptions) =>
+export const layer = (file: string, consoleOptions?: ConsoleOptions) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
       // The label, not the path: the elision line points at `log.txt`, which is
       // what the operator calls it, not a line of absolute path.
-      const options = console_ ?? { stream: process.stdout, archive: basename(file) };
+      const options = consoleOptions ?? { stream: process.stdout, archive: basename(file) };
       const surfaces = [openConsole(options), openArchive({ file, now: options.now })];
       // The layer owns their lifetime: the live region is cleared and the
       // cursor restored before `cli.ts` writes anything to stderr.
