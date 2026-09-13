@@ -110,3 +110,35 @@ test("a Skill tool call names an invoked skill, and the same skill twice is one"
   assert.deepEqual(step.summary.skills, ["fabrika:tdd", "fabrika:code-comments"], "first-use order, deduplicated");
   assert.equal(step.summary.calls, 5, "an invoked skill is still a tool call");
 });
+
+test("a skipped step carries its reason instead of a summary", () => {
+  const tree = script(
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "skipped", reason: "fix ticket; runs for feat" }],
+  );
+
+  const step = tree.roots[0]!.children[1]!;
+  assert.equal(step.state, "skipped");
+  assert.equal(step.summary.reason, "fix ticket; runs for feat");
+  assert.equal(step.summary.calls, 0, "nothing ran, so there is nothing to roll up");
+  assert.equal(step.summary.seconds, undefined, "and no duration: its one line is its end");
+});
+
+test("a second run event appends a second root", () => {
+  const tree = script(
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "run", completed: [], steps: [{ name: "preflight", done: false }, { name: "review", done: false }] }],
+    [3, { kind: "step", name: "review", at: 2, of: 2, state: "start" }],
+  );
+
+  assert.deepEqual(
+    tree.roots.map((root) => root.children.map((step) => `${step.name}:${step.state}`)),
+    [
+      ["spec:already-done", "implement:running", "review:pending"],
+      ["preflight:pending", "review:running"],
+    ],
+    "a sweep over many pull requests is this tree with more roots; nothing here emits a second one yet",
+  );
+  assert.equal(new Set(tree.roots.flatMap((root) => root.children.map((step) => step.key))).size, 5, "keys stay unique across roots");
+});
