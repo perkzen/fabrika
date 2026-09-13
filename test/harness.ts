@@ -50,6 +50,8 @@ export type Script = {
   readonly worktreeExists?: boolean;
   /** Where a real adapter would spawn commands; the fakes never touch it. */
   readonly dir?: string;
+  /** The run's own directory, for a real adapter that writes under it. */
+  readonly runs?: string;
   readonly config?: Partial<Config>;
   readonly ticket?: Partial<Ticket>;
   readonly state?: Partial<RunState>;
@@ -152,7 +154,7 @@ export const harness = (script: Script = {}) => {
       write: record,
     }),
     Layer.succeed(RunStore)({
-      directory: "/runs/FAB-1",
+      directory: script.runs ?? "/runs/FAB-1",
       get: () => state,
       archive: () => Effect.succeed(undefined),
       update: (change: (state: RunState) => void) => Effect.sync(() => change(state)),
