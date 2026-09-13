@@ -1,0 +1,21 @@
+docs/internals.md
+  s_265a35446d09ee::t_69bd4fc50b801f 19-20,24,36,83-85,151-157,220-241
+README.md
+  s_265a35446d09ee::t_69bd4fc50b801f 202,205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "76677c0d618d0bf1e425694c6bf9e3caab684e70",
+  "prompts": {},
+  "sessions": {
+    "s_265a35446d09ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "309a70ff-be4f-4c30-8277-55d58b00aff8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
