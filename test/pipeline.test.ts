@@ -120,6 +120,11 @@ test("every step gets an end line, on the clean path and the escalated one", asy
     [["one", "done"], ["review", "failed"]],
     "a run that escalates never leaves a step stuck at running",
   );
+  assert.deepEqual(
+    escalated.recording.log.slice(-2),
+    ["step review: failed (0s)", "escalated: gate still red after 3 iterations"],
+    "and the escalated path ends the same way the clean one does: the step's end, then the result",
+  );
 });
 
 test("a skipped or already-done step gets no end, their one line being their end", async () => {
