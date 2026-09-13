@@ -123,8 +123,8 @@ export type Layout = {
 };
 
 /**
- * The budget, computed once for whoever is about to spend it — the renderer
- * laying out a frame, and the key handler deciding how far a page scrolls and
+ * The budget, computed once for whoever is about to spend it — `frame` laying
+ * out a viewport, and the key handler deciding how far a page scrolls and
  * where the selection drags the outline to.
  */
 export const layout = (tree: Tree, view: View, size: Size): Layout => {
@@ -230,6 +230,19 @@ const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined 
 };
 
 /**
+ * The two characters `scrub` keeps, as the one column a row counts them as.
+ *
+ * `scrub` keeps tab and newline because an event's text also goes to
+ * `log.txt`, and a file has tab stops and paragraphs. A row has neither: a
+ * terminal advances a tab to the next multiple of eight and starts a new
+ * physical line on a newline, so either one in an agent's code block or a
+ * config-written step name makes the frame taller than the `size.rows` the
+ * cursor arithmetic drew it as — permanently, because a wrap on the last row
+ * scrolls the alternate buffer out from under the next `HOME`.
+ */
+const flattened = (text: string): string => text.replace(/[\t\n]/g, " ");
+
+/**
  * A line broken into rows of at most `width` display columns.
  *
  * Widths are counted ignoring SGR runs, because the escapes this repo emits
@@ -243,19 +256,6 @@ const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined 
  * garbage. A double-width character still costs one, the way ADR-0001's
  * truncation always has.
  */
-/**
- * The two characters `scrub` keeps, as the one column a row counts them as.
- *
- * `scrub` keeps tab and newline because an event's text also goes to
- * `log.txt`, and a file has tab stops and paragraphs. A row has neither: a
- * terminal advances a tab to the next multiple of eight and starts a new
- * physical line on a newline, so either one in an agent's code block or a
- * config-written step name makes the frame taller than the `size.rows` the
- * cursor arithmetic drew it as — permanently, because a wrap on the last row
- * scrolls the alternate buffer out from under the next `HOME`.
- */
-const flattened = (text: string): string => text.replace(/[\t\n]/g, " ");
-
 const wrap = (line: string, width: number): ReadonlyArray<string> => {
   if (width <= 0) return [""];
   const rows: Array<string> = [];
@@ -321,7 +321,7 @@ const outlineRow = (step: Node, selected: boolean): ReadonlyArray<Segment> => [
 const nameStyle = (state: StepState): Style =>
   state === "failed" ? ["bold", "red"] : state === "skipped" || state === "already-done" ? "dim" : "bold";
 
-/** What a step came to: a rollup once it has finished, a reason if it never ran, nothing yet otherwise. */
+/** What a step came to: its summary once it has finished, a reason if it never ran, nothing yet otherwise. */
 const summary = (step: Node): ReadonlyArray<Segment> => {
   const { seconds, usd, calls, tools, skills, gates, reason } = step.summary;
   if (step.state === "skipped") return [{ style: "dim", text: `${FIELD}skipped${reason ? ` (${reason})` : ""}` }];

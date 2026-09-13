@@ -78,13 +78,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     dirty = false;
   };
 
-  /**
-   * The inner console goes first: it clears its live region, restores the
-   * cursor and takes its own SIGINT handler off, all of which belong to the
-   * primary buffer it is leaving behind.
-   */
-  // The size is read per draw, so a resize needs no handler for the size
-  // itself — only for the redraw that has to happen before the next event.
+  // Only the redraw: the size itself is read per draw, above.
   const onResize = () => void (dirty = true);
 
   const onKey = (chunk: string) => {
@@ -98,6 +92,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     dirty = true;
   };
 
+  /**
+   * The inner console goes first: it clears its live region, restores the
+   * cursor and takes its own SIGINT handler off, all of which belong to the
+   * primary buffer it is leaving behind.
+   */
   const mount = () => {
     inner.end();
     stream.write(ALTERNATE_ON + HIDE_CURSOR);
@@ -111,7 +110,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     process.on("SIGINT", end);
     stream.on("resize", onResize);
     // A frame is a whole viewport, so it is drawn only when there is something
-    // to see: the model changed, or a wait is open and its spinner is the
+    // to see: the step tree changed, or a wait is open and its spinner is the
     // proof the run is alive.
     timer = globalThis.setInterval(() => {
       spin += 1;

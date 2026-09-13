@@ -9,6 +9,8 @@ import { gateOver, type RunEvent } from "./run-event.ts";
  * list. `take` is what a presenter calls per event; `outline` is `reduce`
  * over it, for a test or a reader that already has the whole stream.
  */
+
+/** How a step's line reads, from the outline's point of view. */
 export type StepState = "pending" | "running" | "done" | "failed" | "skipped" | "already-done";
 
 /** What a finished step came to, folded out of the events that happened inside it. */

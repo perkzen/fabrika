@@ -56,8 +56,6 @@ const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<type
     kill: () => {},
   });
 
-/** Every escape code the screen wrote, stripped back out. */
-
 const RUN: RunEvent = {
   kind: "run",
   completed: [],

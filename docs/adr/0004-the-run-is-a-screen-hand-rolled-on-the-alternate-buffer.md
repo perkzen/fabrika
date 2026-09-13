@@ -27,7 +27,7 @@ nothing to do but blit strings we have already laid out.
   dependencies include `ws`, `yoga-layout`, `react-reconciler` and
   `scheduler`. Rejected, for the third time and now on the current shape: its
   two real contributions are wrapped-height measurement and frame diffing, and
-  this design needs neither — the renderer emits exactly `rows` lines of at
+  this design needs neither — `frame` emits exactly `rows` lines of at
   most `columns - 1` columns each, so a frame is a cursor-home and a write.
   Two further facts weighed against it. `exitOnCtrlC` defaults to `true` and
   exits the process on `\x03`, which is exactly the preemption of the MCP
