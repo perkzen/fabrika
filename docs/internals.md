@@ -23,6 +23,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
 | `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |

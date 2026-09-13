@@ -16,7 +16,8 @@ export type ConsoleOptions = {
   readonly archive?: string;
 };
 
-type Style = Parameters<typeof styleText>[0];
+/** The shape `styleText` takes, named once so every surface that dresses a line reads the same alias. */
+export type Style = Parameters<typeof styleText>[0];
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
@@ -35,7 +36,7 @@ const GUTTER = "│ ";
  * A run is either fully dressed or fully plain, never partly: one verdict out
  * of all four inputs, so a `NO_COLOR` run and a piped run look the same.
  */
-const isInteractive = (stream: NodeJS.WriteStream) =>
+export const isInteractive = (stream: NodeJS.WriteStream) =>
   Boolean(stream.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb" && !process.env.CI;
 
 /** The colour a kind is read in. Anything not named here is the terminal's own default. */
