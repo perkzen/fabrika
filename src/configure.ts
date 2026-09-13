@@ -15,6 +15,14 @@ export type ConfigProposal = {
   readonly notes: ReadonlyArray<string>;
 };
 
+/**
+ * Told to the call for both glob fields, because a rejected `when` costs the
+ * whole answer and `src/**\/*.{ts,tsx}` is the near-miss a model reaches for.
+ * It is the prose half of `isPathGlob`; keep the two in step.
+ */
+const GLOB_SHAPE =
+  "Plain path globs only: letters, digits and `_ . / - * ?`, at most eight `*` or `?` between them. No braces and no extglob — write `src/**/*.ts` and `src/**/*.tsx` as two entries, never `src/**/*.{ts,tsx}`.";
+
 export const CONFIG_SCHEMA = JSON.stringify({
   type: "object",
   properties: {
@@ -27,7 +35,7 @@ export const CONFIG_SCHEMA = JSON.stringify({
         properties: {
           name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Short kebab-case label for the log, e.g. compile" },
           run: { type: "string" },
-          when: { type: "array", items: { type: "string" }, description: "Globs; the step runs only when a changed file matches" },
+          when: { type: "array", items: { type: "string" }, description: `Globs; the step runs only when a changed file matches. ${GLOB_SHAPE}` },
         },
         required: ["name", "run"],
       },
@@ -36,7 +44,8 @@ export const CONFIG_SCHEMA = JSON.stringify({
       type: "array",
       items: { type: "string" },
       description:
-        "Globs naming where this repo's own source lives — the tree whose change makes an architecture pass worth paying for, e.g. src/** or packages/*/src/**; leave tests, docs, fixtures and generated output out. Plain path globs only: letters, digits, `_ . / - * ?`. No braces and no extglob",
+        "Globs naming where this repo's own source lives — the tree whose change makes an architecture pass worth paying for, e.g. src/** or packages/*/src/**; leave tests, docs, fixtures and generated output out. " +
+        GLOB_SHAPE,
     },
     provider: {
       type: "string",
@@ -64,18 +73,27 @@ export const CONFIG_SCHEMA = JSON.stringify({
 const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
 
 /**
- * A glob names no command, so it gets no `FORBIDDEN` check. It gets a shape
- * instead: the characters a path takes, plus `*` and `?`. The brace and
- * extglob syntax `matchesGlob` also accepts is what is being kept out —
- * `{a,b}` twenty times over expands to a million alternatives and costs about
- * thirty seconds for a single file, which `matchesAny` then pays per file per
- * glob on a skip check every run. The work is synchronous, so no timeout
- * downstream can take it back; the only place to stop it is here, where the
- * model's answer comes in.
+ * A glob names no command, so it gets no `FORBIDDEN` check. What it needs
+ * bounded is not its syntax but the work one `matchesGlob` call can be made to
+ * do, because `matchesAny` pays that per file per glob on a skip check every
+ * run, synchronously, where no timeout downstream can take it back. Two
+ * separate ways to spend half a minute on a single file, both measured:
+ *
+ * - Braces expand eagerly, so `{a,b}` twenty times over is a million
+ *   alternatives. The shape below has no brace in it, nor any extglob.
+ * - Wildcards backtrack, so `**` followed by `*?` ten times over takes 64s
+ *   against an ordinary 48-character filename — and every character of that is
+ *   one the shape allows. Only a count stops it: eight metacharacters is 0.2s
+ *   against a name twice as long as any here, nine is 7.5s, and the globs this
+ *   field is for spend two to four.
  */
 const PATH_GLOB = /^[A-Za-z0-9_.\/*?-]+$/;
+const MAX_WILDCARDS = 8;
 const isPathGlob = (raw: unknown): raw is string =>
-  typeof raw === "string" && raw.length <= 200 && PATH_GLOB.test(raw);
+  typeof raw === "string" &&
+  raw.length <= 200 &&
+  PATH_GLOB.test(raw) &&
+  (raw.match(/[*?]/g) ?? []).length <= MAX_WILDCARDS;
 
 /** Enough globs to name where source lives in a monorepo, and no more; also bounds the skip line in the log. */
 const MAX_GLOBS = 20;

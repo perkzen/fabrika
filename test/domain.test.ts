@@ -182,30 +182,43 @@ test("a rejected proposal writes the template untouched, so init always has a co
 
 test("a glob whose match cost explodes is dropped before it can ever be matched", () => {
   const base = { base: "origin/main", gate: [], provider: "none", notes: [] };
-  // `matchesGlob` expands braces eagerly: `{a,b}` twenty times over costs ~30s
-  // for one file, and `matchesAny` pays that per file per glob, on the skip
-  // check of every run. Nothing downstream can interrupt it — the work is
-  // synchronous — so the pattern must not survive the proposal.
-  const bomb = "{a,b}".repeat(20);
+  // Two ways to make one `matchesGlob` call cost half a minute, both measured
+  // on this repo. Braces expand eagerly, so `{a,b}` twenty times over is a
+  // million alternatives. Wildcards backtrack, so `*?` ten times over takes
+  // 64s against an ordinary 48-character filename — in twenty-five characters,
+  // all of them ones a path is spelled with. `matchesAny` pays whichever it is
+  // per file per glob, on the skip check of every run, and the work is
+  // synchronous, so nothing downstream can interrupt it. Neither may survive
+  // the proposal.
+  const braces = "{a,b}".repeat(20);
+  const wildcards = "**/" + "*?".repeat(10) + "*z";
 
-  assert.deepEqual(asProposal({ ...base, source: [bomb] })?.source, ["src/**"], "the only entry is unusable");
+  for (const bomb of [braces, wildcards]) {
+    assert.deepEqual(asProposal({ ...base, source: [bomb] })?.source, ["src/**"], `the only entry is ${bomb}`);
+    assert.deepEqual(
+      asProposal({ ...base, source: ["src/**", bomb] })?.source,
+      ["src/**"],
+      "and it goes without taking the usable entry with it",
+    );
+  }
   assert.deepEqual(
-    asProposal({ ...base, source: ["src/**", bomb, "+(a|b)*", "!(vendor)/**", "a@(b|c)"] })?.source,
+    asProposal({ ...base, source: ["src/**", "+(a|b)*", "!(vendor)/**", "a@(b|c)"] })?.source,
     ["src/**"],
-    "brace and extglob syntax goes, the plain path glob stays",
+    "extglob syntax has no place in a path glob either",
   );
   assert.deepEqual(
-    asProposal({ ...base, source: ["lib/**", "packages/*/src/**", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"] })?.source,
-    ["lib/**", "packages/*/src/**", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"],
-    "a glob naming a path is what this field is for, and all of it survives",
+    asProposal({ ...base, source: ["lib/**", "apps/*/src/**/*.tsx", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"] })?.source,
+    ["lib/**", "apps/*/src/**/*.tsx", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"],
+    "a glob naming a path is what this field is for, and the cap is nowhere near what one spends",
   );
   assert.equal(asProposal({ ...base, source: Array(50).fill("src/**") })?.source.length, 20, "and the list is bounded");
 
   // A gate step rejects a malformed `when` outright rather than dropping it,
   // because a step whose filter was silently widened would run where the
   // answer said it should not.
-  assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: [bomb] }] }), null);
-  assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: ["x".repeat(201)] }] }), null);
+  for (const bomb of [braces, wildcards, "x".repeat(201)]) {
+    assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: [bomb] }] }), null, bomb);
+  }
   assert.deepEqual(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: ["src/**"] }] })?.gate, [
     { name: "compile", run: "tsc", when: ["src/**"] },
   ]);
