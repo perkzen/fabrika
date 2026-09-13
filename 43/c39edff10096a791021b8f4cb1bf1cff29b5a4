@@ -1,0 +1,27 @@
+src/adapters/git-workspace.ts
+  s_4246d0f2d87b1d::t_bf3d72f0fc0107 137-170,189
+test/sweep.test.ts
+  s_4246d0f2d87b1d::t_82b03226c90b6b 6,9,287-348
+src/pipeline/sweep.ts
+  s_4246d0f2d87b1d::t_ebf48b197e4a77 9,174-214
+src/ports/workspace.ts
+  s_4246d0f2d87b1d::t_bf3d72f0fc0107 51-57,66-67
+test/harness.ts
+  s_4246d0f2d87b1d::t_799000f396e763 40-43,68-69,85-90,113,139-146,196-200,202,206,210-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "43c39edff10096a791021b8f4cb1bf1cff29b5a4",
+  "prompts": {},
+  "sessions": {
+    "s_4246d0f2d87b1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c857d290-f91a-4d61-9c82-c217de57a947",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
