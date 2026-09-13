@@ -263,6 +263,14 @@ rather than a double — the rule that a thread is resolved only when a commit
 touched its file, and the one-rerun-per-flake behaviour, in milliseconds and
 with no network.
 
+A sweep is exercised through the same harness. `sweep` is handed a scripted
+worker that genuinely *fails* where the case calls for one, so the
+failure-to-outcome conversion under test is the real one; `syncPullRequest`
+is exercised like any other step, and `syncWithBase` has its own file. What is
+not covered is `checkout` against a real repository — every test here runs in
+memory, so the fetch, the hard reset and the push are pinned at the port and
+not against git.
+
 ## Smoke test
 
 ```bash

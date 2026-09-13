@@ -108,14 +108,14 @@ const because = (error: Exclude<StepError, Escalated>) => {
  * fan-out down, and a test that hands over a pre-converted worker would
  * exercise nothing but its own fixture.
  */
-const failure = (pr: PullRequestDetail, placement: Placement, error: StepError): SyncOutcome => {
+const failure = (pr: PullRequestDetail, placement: Placement | undefined, error: StepError): SyncOutcome => {
   if (error._tag === "Escalated") {
-    return { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement.log };
+    return { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement?.log };
   }
-  const failed: SyncOutcome = { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement.log };
+  const failed: SyncOutcome = { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement?.log };
   // The tree is left mid-merge and this is the failure an operator comes back
   // to once the window resets, so the line has to say where it is.
-  return error._tag === "AgentRateLimited"
+  return error._tag === "AgentRateLimited" && placement
     ? { ...failed, worktree: placement.worktree, rateLimited: true }
     : failed;
 };
@@ -275,15 +275,22 @@ export const sweep = (
             return yield* journal.log({ kind: "note", level: "detail", text: reported(stopped) });
           }
           const target = targetOf(pr);
-          const placement = yield* options.place(target);
-          const outcome = yield* options.worker(target, placement).pipe(
-            Effect.match({
-              onSuccess: ({ pushed }): SyncOutcome =>
-                pushed
-                  ? { pr, kind: "synced", detail: `synced: pushed ${pushed.slice(0, 7)}`, log: placement.log }
-                  : { pr, kind: "clean", detail: "already clean: base had not moved" },
-              onFailure: (error) => failure(pr, placement, error),
-            }),
+          const outcome = yield* options.place(target).pipe(
+            Effect.flatMap((placement) =>
+              options.worker(target, placement).pipe(
+                Effect.match({
+                  onSuccess: ({ pushed }): SyncOutcome =>
+                    pushed
+                      ? { pr, kind: "synced", detail: `synced: pushed ${pushed.slice(0, 7)}`, log: placement.log }
+                      : { pr, kind: "clean", detail: "already clean: base had not moved" },
+                  onFailure: (error) => failure(pr, placement, error),
+                }),
+              ),
+            ),
+            // Inside the isolation, not before it: a placement that could not
+            // be resolved is this pull request's failure, and the fan-out is
+            // the one thing a single pull request may never take down.
+            Effect.catch((error) => Effect.succeed(failure(pr, undefined, error))),
           );
           outcomes.push(outcome);
           rateLimited ||= outcome.rateLimited === true;

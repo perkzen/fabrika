@@ -347,3 +347,24 @@ test("a gate still red after the merge escalates and leaves the tree for a human
   assert.equal((exit as { prUrl: string }).prUrl, "https://github.com/perkzen/fabrika/pull/42");
   assert.deepEqual(recording.removed, []);
 });
+
+test("a placement that could not be resolved is one pull request's failure, not the sweep's", async () => {
+  const { exit, failed, recording } = await exercise(
+    sweep({
+      ...oneAtATime(() => Effect.succeed({ pushed: "9f1c2ab3d4e5f6" })),
+      place: (candidate) =>
+        candidate.number === 40
+          ? Effect.fail(new FabrikaError({ message: "~/.fabrika/runs is not readable" }))
+          : Effect.succeed(placement(candidate)),
+    }),
+    { pullRequests: twoConflicted },
+  );
+
+  assert.equal(failed, false, "the other workers carry on");
+  assert.equal((exit as { exitCode: number }).exitCode, 2);
+  assert.deepEqual(recording.log.slice(-3), [
+    "  #40 [yours] fix: thing — failed: ~/.fabrika/runs is not readable",
+    "waited 0s for syncing 2 pull request(s)",
+    "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
+  ]);
+});
