@@ -44,3 +44,22 @@ test("a matching capture puts the section in the body and its images on the pull
 
   assert.deepEqual(recording.captures, [{ name: "console", sha: "a1b2c3d4e5f6" }], "asked for the base the PR is diffed against");
 });
+
+/** Written out from the step as it stood before captures existed, not from `composeBody`. */
+const TODAYS_BODY = "\n\nthe description\n\n---\nOpened by fabrika. Draft until a human reviews.";
+
+test("a run with nothing to show is the run there is today", async () => {
+  // No `pr.capture` at all — the upgrade path — and one whose globs miss.
+  const scripts = [
+    {},
+    { config: { pr: { draft: true, emptyCommit: true, capture: [{ ...console_, when: ["docs/**"] }] } } },
+  ];
+
+  for (const script of scripts) {
+    const { failed, recording } = await exercise(openPullRequest.run, { ...script, captures: [framed] });
+    assert.equal(failed, false);
+    assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+    assert.deepEqual(recording.prs[0]!.attachments, []);
+    assert.deepEqual(recording.captures, [], "nothing was asked for, so no command ran");
+  }
+});
