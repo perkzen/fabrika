@@ -368,3 +368,29 @@ test("a placement that could not be resolved is one pull request's failure, not 
     "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
   ]);
 });
+
+/**
+ * "Nothing to sync" has two causes and they are not the same answer. A repo
+ * where nothing is conflicted needs no attention; a repo where the conflicted
+ * ones were all skipped is one the operator has something to do about, and the
+ * last line is what a scheduled invocation reads.
+ */
+test("a sweep whose conflicted pull requests were all skipped does not claim none were", async () => {
+  const { exit, recording } = await exercise(
+    sweep({ ...oneAtATime(noWorker), place: noPlace }),
+    {
+      pullRequests: [
+        pullRequest({ number: 42, title: "FAB-5: being worked on" }),
+        pullRequest({ number: 41, title: "feat: from a fork", fork: true }),
+      ],
+      checkedOut: [{ branch: "branch-42", path: "/Users/x/dev/fabrika" }],
+    },
+  );
+
+  assert.equal((exit as { exitCode: number }).exitCode, 0);
+  assert.equal(
+    recording.log.at(-1),
+    "sync: nothing to sync — 2 open pull request(s), every conflicted one skipped on origin/main",
+    "both were conflicted, so `none conflicted` would be a lie on the one line a cron job reads",
+  );
+});

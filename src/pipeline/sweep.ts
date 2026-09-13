@@ -244,7 +244,13 @@ export const sweep = (
     }
     const skipped = selections.length - selected.length;
     if (selected.length === 0) {
-      yield* journal.log(`sync: nothing to sync — ${prs.length} open pull request(s), none conflicted on ${options.base}`);
+      // Two different answers: a repo with nothing conflicted needs no
+      // attention, while one whose conflicted pull requests were all skipped
+      // has something for the operator in the lines above. This is the line a
+      // scheduled invocation reads, so it may not say the first when it is the
+      // second.
+      const why = prs.some((pr) => pr.merge === "conflicted") ? "every conflicted one skipped" : "none conflicted";
+      yield* journal.log(`sync: nothing to sync — ${prs.length} open pull request(s), ${why} on ${options.base}`);
       return { outcomes, exitCode: 0 };
     }
     yield* journal.log(`sync: ${selected.length} conflicted, ${skipped} skipped`);
