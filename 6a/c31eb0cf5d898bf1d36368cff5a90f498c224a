@@ -1,0 +1,19 @@
+test/run-event.test.ts
+  s_3389f098a81506::t_1ad91d6f4958b3 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6ac31eb0cf5d898bf1d36368cff5a90f498c224a",
+  "prompts": {},
+  "sessions": {
+    "s_3389f098a81506": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e10089f-53c0-4087-9a50-bf8d21394ca6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
