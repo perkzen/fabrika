@@ -175,9 +175,9 @@ export type Layout = {
 export const layout = (tree: Tree, view: View, size: Size): Layout => {
   const steps = stepsOf(tree);
   const footer = size.rows >= FOOTER_AT;
-  // The same threshold the keys row has: both are furniture a short terminal
-  // spends its rows on instead of the outline.
-  const worktree = tree.worktree !== undefined && size.rows >= FOOTER_AT;
+  // `footer` itself, not the same test written again: both rows are furniture
+  // a short terminal spends on the outline instead.
+  const worktree = tree.worktree !== undefined && footer;
   const body = Math.max(size.rows - 1 - (worktree ? 1 : 0) - (footer ? 1 : 0), 0);
   const window =
     steps.some((step) => step.key === view.opened) && body >= WINDOW + 1 ? Math.max(WINDOW, body - steps.length) : 0;
