@@ -59,7 +59,7 @@ export const Config = Schema.Struct({
   /**
    * What every call the pipeline makes runs on unless a stage names its own;
    * the CLI's own default when absent. The auth probe (`cli.ts`) is a fixed
-   * three-token call made outside the pipeline and takes neither.
+   * one-line liveness call made outside the pipeline and takes neither.
    */
   model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
   stages: Schema.Array(Stage),
