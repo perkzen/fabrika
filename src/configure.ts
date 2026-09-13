@@ -1,14 +1,15 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
-import { CONFIG_TEMPLATE, type GateStep } from "./config.ts";
+import { CONFIG_TEMPLATE, type Config, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
-/** The three repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
+/** The four repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {
   readonly base: string;
   readonly install: string | undefined;
   readonly gate: ReadonlyArray<GateStep>;
+  readonly provider: Config["review"]["provider"];
   readonly notes: ReadonlyArray<string>;
 };
 
@@ -29,13 +30,19 @@ export const CONFIG_SCHEMA = JSON.stringify({
         required: ["name", "run"],
       },
     },
+    provider: {
+      type: "string",
+      enum: ["cubic", "none"],
+      description:
+        "The review bot this repo already has, as evidence off its own pull requests: cubic when a review by cubic-dev-ai[bot] is there, none otherwise",
+    },
     notes: {
       type: "array",
       items: { type: "string" },
       description: "One line per decision: where each step came from, what was verified, what a human should check",
     },
   },
-  required: ["base", "gate", "notes"],
+  required: ["base", "gate", "provider", "notes"],
 });
 
 /**
@@ -88,8 +95,31 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
     gate.push({ ...step, name });
   }
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string") : [];
-  return { base, install: r.install, gate, notes };
+  // Normalised like `stepName`: a wrong `"none"` loses a signal the human still sees on the PR, where a wrong `"cubic"` guarantees an escalation.
+  const provider = r.provider === "cubic" ? "cubic" : "none";
+  return { base, install: r.install, gate, provider, notes };
 };
+
+/**
+ * What `init` writes, from what the call proposed — or the neutral template
+ * when nothing usable came back, because `init` has a config to write either
+ * way. It lives beside `asProposal` that produced its input: the proposal's
+ * fields are declared, validated and applied in one place, so a fifth one is
+ * added here rather than in a merge the CLI keeps on the side.
+ *
+ * `review` is spread, not replaced — the call proposes one of its four fields
+ * and the other three are the template's.
+ */
+export const asConfig = (proposal: ConfigProposal | null): Config =>
+  proposal
+    ? {
+        ...CONFIG_TEMPLATE,
+        base: proposal.base,
+        install: proposal.install,
+        gate: proposal.gate,
+        review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
+      }
+    : CONFIG_TEMPLATE;
 
 const PROMPT = fileURLToPath(new URL("../prompts/configure.md", import.meta.url));
 

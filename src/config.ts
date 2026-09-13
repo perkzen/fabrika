@@ -32,7 +32,8 @@ export const Config = Schema.Struct({
   deny: Schema.Array(Schema.String),
   pr: Schema.Struct({ draft: Schema.Boolean, emptyCommit: Schema.Boolean }),
   review: Schema.Struct({
-    provider: Schema.Literal("cubic"),
+    /** `"none"` is a repo with no review bot: its rounds turn on the checks alone. */
+    provider: Schema.Literals(["cubic", "none"]),
     requireScore: Schema.Number,
     maxRounds: Schema.Number,
     timeoutMinutes: Schema.Number,
@@ -86,7 +87,8 @@ export const CONFIG_TEMPLATE: Config = {
   ],
   deny: ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr review:*)", "Bash(gh api graphql:*)"],
   pr: { draft: true, emptyCommit: true },
-  review: { provider: "cubic", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
+  // What `init` writes when its configure call is rejected, and a fallback that escalates by construction is not a fallback.
+  review: { provider: "none", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
   checks: { timeoutMinutes: 30 },
   maxIterations: 4,
 };

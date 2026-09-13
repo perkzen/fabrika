@@ -1,16 +1,16 @@
 ---
 name: configure
-description: Read a repository's base branch, install command and checks, and propose the repo-specific parts of .fabrika/config.json. Use when the host asks for a configuration at `fabrika init`.
+description: Read a repository's base branch, install command, checks and review bot, and propose the repo-specific parts of .fabrika/config.json. Use when the host asks for a configuration at `fabrika init`.
 ---
 
 # Configure
 
-The host writes `.fabrika/config.json`; you supply the three fields that cannot
-be shipped in a template because they belong to this repo: **base**, **install**
-and **gate**. Return them as structured output. Write no files — not the config,
-not a scratch note.
+The host writes `.fabrika/config.json`; you supply the four fields that cannot
+be shipped in a template because they belong to this repo: **base**, **install**,
+**gate** and **provider**. Return them as structured output. Write no files —
+not the config, not a scratch note.
 
-The gate matters more than the other two. The host runs it after every stage
+The gate matters more than the other three. The host runs it after every stage
 that changes code, and a failing step goes back to the agent as "fix it". A
 step that does not exist here, or that is already red on an untouched checkout,
 teaches the agent to invent a script to go green and burns the run. **An empty
@@ -104,9 +104,38 @@ root (`apps/desktop/**`). If you are guessing, leave it off.
 that writes outside the worktree. The host owns those and denies them to every
 stage; the answer is rejected outright if one appears in a gate step.
 
+## provider
+
+Which review bot this repo has. The run waits for it after it opens the draft
+PR, so a provider the repo does not have is a run that escalates on a review
+that was never coming.
+
+Read it off the repo's own pull requests, which is the same signal the run
+itself matches on later:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls?state=all&per_page=20" -q '.[].number'
+gh api "repos/{owner}/{repo}/pulls/<number>/reviews" -q '.[].user.login'
+```
+
+A review by `cubic-dev-ai[bot]` on any recent pull request means `cubic`.
+Anything else — no such review, no pull requests at all, or an endpoint you
+cannot read — means `none`.
+
+**Not `gh api graphql`.** This call runs under the same `deny` list as every
+stage, which forbids it; the REST endpoints above are what is available here.
+
+`none` is not a degraded mode. The run keeps the half of the review loop that
+does not need a bot: it waits for the checks, hands a failing check's log back
+to the agent, reruns a suspected flake once, and escalates after
+`review.maxRounds` exactly as it would with one. Only the threads and the score
+go away. So say which one you chose and what you saw in `notes` — a human
+correcting `none` to `cubic` is a one-word edit.
+
 ## notes
 
 One line per gate step saying where it came from and that it passed, plus every
 judgement a human should check: a dropped step and why, a base branch that was
-not obvious, a check that CI runs but the host cannot. This is the only place
+not obvious, a check that CI runs but the host cannot, and the review bot you
+found or did not find, with what you looked at. This is the only place
 the reasoning survives — the config itself is just JSON.

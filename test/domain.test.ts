@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Effect } from "effect";
 import { classify } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
-import { asProposal } from "../src/configure.ts";
+import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
+import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
 const ticket: Ticket = { identifier: "PAR-12", title: "Add a new export button", description: "", type: "feat" };
@@ -76,4 +78,64 @@ test("a check rollup is bucketed, and the reviewer's own check is not waited on"
 test("a missing score is never a pass", () => {
   assert.equal(parseScore("<!-- cubic:review-summary:confidence-score:4/5 -->"), 4);
   assert.equal(parseScore("no score here"), null);
+});
+
+test("both providers decode and a third does not, so a typo fails at the start of the run", async () => {
+  const withProvider = (provider: string) =>
+    JSON.stringify({ ...CONFIG_TEMPLATE, review: { ...CONFIG_TEMPLATE.review, provider } });
+
+  for (const provider of ["cubic", "none"]) {
+    const config = await Effect.runPromise(decodeConfig(withProvider(provider)));
+    assert.equal(config.review.provider, provider);
+  }
+  const error = await Effect.runPromise(decodeConfig(withProvider("cubik")).pipe(Effect.flip));
+  assert.match(String(error), /Expected "cubic" \| "none"/, "and says which field and which values");
+  assert.match(String(error), /\["review"\]\["provider"\]/);
+});
+
+test("the config init falls back to is runnable on a repo with no review bot", async () => {
+  const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
+});
+
+test("a proposal keeps cubic and normalises anything else to none, without losing the rest of it", () => {
+  const base = { base: "origin/main", gate: [{ name: "compile", run: "tsc" }], notes: [] };
+  assert.equal(asProposal({ ...base, provider: "cubic" })?.provider, "cubic");
+  for (const provider of ["none", "cubic-dev-ai", "Cubic", undefined, 5, null]) {
+    const proposal = asProposal({ ...base, provider });
+    assert.equal(proposal?.provider, "none", String(provider));
+    assert.deepEqual(proposal?.gate, [{ name: "compile", run: "tsc" }], "a correctly-read gate survives the guess");
+    assert.equal(proposal?.base, "origin/main");
+  }
+});
+
+test("a proposal becomes the config init writes, and only the fields it proposed move", () => {
+  const config = asConfig({
+    base: "origin/trunk",
+    install: "pnpm i --frozen-lockfile",
+    gate: [{ name: "compile", run: "tsc" }],
+    provider: "cubic",
+    notes: ["read off the repo"],
+  });
+
+  assert.equal(config.base, "origin/trunk");
+  assert.equal(config.install, "pnpm i --frozen-lockfile");
+  assert.deepEqual(config.gate, [{ name: "compile", run: "tsc" }]);
+  assert.equal(config.review.provider, "cubic");
+  // The proposal names one field of `review`; the merge must not cost the other three.
+  assert.equal(config.review.requireScore, CONFIG_TEMPLATE.review.requireScore);
+  assert.equal(config.review.maxRounds, CONFIG_TEMPLATE.review.maxRounds);
+  assert.equal(config.review.timeoutMinutes, CONFIG_TEMPLATE.review.timeoutMinutes);
+  assert.deepEqual(config.stages, CONFIG_TEMPLATE.stages, "the stages are shipped, never proposed");
+  assert.deepEqual(config.deny, CONFIG_TEMPLATE.deny);
+});
+
+test("a repo that needs no install step gets a config with no install key at all", () => {
+  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", notes: [] });
+  assert.equal(config.install, undefined);
+  assert.equal(JSON.parse(JSON.stringify(config)).install, undefined, "and `init` writes the file without it");
+});
+
+test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
+  assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
 });

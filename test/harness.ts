@@ -1,4 +1,5 @@
 import { Effect, Layer } from "effect";
+import { noReviewer } from "../src/adapters/no-reviewer.ts";
 import type { Config } from "../src/config.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
@@ -27,6 +28,8 @@ export type Script = {
   /** Answered in order; the last one repeats. `undefined` is a green gate. */
   readonly gate?: ReadonlyArray<GateFailure | undefined>;
   readonly reviews?: ReadonlyArray<Review | undefined>;
+  /** Swaps the shipped no-reviewer adapter in for the scripted fake. */
+  readonly reviewer?: "none";
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
@@ -189,16 +192,20 @@ export const harness = (script: Script = {}) => {
       failureLog: () => Effect.succeed("the failing log"),
       rerun: (check: Check) => Effect.sync(() => void recording.rerun.push(check.job!.id)),
     }),
-    Layer.succeed(Reviewer)({
-      name: "fake",
-      await: () => Effect.sync(nextReview),
-      reply: (thread: string, body: string) => Effect.sync(() => void recording.replied.push({ thread, body })),
-      resolve: (thread: string) => Effect.sync(() => void recording.resolved.push(thread)),
-      owns: (name: string) => /fake/i.test(name),
-      renderThreads: (threads) => threads.map((thread) => thread.id).join(","),
-      decisionSchema: "{}",
-      prompts: { threads: "threads.md", system: "threads.system.md" },
-    }),
+    // The shipped adapter, not the fake with a flag flipped: it pins the behaviour, not the double.
+    script.reviewer === "none"
+      ? Layer.succeed(Reviewer)(noReviewer)
+      : Layer.succeed(Reviewer)({
+          name: "fake",
+          scores: true,
+          await: () => Effect.sync(nextReview),
+          reply: (thread: string, body: string) => Effect.sync(() => void recording.replied.push({ thread, body })),
+          resolve: (thread: string) => Effect.sync(() => void recording.resolved.push(thread)),
+          owns: (name: string) => /fake/i.test(name),
+          renderThreads: (threads) => threads.map((thread) => thread.id).join(","),
+          decisionSchema: "{}",
+          prompts: { threads: "threads.md", system: "threads.system.md" },
+        }),
   );
 
   return { layer: layer as Layer.Layer<StepServices>, recording, state, config, ticket };

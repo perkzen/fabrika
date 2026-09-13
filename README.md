@@ -21,7 +21,7 @@ flowchart LR
     A --> SE[security]
     SE --> R[review]
     R --> M["merge base<br/>open draft PR"]
-    M --> L["review loop<br/>bot threads + CI checks"]
+    M --> L["review loop<br/>reviewer findings + CI checks"]
     L --> H["Human reviews<br/>and merges"]
 ```
 
@@ -36,7 +36,7 @@ review loop have not yet run on a real ticket. Expect rough edges.
 - Node and [pnpm](https://pnpm.io)
 - The [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI, logged in (`claude auth login`)
 - The [GitHub CLI](https://cli.github.com) (`gh`), authenticated against the target repo
-- For the review loop: the [cubic](https://cubic.dev) review bot installed on the target repo
+- Only for `review.provider: "cubic"`: the [cubic](https://cubic.dev) review bot installed on the target repo. A repo without one sets `"none"`, which `init` does on its own, and its runs are decided by CI alone
 - For Linear tickets: a Linear API key in `~/.config/fabrika/.env` as `LINEAR_API_KEY=...`
 
 ## Quick start
@@ -117,18 +117,27 @@ flowchart TD
 
 ### The PR is done when the reviewers are happy
 
-After the draft PR opens, the host watches the review bot and CI. The agent
+After the draft PR opens, the host watches the reviewer and CI. The agent
 only fixes.
 
 ```mermaid
 flowchart TD
-    A[Push draft PR] --> B[Wait for bot review and CI checks]
-    B --> C{"Score clean, no open threads,<br/>no failing checks?"}
+    A[Push draft PR] --> B[Wait for the reviewer and CI checks]
+    B --> C{"Reviewer satisfied, no open threads,<br/>no failing checks?"}
     C -- yes --> Z[Ready for human review]
     C -- no --> D[Agent fixes or disputes each finding]
     D --> E[Host posts replies, merges base, runs gate, pushes]
     E --> B
 ```
+
+A round takes one of two shapes. With `review.provider: "cubic"`, the host
+waits for the bot's review of the pushed commit and the round turns on its
+score, its open threads and the checks together. With `"none"` there is no bot
+to wait for, so the reviewer is satisfied by construction and the round turns
+on the checks alone: the host still waits for them to settle, still hands a
+failing one's log to the agent that wrote the code, and still escalates after
+`review.maxRounds`. The run finishes either way — it just claims no score it
+did not seek.
 
 A failed CI run is rerun once first, for flakes. The host never resolves a
 thread the agent did not address.

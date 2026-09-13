@@ -124,6 +124,7 @@ export const layer = Layer.effect(Reviewer)(
 
     return {
       name: "cubic",
+      scores: true,
       owns: (checkName: string, checkUrl: string) => /cubic/i.test(checkName) || checkUrl.includes("cubic.dev"),
       decisionSchema: DECISION_SCHEMA,
       prompts: { threads: "cubic.md", system: "cubic.system.md" },

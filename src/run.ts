@@ -7,6 +7,7 @@ import * as fileRunStore from "./adapters/file-run-store.ts";
 import * as fsPrompts from "./adapters/fs-prompts.ts";
 import * as ghForge from "./adapters/gh-forge.ts";
 import * as gitWorkspace from "./adapters/git-workspace.ts";
+import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import type { Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
@@ -57,7 +58,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       Layer.succeed(RunContext)({ ticket, config }),
       gitWorkspace.layer({ repoRoot, dir, base: config.base }),
     );
-    const reviewer = cubicReviewer.layer.pipe(Layer.provide(foundation));
+    // The one place a provider is named; the review loop reads the port, never this field.
+    const reviewer =
+      config.review.provider === "cubic" ? cubicReviewer.layer.pipe(Layer.provide(foundation)) : noReviewer.layer;
     const ports = Layer.mergeAll(
       foundation,
       reviewer,
