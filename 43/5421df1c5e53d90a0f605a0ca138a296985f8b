@@ -1,0 +1,23 @@
+src/pipeline/step.ts
+  s_3389f098a81506::t_e832cdaf9cffb5 100-106
+src/run-event.ts
+  s_3389f098a81506::t_e832cdaf9cffb5 12-15,45-51
+test/pipeline.test.ts
+  s_3389f098a81506::t_279628ba9bd12f 7,67-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "435421df1c5e53d90a0f605a0ca138a296985f8b",
+  "prompts": {},
+  "sessions": {
+    "s_3389f098a81506": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e10089f-53c0-4087-9a50-bf8d21394ca6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
