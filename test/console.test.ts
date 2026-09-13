@@ -66,6 +66,28 @@ test("a result event's text is written unchanged, and end() adds nothing after i
   );
 });
 
+test("the worktree is the line above the result, so the result is still the last one", () => {
+  const out = sink();
+  const presenter = openConsole({
+    stream: out.stream,
+    interactive: false,
+    now: noon,
+    worktree: "/Users/x/.fabrika/worktrees/fabrika/FAB-7",
+  });
+  presenter.show({ kind: "run", completed: [], steps: [{ name: "implement", done: false }] });
+  presenter.show({ kind: "result", outcome: "done", text: "done: ready for human review: https://github.com/perkzen/fabrika/pull/7" });
+  presenter.end();
+
+  assert.deepEqual(
+    out.text().trimEnd().split("\n").slice(-2),
+    [
+      "12:00:00 worktree: /Users/x/.fabrika/worktrees/fabrika/FAB-7",
+      "12:00:00 done: ready for human review: https://github.com/perkzen/fabrika/pull/7",
+    ],
+    "stamped and dressed by the same pass as every other permanent line, and above the one a pipe reads last",
+  );
+});
+
 test("a plain console emits no escape bytes at all", () => {
   const out = sink();
   const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });

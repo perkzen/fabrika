@@ -59,6 +59,8 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let drawn = 0;
   let hidden = false;
   let ended = false;
+  /** Whether the worktree has been named already. A run says where its tree is once. */
+  let wrote = false;
   /**
    * The three scalars the live region needs, read straight off the events
    * that carry them. This surface never shows the run's shape, so it holds no
@@ -161,8 +163,25 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     timer = undefined;
   };
 
+  /**
+   * Where the run's tree is, written once and back through `show`, so it is
+   * stamped, dressed and ordered against the live region by the same
+   * clear-write-redraw pass as every other permanent line — on a terminal and
+   * through a pipe alike, with no second rendering path.
+   */
+  const worktreeLine = () => {
+    if (wrote || options.worktree === undefined) return;
+    // Before `show`, which is about to call back in here: the flag is what
+    // makes the line exactly one.
+    wrote = true;
+    show(`worktree: ${options.worktree}`);
+  };
+
   const show = (entry: RunEvent | string) => {
     if (ended) return;
+    // Above the result and never below it: the piped contract is that a clean
+    // run's last stdout line is the pull request's URL.
+    if (typeof entry !== "string" && entry.kind === "result") worktreeLine();
     const at = stamp(now());
     const block = display(entry, dress, { cap: MESSAGE_LINES, archive: options.archive })
       .map((line) => `${dress("dim", at)} ${line}\n`)
