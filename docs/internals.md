@@ -58,7 +58,7 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 | --- | --- |
 | 0 | Clean run; the last log line is the PR URL, or for `sync` the counts line |
 | 1 | Configuration or CLI error |
-| 2 | Escalated: a human needs to look. The worktree and PR (if any) are left in place; rerun to resume |
+| 2 | A human needs to look: a run escalated, or a `sync` worker escalated or failed. The worktree and PR (if any) are left in place; rerun to resume |
 | 3 | Claude usage limit hit; state is saved, rerun once the window resets |
 
 ## Why the CLI is installed rather than run via a package manager
