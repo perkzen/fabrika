@@ -1,6 +1,6 @@
 {
   "name": "@perkzen/fabrika",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "An Effect-based runner that drives Claude Code through spec, plan, implement, refactor, security and review stages on a ticket.",
   "type": "module",
   "license": "MIT",
