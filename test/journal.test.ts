@@ -44,7 +44,7 @@ test("the layer finaliser closes every surface, exactly once", async () => {
   assert.equal(chunks.join("").split("\x1b[?25h").length - 1, 1, "the console presenter is ended once, not once per surface");
 });
 
-test("a worker's journal is archive-only, so six of them never fight over one terminal", async () => {
+test("an archive-only journal writes the file and never touches the terminal", async () => {
   const file = join(mkdtempSync(join(tmpdir(), "fabrika-journal-")), "log.txt");
   const wrote: Array<string> = [];
   const real = process.stdout.write.bind(process.stdout);
@@ -52,7 +52,7 @@ test("a worker's journal is archive-only, so six of them never fight over one te
   try {
     await Effect.runPromise(
       Effect.flatMap(Journal, (journal) => journal.log("base moved: 2 commit(s) behind; merging")).pipe(
-        Effect.provide(fileJournal.layer(file, null)),
+        Effect.provide(fileJournal.archiveOnly(file)),
       ),
     );
   } finally {
@@ -62,6 +62,6 @@ test("a worker's journal is archive-only, so six of them never fight over one te
   assert.match(readFileSync(file, "utf8"), /base moved: 2 commit\(s\) behind; merging/, "the archive still gets everything");
   assert.ok(
     !wrote.join("").includes("base moved"),
-    "and `null` is the archive alone — `?? default` would have opened a console on stdout",
+    "and nothing reached stdout — six workers each opening a console would fight over it",
   );
 });

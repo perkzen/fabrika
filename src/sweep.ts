@@ -30,9 +30,9 @@ export type SweepOptions = {
  * graph over its own tree, run directory and agent session, and shares nothing
  * with its siblings but the console.
  *
- * The console is the sweep's alone. A worker's journal is `null` on its second
- * argument — the archive by itself — so six of them cannot fight over the
- * terminal, and their detail is in their own `log.txt`.
+ * The console is the sweep's alone. A worker's journal is `archiveOnly`, so six
+ * of them cannot fight over the terminal, and their detail is in their own
+ * `log.txt`.
  */
 export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>, options: SweepOptions) =>
   Effect.gen(function* () {
@@ -100,7 +100,7 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       // hand one across and the two can never point at different directories.
       const runDir = path.dirname(placement.log);
       const foundation = Layer.mergeAll(
-        fileJournal.layer(placement.log, null),
+        fileJournal.archiveOnly(placement.log),
         fileRunStore.layer(runDir),
         fsPrompts.layer({ identifier: target.identifier, title: target.title, base: config.base }),
         gitWorkspace.layer({ repoRoot, dir: placement.worktree, base: config.base }),
