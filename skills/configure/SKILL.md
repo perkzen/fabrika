@@ -98,6 +98,14 @@ Only for a step that genuinely applies to part of the tree — a package in a
 monorepo whose check is meaningless elsewhere. Globs match paths from the repo
 root (`apps/desktop/**`). If you are guessing, leave it off.
 
+Write plain path globs: letters, digits and `_ . @ / - * ?`, with at most eight
+`*` or `?` in one glob. Braces and extglob are rejected — `src/**/*.{ts,tsx}`
+is two entries, `src/**/*.ts` and `src/**/*.tsx` — because a pattern like
+`{a,b}` repeated, or a long run of wildcards, takes the matcher tens of seconds
+per file on every run that reads it.
+
+A `when` that is not a plain path glob rejects the whole answer, gate included.
+
 ### Never propose
 
 `git push`, `gh pr merge`, `gh pr review`, any publish or deploy, or anything
@@ -114,6 +122,12 @@ the diff, and not when the ticket merely said `feat`.
 Read the tree and name what is there: `src/**`, `lib/**`, `apps/*/src/**`,
 `packages/*/src/**`. Several are fine when the code is genuinely in several
 places.
+
+Write plain path globs: letters, digits and `_ . @ / - * ?`, with at most eight
+`*` or `?` in one glob. Braces and extglob are rejected — `src/**/*.{ts,tsx}`
+is two entries, `src/**/*.ts` and `src/**/*.tsx` — because a pattern like
+`{a,b}` repeated, or a long run of wildcards, takes the matcher tens of seconds
+per file on every run that reads it.
 
 Leave out tests, docs, fixtures, generated output and lockfiles. A branch that
 only touches those has nothing to reshape, which is exactly the case this field

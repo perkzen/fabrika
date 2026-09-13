@@ -21,7 +21,7 @@ export type ConfigProposal = {
  * It is the prose half of `isPathGlob`; keep the two in step.
  */
 const GLOB_SHAPE =
-  "Plain path globs only: letters, digits and `_ . / - * ?`, at most eight `*` or `?` between them. No braces and no extglob — write `src/**/*.ts` and `src/**/*.tsx` as two entries, never `src/**/*.{ts,tsx}`.";
+  "Plain path globs only: letters, digits and `_ . @ / - * ?`, at most eight `*` or `?` between them. No braces and no extglob — write `src/**/*.ts` and `src/**/*.tsx` as two entries, never `src/**/*.{ts,tsx}`.";
 
 export const CONFIG_SCHEMA = JSON.stringify({
   type: "object",
@@ -87,7 +87,9 @@ const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|y
  *   against a name twice as long as any here, nine is 7.5s, and the globs this
  *   field is for spend two to four.
  */
-const PATH_GLOB = /^[A-Za-z0-9_.\/*?-]+$/;
+// `@` is here for `packages/@org/*/src/**` and is inert on its own: extglob
+// needs `@(`, and `(` is not in the class.
+const PATH_GLOB = /^[A-Za-z0-9_.@\/*?-]+$/;
 const MAX_WILDCARDS = 8;
 const isPathGlob = (raw: unknown): raw is string =>
   typeof raw === "string" &&

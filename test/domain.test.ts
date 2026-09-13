@@ -207,8 +207,9 @@ test("a glob whose match cost explodes is dropped before it can ever be matched"
     "extglob syntax has no place in a path glob either",
   );
   assert.deepEqual(
-    asProposal({ ...base, source: ["lib/**", "apps/*/src/**/*.tsx", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"] })?.source,
-    ["lib/**", "apps/*/src/**/*.tsx", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"],
+    asProposal({ ...base, source: ["lib/**", "apps/*/src/**/*.tsx", "packages/@org/*/src/**", "src/main-2.ts", "a_b/?.ts"] })
+      ?.source,
+    ["lib/**", "apps/*/src/**/*.tsx", "packages/@org/*/src/**", "src/main-2.ts", "a_b/?.ts"],
     "a glob naming a path is what this field is for, and the cap is nowhere near what one spends",
   );
   assert.equal(asProposal({ ...base, source: Array(50).fill("src/**") })?.source.length, 20, "and the list is bounded");
