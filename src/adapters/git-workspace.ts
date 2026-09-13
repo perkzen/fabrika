@@ -1,5 +1,6 @@
 import { Effect, FileSystem, Layer, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { baseBranch, remoteOf } from "../config.ts";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
 import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
@@ -15,9 +16,40 @@ import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
  */
 export const WORK_DIR = ".fabrika/work";
 
-/** `origin/main` → remote `origin`, branch `main`; a bare `main` means `origin`. */
-export const remoteOf = (base: string) => (base.includes("/") ? base.split("/")[0]! : "origin");
-export const baseBranch = (base: string) => (base.includes("/") ? base.slice(base.indexOf("/") + 1) : base);
+/**
+ * `git worktree list --porcelain` as branch-and-path pairs.
+ *
+ * Blank-line-separated blocks, one field per line; a detached worktree carries
+ * `detached` where a branch would be and belongs to no branch. Exported
+ * because this is the parse ADR-0004's hard reset is fenced by: a listing this
+ * misreads is a sweep that resets a tree somebody is working in.
+ */
+export const checkedOut = (porcelain: string): ReadonlyArray<{ readonly branch: string; readonly path: string }> =>
+  porcelain.split("\n\n").flatMap((block) => {
+    const field = (name: string) =>
+      block.split("\n").find((line) => line.startsWith(`${name} `))?.slice(name.length + 1);
+    const where = field("worktree");
+    const ref = field("branch");
+    return where && ref ? [{ branch: ref.replace(/^refs\/heads\//, ""), path: where }] : [];
+  });
+
+/**
+ * `owner/repo` for a repository, without building a `Workspace` first: a
+ * sweep resolves it before it has a tree, and `Workspace.githubRepo` answers
+ * through the same call, so the two cannot disagree.
+ */
+export const githubRepoAt = (repoRoot: string, base: string) => {
+  const remote = remoteOf(base);
+  return run(repoRoot, ["git", "remote", "get-url", remote]).pipe(
+    Effect.mapError(asFabrikaError("git remote")),
+    Effect.flatMap((url) => {
+      const repo = /github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/.exec(url)?.[1];
+      return repo
+        ? Effect.succeed(repo)
+        : Effect.fail(new FabrikaError({ message: `remote ${remote} is not a GitHub URL: ${url}` }));
+    }),
+  );
+};
 
 export type WorkspaceOptions = {
   readonly repoRoot: string;
@@ -70,14 +102,14 @@ export const layer = (options: WorkspaceOptions) =>
 
         exists: fs.exists(dir).pipe(Effect.orElseSucceed(() => false)),
         currentBranch: git(["branch", "--show-current"]),
-        githubRepo: git(["remote", "get-url", remote], repoRoot).pipe(
-          Effect.flatMap((url) => {
-            const match = /github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/.exec(url);
-            return match
-              ? Effect.succeed(match[1]!)
-              : Effect.fail(new FabrikaError({ message: `remote ${remote} is not a GitHub URL: ${url}` }));
-          }),
-        ),
+        githubRepo: spawned(githubRepoAt(repoRoot, base)),
+        /**
+         * Git rather than the filesystem: this catches a tree at *any* path —
+         * a renamed pull request whose key no longer matches its directory
+         * cannot slip past — and it catches the operator's own checkout.
+         */
+        checkedOutBranches: git(["worktree", "list", "--porcelain"], repoRoot).pipe(Effect.map(checkedOut)),
+
         /**
          * "Domen Perko" → `domen-perko`, for the `{user}` in the branch
          * pattern: the config is committed to the target repo, so the prefix
@@ -114,6 +146,46 @@ export const layer = (options: WorkspaceOptions) =>
               ? git(["worktree", "add", dir, branch], repoRoot)
               : git(["worktree", "add", "-b", branch, dir, base], repoRoot);
           }).pipe(Effect.mapError((e) => (e instanceof FabrikaError ? e : asFabrikaError("creating the worktree")(e)))),
+
+        /**
+         * A sweep's entry into a tree. It hard-resets to `<remote>/<branch>`:
+         * the local branch that survived `worktree remove` can hold an
+         * escalated run's tip or a history someone rewrote, and a merge
+         * computed against that resolves conflicts nobody has (ADR-0004).
+         *
+         * It resets only a tree it just created. The selection rule that
+         * fences the reset — skip a branch checked out anywhere on this
+         * machine — reads `git worktree list` once, before the fan-out, so a
+         * tree that is already here is one that appeared since: a second
+         * `fabrika sync`, whose agent is mid-merge in it. Refusing costs one
+         * pull request this sweep; resetting costs the other sweep's work.
+         */
+        checkout: (branch: string) =>
+          Effect.gen(function* () {
+            yield* excludeWorkDir;
+            yield* git(["fetch", "--quiet", remote], repoRoot);
+            const tip = `${remote}/${branch}`;
+            const known = yield* git(["rev-parse", "--verify", "--quiet", tip], repoRoot).pipe(
+              Effect.orElseSucceed(() => ""),
+            );
+            if (!known) {
+              return yield* new FabrikaError({ message: `${tip} does not exist — nothing to check out` });
+            }
+            if (yield* fs.exists(dir)) {
+              // Not "remove it and retry": the tree this refuses to touch is
+              // most likely another sync's, mid-merge, and an operator who
+              // reads a suggestion in a log acts on it.
+              return yield* new FabrikaError({
+                message: `${dir} already exists — another sync may still be working in it; leave it until that one is done`,
+              });
+            }
+            yield* fs.makeDirectory(path.dirname(dir), { recursive: true });
+            const existing = yield* git(["branch", "--list", branch], repoRoot);
+            yield* existing
+              ? git(["worktree", "add", dir, branch], repoRoot)
+              : git(["worktree", "add", "-b", branch, dir, tip], repoRoot);
+            yield* git(["reset", "--hard", tip]);
+          }).pipe(Effect.mapError((e) => (e instanceof FabrikaError ? e : asFabrikaError("checking out the branch")(e)))),
 
         install: (command: string) =>
           Effect.gen(function* () {

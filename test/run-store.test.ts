@@ -129,3 +129,66 @@ test("a service provided to several dependents is built once", async () => {
   assert.equal(built, 1, "one instance");
   assert.deepEqual(ids, [1, 1, 1], "and everyone has it");
 });
+
+/** The runs directory of one repository, with a run per entry. */
+const runsWith = async (runs: Record<string, number | null>) => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-runs-"));
+  for (const [key, prNumber] of Object.entries(runs)) {
+    await inDirectory(join(directory, key), (store) => store.update((state) => void (state.prNumber = prNumber)));
+  }
+  return directory;
+};
+
+const found = (runs: string, prNumber: number) =>
+  Effect.runPromise(
+    Effect.provide(fileRunStore.runDirectoryFor(runs, prNumber), NodeServices.layer) as Effect.Effect<string | undefined>,
+  );
+
+test("a pull request's own run directory is the one whose state claims it", async () => {
+  const runs = await runsWith({ "FAB-4": 7, "FAB-5-42": 42, "FAB-9": null });
+
+  assert.equal(
+    await found(runs, 42),
+    join(runs, "FAB-5-42"),
+    "so a sweep's merge lands in the conversation the run that opened the pull request was having",
+  );
+  assert.equal(await found(runs, 8), undefined, "a pull request no run on this machine opened has none");
+});
+
+test("the lookup is best-effort: a file it cannot read is not an error", async () => {
+  const runs = await runsWith({ "FAB-5-42": 42 });
+  mkdirSync(join(runs, "FAB-1"), { recursive: true });
+  writeFileSync(join(runs, "FAB-1", "state.json"), "{not json");
+
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"), "the unreadable run is skipped, not fatal");
+  assert.equal(await found(join(runs, "nothing-here"), 42), undefined, "a repo with no runs at all answers the same");
+});
+
+test("two runs claiming one pull request resolve the same way every time", async () => {
+  const runs = await runsWith({ "pr-42": 42, "FAB-5-42": 42 });
+
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"), "lowest-sorting wins, so it is not the readdir order");
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"));
+});
+
+/**
+ * A state file a run was killed part-way through writing. The sweep isolates
+ * one pull request's *failure*, so this has to be one — a `JSON.parse` that
+ * throws inside the layer is a defect, which `Effect.match` does not catch and
+ * which would take every other worker down with it.
+ */
+test("an unreadable state file fails the store rather than crashing its caller", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  writeFileSync(join(directory, "state.json"), "{not json");
+
+  const outcome = await Effect.runPromise(
+    Effect.flatMap(RunStore, (store) => Effect.succeed(store.get())).pipe(
+      Effect.provide(fileRunStore.layer(directory)),
+      Effect.provide(NodeServices.layer),
+      Effect.match({ onSuccess: () => "read", onFailure: (error) => `failed: ${error.message}` }),
+    ) as Effect.Effect<string>,
+  );
+
+  assert.match(outcome, /^failed:/, "a defect here escapes every caller's error channel, this must be a failure");
+  assert.match(outcome, /state\.json/, "and the line names the file the operator has to look at");
+});

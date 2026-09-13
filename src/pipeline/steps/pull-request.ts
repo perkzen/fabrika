@@ -7,11 +7,10 @@ import { Journal } from "../../ports/journal.ts";
 import { RunContext } from "../../ports/run-context.ts";
 import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
+import { titleOf, TRAILER } from "../../pull-request.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
 import { syncWithBase } from "../sync.ts";
-
-const TRAILER = "Opened by fabrika. Draft until a human reviews.";
 
 /**
  * The posted body. Called for both bodies, so the one with the section and
@@ -112,7 +111,7 @@ export const openPullRequest: Step = {
     const section = yield* captureSection(config.pr.capture ?? [], head);
 
     const plain = composeBody(link, description, undefined);
-    const opening = { branch, title: `${ticket.identifier}: ${ticket.title}`, draft: config.pr.draft };
+    const opening = { branch, title: titleOf(ticket.identifier, ticket.title), draft: config.pr.draft };
     const uploading = section?.attachments ?? [];
     const pr = yield* forge
       .open({ ...opening, body: composeBody(link, description, section?.markdown), attachments: uploading })

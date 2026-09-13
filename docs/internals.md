@@ -11,16 +11,19 @@ with one adapter in production and an in-memory one in the tests; nothing in
 
 | Path | Role |
 | --- | --- |
-| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>`; auth probe; exit codes |
+| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
+| `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
-| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge both the PR and the review loop use |
+| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
+| `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
 | `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
-| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
+| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
+| `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
 | `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
 | `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
@@ -31,7 +34,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
 | `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
-| `src/paths.ts` | The one place that resolves the package root, so the lookup works from `src/` and from `dist/` |
+| `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
 | `test/harness.ts` | Every port in memory, so a step can be exercised with no repository, no GitHub and no agent |
@@ -58,9 +61,9 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Clean run; the last log line is the PR URL |
+| 0 | Clean run; the last log line is the PR URL, or for `sync` the counts line |
 | 1 | Configuration or CLI error |
-| 2 | Escalated: a human needs to look. The worktree and PR (if any) are left in place; rerun to resume |
+| 2 | A human needs to look: a run escalated, or a `sync` worker escalated or failed. The worktree and PR (if any) are left in place; rerun to resume |
 | 3 | Claude usage limit hit; state is saved, rerun once the window resets |
 
 ## Why the CLI is installed rather than run via a package manager
@@ -193,9 +196,65 @@ code. The keys in `state.sessions`:
 | the stage name | the stage and its gate-failure retries |
 | `merge-<round>` | resolving a base merge, and the repair pass after it |
 | `round-<round>` | one review round: review threads, CI fixes, the repair pass |
+| `sync-<base tip>` | one sweep's merge of a pull request, keyed by the first 7 characters of the base's tip |
 
 A stage that assumes it remembers an earlier one is a bug in its prompt — the
 inputs have to be named as paths.
+
+`sync-<base tip>` is the sweep's, and it is read off the live base after the
+fetch rather than off the pull request: it cannot collide with a round
+counter, and it changes exactly when the thing being merged changes. A retried
+sweep against an unmoved base lands in the session that already saw the
+conflict; one months later does not.
+
+## Sweeping conflicted pull requests
+
+`fabrika sync` is one **sweep**: a single `gh pr list` names every open pull
+request you authored with its **merge state**, and the conflicted ones that
+target the configured base and whose branch is not checked out anywhere on
+this machine are handed to bounded-concurrency **sync workers**. Everything
+else is reported with the rule that skipped it, first match wins:
+
+1. not open — `closed` / `already merged`
+2. headed from a fork — nothing here can push to it
+3. targets another branch
+4. merge state unknown — GitHub would not compute it
+5. not conflicted (`behind` or `clean`)
+6. the branch is checked out somewhere, with where
+
+A worker checks the branch out **as the forge has it** — a fetch and a hard
+reset, ADR-0004 — installs, merges the base through the same `syncWithBase`
+a run uses, gates, pushes and removes its tree. No review rounds and no forge
+call: the reviewer has already ruled, and a merge commit is not a new
+implementation. An escalation leaves its worktree exactly as an escalated run
+does.
+
+Rule 6 and the hard reset are load-bearing for each other: the reset is safe
+only because a branch checked out on this machine never reaches a worker. Rule
+6 reads `git worktree list` once, before the fan-out, so it fences one sweep
+and not two — `checkout` therefore makes its tree and never reuses one, and a
+second sweep that finds a worktree already there refuses that pull request
+rather than resetting over the first sweep's merge.
+
+The last line is the contract a scheduled invocation is read through, and it
+carries five counts in this order:
+
+```
+sync: 1 synced, 0 already clean, 1 escalated, 0 failed, 5 skipped
+```
+
+`already clean` is its own field rather than folded into `synced`: the pull
+request was conflicted when GitHub was asked, so a merge that found nothing to
+do is a fact worth reporting rather than a push that did not happen. A sweep
+with nothing to do says so instead — `none conflicted` when none were, and
+`every conflicted one skipped` when they were skipped by the rules above.
+
+The sweep owns the only console — one line per pull request, the counts last
+— and each worker's journal is its `log.txt` alone, appended to the original
+run's log when the scan of `~/.fabrika/runs/<repo>/*/state.json` found one.
+The usage limit is the one failure that stops the sweep: workers already in
+flight run to their own outcomes, workers not yet started report
+`usage limit hit — not started`, and the exit code is 3.
 
 ## Review loop details
 
@@ -257,6 +316,16 @@ including a round with no reviewer, which runs the shipped no-reviewer adapter
 rather than a double — the rule that a thread is resolved only when a commit
 touched its file, and the one-rerun-per-flake behaviour, in milliseconds and
 with no network.
+
+A sweep is exercised through the same harness. `sweep` is handed a scripted
+worker that genuinely *fails* where the case calls for one, so the
+failure-to-outcome conversion under test is the real one; `syncPullRequest`
+is exercised like any other step, and `syncWithBase` has its own file. The one
+exception is `checkout`, which `test/checkout.test.ts` drives against two real
+temporary repositories: it is the only test here that spawns git, and it is
+worth the dependency because what it pins — that the hard reset never reaches
+a tree fabrika did not just create — is a question about git rather than about
+the ports. The push is still pinned at the port and not against git.
 
 ## Smoke test
 

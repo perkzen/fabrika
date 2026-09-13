@@ -7,7 +7,7 @@ import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
 import { Agent, type AgentReply, type AgentRequest } from "../src/ports/agent.ts";
 import { Captures } from "../src/ports/captures.ts";
-import { Forge, type Check } from "../src/ports/forge.ts";
+import { Forge, type Check, type PullRequestDetail } from "../src/ports/forge.ts";
 import { Gate, type GateFailure } from "../src/ports/gate.ts";
 import { Journal } from "../src/ports/journal.ts";
 import { Prompts } from "../src/ports/prompts.ts";
@@ -34,6 +34,10 @@ export type Script = {
   /** Swaps the shipped no-reviewer adapter in for the scripted fake. */
   readonly reviewer?: "none";
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
+  /** Answered by `Forge.authored`. */
+  readonly pullRequests?: ReadonlyArray<PullRequestDetail>;
+  /** Answered by `Workspace.checkedOutBranches`. */
+  readonly checkedOut?: ReadonlyArray<{ readonly branch: string; readonly path: string }>;
   /** What `Captures.take` answers; the fake still records what it was asked for. */
   readonly captures?: ReadonlyArray<Shot>;
   /** What `git rev-parse <base>` printed, warnings and all. */
@@ -46,6 +50,10 @@ export type Script = {
   readonly body?: "verbatim";
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
+  /** Conflicts still unresolved when `syncWithBase` checks after the agent. */
+  readonly unresolved?: ReadonlyArray<string>;
+  /** Where `checkout` puts the head, so "which tip was merged" is assertable. */
+  readonly remoteTip?: string;
   /** Files reported as touched since a given sha. */
   readonly touched?: ReadonlyArray<string>;
   readonly commits?: number;
@@ -80,6 +88,8 @@ export type Recording = {
   readonly captures: Array<{ name: string; sha: string }>;
   readonly edited: Array<string>;
   readonly removed: Array<string>;
+  /** The tree-shaping calls in order: `checkout:<branch>`, `install:<command>`, `merge`, `push:<branch>`, `remove`. */
+  readonly workspace: Array<string>;
   readonly state: () => RunState;
 };
 
@@ -95,8 +105,14 @@ const emptyState = (): RunState => ({
   done: false,
 });
 
-/** The base every run in the harness is diffed against. */
+/**
+ * The base every run in the harness is diffed against, and the tip a sweep
+ * keys its `sync-<7 chars>` session off — so that key is a literal in a test.
+ */
 export const BASE_SHA = "a1b2c3d4e5f6";
+
+/** Where `checkout` leaves the head, where `create` leaves it on the local one. */
+const REMOTE_TIP = "remote-tip";
 
 /** Answers each call in turn and then repeats its last answer forever. */
 const queue = <A>(values: ReadonlyArray<A>, fallback: A) => {
@@ -122,6 +138,7 @@ export const harness = (script: Script = {}) => {
     captures: [],
     edited: [],
     removed: [],
+    workspace: [],
     state: () => state,
   };
 
@@ -147,6 +164,14 @@ export const harness = (script: Script = {}) => {
     heads += 1;
     head = `sha${heads}`;
   };
+  /**
+   * A merge derives its head from whatever `checkout` or `create` left, so a
+   * test can see *which* tip was merged rather than only that something was.
+   */
+  const mergedHead = () => {
+    head = `${head}-merged`;
+  };
+  let merging = false;
 
   /** Both renderings at once: the lines a test asserts on, and the events behind them. */
   const record = (entry: RunEvent | string) => {
@@ -204,9 +229,15 @@ export const harness = (script: Script = {}) => {
       currentBranch: Effect.succeed("existing/branch"),
       user: Effect.succeed("domen-perko"),
       githubRepo: Effect.succeed("perkzen/fabrika"),
+      checkedOutBranches: Effect.succeed(script.checkedOut ?? []),
       create: () => Effect.void,
-      install: () => Effect.succeed(true),
-      remove: Effect.sync(() => void recording.removed.push("/worktree")),
+      checkout: (branch: string) =>
+        Effect.sync(() => {
+          recording.workspace.push(`checkout:${branch}`);
+          head = script.remoteTip ?? REMOTE_TIP;
+        }),
+      install: (command: string) => Effect.sync(() => (recording.workspace.push(`install:${command}`), true)),
+      remove: Effect.sync(() => (recording.workspace.push("remove"), void recording.removed.push("/worktree"))),
       commitAll: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead(), true)),
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
       head: Effect.sync(() => head),
@@ -214,10 +245,22 @@ export const harness = (script: Script = {}) => {
       commitCount: Effect.succeed(script.commits ?? 1),
       changedFiles: Effect.succeed(["src/a.ts"]),
       filesSince: () => Effect.succeed(script.touched ?? []),
-      mergeBase: Effect.sync(nextMerge),
-      conflictedFiles: Effect.succeed([]),
-      finishMerge: Effect.succeed(false),
-      push: (branch: string) => Effect.sync(() => void recording.pushed.push(branch)),
+      mergeBase: Effect.sync(() => {
+        recording.workspace.push("merge");
+        const outcome = nextMerge();
+        if (outcome._tag === "Merged") mergedHead();
+        merging = outcome._tag === "Conflicted";
+        return outcome;
+      }),
+      conflictedFiles: Effect.sync(() => script.unresolved ?? []),
+      finishMerge: Effect.sync(() => {
+        if (!merging) return false;
+        merging = false;
+        mergedHead();
+        return true;
+      }),
+      push: (branch: string) =>
+        Effect.sync(() => (recording.workspace.push(`push:${branch}`), void recording.pushed.push(branch))),
     }),
     Layer.succeed(Forge)({
       repo: "perkzen/fabrika",
@@ -250,6 +293,7 @@ export const harness = (script: Script = {}) => {
       settledChecks: () => Effect.sync(nextChecks),
       failureLog: () => Effect.succeed("the failing log"),
       rerun: (check: Check) => Effect.sync(() => void recording.rerun.push(check.job!.id)),
+      authored: Effect.succeed(script.pullRequests ?? []),
     }),
     // The shipped adapter, not the fake with a flag flipped: it pins the behaviour, not the double.
     script.reviewer === "none"

@@ -36,9 +36,26 @@ export interface Workspace {
   readonly user: Effect.Effect<string, FabrikaError>;
   /** `owner/repo` of the base branch's remote. */
   readonly githubRepo: Effect.Effect<string, FabrikaError>;
+  /**
+   * Branches checked out in any worktree of this repository on this machine,
+   * with where. The path comes with the branch because the reason it produces
+   * has to name it: the tree a sweep left behind is the thing to clean up.
+   */
+  readonly checkedOutBranches: Effect.Effect<
+    ReadonlyArray<{ readonly branch: string; readonly path: string }>,
+    FabrikaError
+  >;
 
   /** Creates the tree on `branch` off a freshly fetched base, or reuses one already on it. */
   readonly create: (branch: string) => Effect.Effect<void, FabrikaError>;
+  /**
+   * Makes the tree on `branch` *as the remote has it*, discarding any local
+   * tip. A second operation beside `create` rather than a flag on it: a run
+   * resumes through `create`, where unpushed commits are the run's own work.
+   * Makes, never reuses — a directory already there belongs to something
+   * else, and this one resets. See ADR-0004.
+   */
+  readonly checkout: (branch: string) => Effect.Effect<void, FabrikaError>;
   /** Runs the dependency install; `false` when the tree already had its dependencies. */
   readonly install: (command: string) => Effect.Effect<boolean, FabrikaError>;
   readonly remove: Effect.Effect<void, FabrikaError>;
@@ -47,7 +64,10 @@ export interface Workspace {
   readonly commitAll: (message: string) => Effect.Effect<boolean, FabrikaError>;
   readonly emptyCommit: (message: string) => Effect.Effect<void, FabrikaError>;
   readonly head: Effect.Effect<string, FabrikaError>;
-  /** The base commit this branch is diffed against, read after a fetch. */
+  /**
+   * The base's tip after a fetch — the commit a merge would bring in, and the
+   * one this branch is diffed against.
+   */
   readonly baseSha: Effect.Effect<string, FabrikaError>;
   /** Commits on this branch that the base does not have. */
   readonly commitCount: Effect.Effect<number, FabrikaError>;

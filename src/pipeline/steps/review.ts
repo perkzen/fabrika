@@ -62,7 +62,7 @@ export const reviewRounds: Step = {
       const round = store.get().round;
       yield* journal.log(`review round ${round}/${config.review.maxRounds}`);
 
-      if (yield* syncWithBase(url)) {
+      if (yield* syncWithBase({ prUrl: url })) {
         yield* workspace.push(store.get().branch!);
         const head = yield* workspace.head;
         yield* store.update((state) => void (state.pushed = [head]));
