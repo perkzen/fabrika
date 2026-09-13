@@ -224,9 +224,9 @@ export const scrolled = (tree: Tree, view: View, size: Size, scroll: number): nu
  * behind the operator.
  */
 const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined => {
-  const row = livenessRow(tree, clock);
-  if (row === undefined) return undefined;
-  return [{ style: "dim", text: tree.gate ? `${row}: ${tree.gate.command}` : row }];
+  const blocked = livenessRow(tree, clock);
+  if (blocked === undefined) return undefined;
+  return [{ style: "dim", text: tree.gate ? `${blocked}: ${tree.gate.command}` : blocked }];
 };
 
 /**
@@ -285,7 +285,7 @@ const wrap = (line: string, width: number): ReadonlyArray<string> => {
  * with no header and no footer, because those are devices of a live viewport
  * and this is a line an operator scrolls back to an hour later.
  */
-export const rows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
+export const outlineRows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
   // Nothing is selected in scrollback: the run is over and there is no view.
   (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
 

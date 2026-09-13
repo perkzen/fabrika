@@ -1,5 +1,5 @@
 import { styleText } from "node:util";
-import { frame, rows, type View } from "./frame.ts";
+import { frame, outlineRows, type View } from "./frame.ts";
 import { display } from "./lines.ts";
 import { decode, follow, press } from "./keys.ts";
 import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
@@ -42,6 +42,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   const stream = options.stream;
   const now = options.now ?? Date.now;
   const interactive = options.interactive ?? isInteractive(stream);
+  // Also what swallows a write error on this stream — a run under `| head` must
+  // not die of `EPIPE` — because the inner console attaches that handler and
+  // never takes it off.
   const inner = openConsole(options);
   const kill = options.kill ?? (() => process.kill(process.pid, "SIGINT"));
   // Only a TTY that can be put in raw mode: a TTY stdout with a piped stdin
@@ -153,7 +156,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     process.off("SIGINT", end);
     stream.off("resize", onResize);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
-    for (const line of rows(tree, size().columns, dress)) stream.write(line + "\n");
+    for (const line of outlineRows(tree, size().columns, dress)) stream.write(line + "\n");
     // Through `display`, like every other line this repo writes: it is where
     // the result's colour is decided and, more to the point, where the text is
     // scrubbed. An escalation's wording carries `gh` output and agent text,

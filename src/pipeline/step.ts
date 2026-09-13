@@ -104,9 +104,9 @@ const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepS
           .pipe(Effect.andThen(Effect.fail(error))),
       ),
     );
-    // No step claimed the run was over, which is what a pipeline built
-    // without the review step has always done.
-    if (result) yield* journal.log({ kind: "result", outcome: "done", text: result });
+    // A pipeline built without the review step has no result line, which is
+    // what it has always had.
+    if (result !== undefined) yield* journal.log({ kind: "result", outcome: "done", text: result });
   });
 
 const body = (
