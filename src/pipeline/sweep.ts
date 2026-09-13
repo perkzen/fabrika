@@ -38,6 +38,8 @@ export type SyncOutcome = {
   readonly detail: string;
   readonly worktree?: string;
   readonly log?: string;
+  /** The one failure that stops the sweep handing out new work. */
+  readonly rateLimited?: boolean;
 };
 
 export type SweepOptions = {
@@ -98,10 +100,17 @@ const because = (error: Exclude<StepError, Escalated>) => {
  * fan-out down, and a test that hands over a pre-converted worker would
  * exercise nothing but its own fixture.
  */
-const failure = (pr: PullRequestDetail, placement: Placement, error: StepError): SyncOutcome =>
-  error._tag === "Escalated"
-    ? { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement.log }
-    : { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement.log };
+const failure = (pr: PullRequestDetail, placement: Placement, error: StepError): SyncOutcome => {
+  if (error._tag === "Escalated") {
+    return { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement.log };
+  }
+  const failed: SyncOutcome = { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement.log };
+  // The tree is left mid-merge and this is the failure an operator comes back
+  // to once the window resets, so the line has to say where it is.
+  return error._tag === "AgentRateLimited"
+    ? { ...failed, worktree: placement.worktree, rateLimited: true }
+    : failed;
+};
 
 const targetOf = (pr: PullRequestDetail): SyncTarget => ({ number: pr.number, url: pr.url, branch: pr.branch });
 
@@ -149,6 +158,10 @@ export const sweep = (
     const selected = selections.flatMap((selection) => (selection.decision === "sync" ? [selection.pr] : []));
 
     const outcomes: Array<SyncOutcome> = [];
+    // A plain closure variable: one process, one fiber tree, every write
+    // inside a worker's own effect. Cancelling a worker already in flight
+    // would abandon a tree mid-merge, which is worse than finishing it.
+    let rateLimited = false;
     // In list order, before anything is touched: "nothing to do" and "fabrika
     // decided not to" are different answers and the operator reads both here.
     for (const selection of selections) {
@@ -177,6 +190,11 @@ export const sweep = (
       selected,
       (pr) =>
         Effect.gen(function* () {
+          if (rateLimited) {
+            const stopped: SyncOutcome = { pr, kind: "skipped", detail: "skipped: usage limit hit — not started" };
+            outcomes.push(stopped);
+            return yield* journal.log({ kind: "note", level: "detail", text: reported(stopped) });
+          }
           const target = targetOf(pr);
           const placement = yield* options.place(target);
           const outcome = yield* options.worker(target, placement).pipe(
@@ -189,6 +207,7 @@ export const sweep = (
             }),
           );
           outcomes.push(outcome);
+          rateLimited ||= outcome.rateLimited === true;
           yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
         }),
       { concurrency: options.concurrency },
@@ -196,5 +215,5 @@ export const sweep = (
 
     yield* journal.log(counts(outcomes));
     const needsAHuman = outcomes.some((outcome) => outcome.kind === "escalated" || outcome.kind === "failed");
-    return { outcomes, exitCode: needsAHuman ? 2 : 0 };
+    return { outcomes, exitCode: rateLimited ? 3 : needsAHuman ? 2 : 0 };
   });

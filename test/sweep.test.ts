@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { FabrikaError } from "../src/errors.ts";
 import { Escalated } from "../src/pipeline/escalated.ts";
 import { sweep, type Placement, type SweepOptions, type SyncTarget } from "../src/pipeline/sweep.ts";
+import { AgentRateLimited } from "../src/ports/agent.ts";
 import type { PullRequestDetail } from "../src/ports/forge.ts";
 import { exercise } from "./harness.ts";
 
@@ -196,5 +197,38 @@ test("a worker that failed outside an escalation reads as failed", async () => {
     "  #40 [yours] fix: thing — failed: git fetch origin: boom — log: /runs/pr-40/log.txt",
     "waited 0s for syncing 2 pull request(s)",
     "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
+  ]);
+});
+
+test("the usage limit stops the sweep handing out new work", async () => {
+  const placed: Array<number> = [];
+  const { exit, recording } = await exercise(
+    sweep({
+      base: "origin/main",
+      concurrency: 1,
+      dryRun: false,
+      place: (target) => Effect.sync(() => (placed.push(target.number), placement(target))),
+      worker: (target) =>
+        target.number === 42
+          ? Effect.fail(new AgentRateLimited({ credential: "default", sessionId: null }))
+          : Effect.succeed({ pushed: "9f1c2ab3d4e5f6" }),
+    }),
+    {
+      pullRequests: [
+        pullRequest({ number: 42, title: "FAB-5: Conflicted PRs pile up" }),
+        pullRequest({ number: 41, title: "fix: second" }),
+        pullRequest({ number: 40, title: "fix: thing" }),
+      ],
+    },
+  );
+
+  assert.equal((exit as { exitCode: number }).exitCode, 3, "3 beats the 2 the failed worker would have set");
+  assert.deepEqual(placed, [42], "a pull request that never started gets no worktree and no run directory");
+  assert.deepEqual(recording.log.slice(-5), [
+    "  #42 [yours] FAB-5: Conflicted PRs pile up — failed: usage limit hit — worktree: /worktrees/pr-42 — log: /runs/pr-42/log.txt",
+    "  #41 [yours] fix: second — skipped: usage limit hit — not started",
+    "  #40 [yours] fix: thing — skipped: usage limit hit — not started",
+    "waited 0s for syncing 3 pull request(s)",
+    "sync: 0 synced, 0 already clean, 0 escalated, 1 failed, 2 skipped",
   ]);
 });
