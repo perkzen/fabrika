@@ -76,3 +76,9 @@ test("elapsed reads in seconds below a minute and in minutes and seconds above i
   assert.deepEqual(plain({ kind: "wait", state: "end", subject: "the agent", seconds: 252 }), ["waited 4m 12s for the agent"]);
   assert.deepEqual(plain({ kind: "wait", state: "end", subject: "the agent", seconds: 60 }), ["waited 1m 0s for the agent"]);
 });
+
+test("a tool call and a cost read as the sub-lines they are", () => {
+  assert.deepEqual(plain({ kind: "tool", stage: "implement", tool: "Read", subject: "src/cli.ts" }), ["  Read src/cli.ts"]);
+  assert.deepEqual(plain({ kind: "tool", stage: "implement", tool: "MysteryTool", subject: "" }), ["  MysteryTool"]);
+  assert.deepEqual(plain({ kind: "cost", stage: "implement", usd: 1.5 }), ["  (implement: $1.50)"]);
+});

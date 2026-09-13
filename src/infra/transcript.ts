@@ -1,4 +1,5 @@
 import { isAbsolute, relative } from "node:path";
+import type { RunEvent } from "../run-event.ts";
 
 /** Long enough to name a file or a command, short enough that a tool call is one line. */
 const SUBJECT = 120;
@@ -54,3 +55,39 @@ const path = (value: unknown, cwd: string): string | undefined => {
 };
 
 const oneLine = (subject: string | undefined) => (subject ?? "").replace(/\s+/g, " ").trim().slice(0, SUBJECT);
+
+/** One assistant message's content blocks, as the wire delivers them. */
+export type ContentBlock = {
+  readonly type?: string;
+  readonly text?: string;
+  readonly name?: string;
+  readonly input?: Record<string, unknown>;
+};
+
+/**
+ * What one assistant message is worth telling the operator: what it said, if
+ * anything, and then each tool it reached for, in the order it reached.
+ *
+ * The ordering lives here rather than in the stream reader so it is covered
+ * by the same seam as the subject table — the only seam above it spawns the
+ * real `claude` binary.
+ */
+export const describeContent = (
+  blocks: ReadonlyArray<ContentBlock>,
+  stage: string,
+  cwd: string,
+): ReadonlyArray<RunEvent> => {
+  const events: Array<RunEvent> = [];
+  const said = blocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.text ?? "")
+    .join("");
+  if (said.trim()) events.push({ kind: "agent", stage, markdown: said.trim() });
+  for (const block of blocks) {
+    // StructuredOutput is how `--json-schema` delivers its answer, not work
+    // the operator cares about.
+    if (block.type !== "tool_use" || !block.name || block.name === "StructuredOutput") continue;
+    events.push({ kind: "tool", stage, tool: block.name, subject: describeToolUse(block.name, block.input ?? {}, cwd) });
+  }
+  return events;
+};

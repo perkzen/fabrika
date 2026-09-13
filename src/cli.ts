@@ -14,6 +14,7 @@ import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
 import { proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
+import { plain } from "./run-event.ts";
 import { exec } from "./infra/shell.ts";
 
 const credentials = [{ name: "default", env: {} }];
@@ -35,9 +36,9 @@ const init = Command.make("init", {}, () =>
     yield* Console.log("reading the repo: base branch, install command, and the checks CI enforces.");
     yield* Console.log("this runs the candidate commands, so give it a minute.");
     const rejected = (message: string) => Console.log(`  ${message}`).pipe(Effect.as(null));
-    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, (line) =>
-      console.log(`  ${line.slice(0, 160).replace(/\s+/g, " ")}`),
-    ).pipe(
+    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, (event) => {
+      for (const line of plain(event)) console.log(line);
+    }).pipe(
       Effect.catchTag("AgentUnauthorized", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
       Effect.catchTag("AgentRateLimited", () => rejected("usage limit hit")),
       Effect.catchTag("AgentFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),

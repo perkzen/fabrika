@@ -39,6 +39,8 @@ export type RunEvent =
       readonly seconds?: number;
     }
   | { readonly kind: "agent"; readonly stage: string; readonly markdown: string }
+  | { readonly kind: "tool"; readonly stage: string; readonly tool: string; readonly subject: string }
+  | { readonly kind: "cost"; readonly stage: string; readonly usd: number }
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
 
@@ -95,6 +97,10 @@ export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
     // is the one surface that walks it, and it does so without coming here.
     case "agent":
       return entry.markdown.split("\n");
+    case "tool":
+      return [`  ${entry.tool}${entry.subject ? ` ${entry.subject}` : ""}`];
+    case "cost":
+      return [`  (${entry.stage}: $${entry.usd.toFixed(2)})`];
     case "note":
       return (entry.level === "detail" ? `  ${entry.text}` : entry.text).split("\n");
     // Already written out by whoever decided the run was over: the wording of

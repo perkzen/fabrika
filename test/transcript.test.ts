@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describeToolUse } from "../src/infra/transcript.ts";
+import { describeContent, describeToolUse } from "../src/infra/transcript.ts";
 
 const CWD = "/Users/domen/.fabrika/worktrees/fabrika/FAB-1";
 
@@ -42,4 +42,36 @@ test("every subject is one line and no longer than 120 characters, whatever it c
   assert.doesNotMatch(long, /\n/);
 
   assert.equal(describeToolUse("Bash", { description: "first\nsecond   third" }, CWD), "first second third");
+});
+
+test("an assistant message says its piece, then names the tools it reached for, in order", () => {
+  assert.deepEqual(
+    describeContent(
+      [
+        { type: "text", text: "I'll read the gate adapter " },
+        { type: "text", text: "and the port behind it." },
+        { type: "tool_use", name: "Read", input: { file_path: `${CWD}/src/adapters/shell-gate.ts` } },
+        { type: "tool_use", name: "Bash", input: { command: "pnpm test", description: "Run the suite" } },
+      ],
+      "implement",
+      CWD,
+    ),
+    [
+      { kind: "agent", stage: "implement", markdown: "I'll read the gate adapter and the port behind it." },
+      { kind: "tool", stage: "implement", tool: "Read", subject: "src/adapters/shell-gate.ts" },
+      { kind: "tool", stage: "implement", tool: "Bash", subject: "Run the suite" },
+    ],
+    "the order the operator would have seen",
+  );
+});
+
+test("a message that is only tool calls says nothing before them", () => {
+  assert.deepEqual(
+    describeContent([{ type: "tool_use", name: "Skill", input: { skill: "fabrika:tdd" } }], "plan", CWD),
+    [{ kind: "tool", stage: "plan", tool: "Skill", subject: "fabrika:tdd" }],
+  );
+});
+
+test("the json-schema delivery mechanism stays off the screen", () => {
+  assert.deepEqual(describeContent([{ type: "tool_use", name: "StructuredOutput", input: {} }], "review", CWD), []);
 });
