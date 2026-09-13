@@ -1,0 +1,9 @@
+docs/adr/0005-one-session-one-model.md
+  ai_agent 9-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9a278ad5263cddb967e1623c7c1ae3225248bb8c",
+  "prompts": {}
+}
