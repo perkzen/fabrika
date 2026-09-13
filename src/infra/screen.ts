@@ -4,7 +4,7 @@ import { display } from "./lines.ts";
 import { decode, follow, press } from "./keys.ts";
 import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
 import type { Styler } from "./markdown.ts";
-import { empty, take, type Tree } from "../outline.ts";
+import { empty, steps, take, type Tree } from "../outline.ts";
 import type { RunEvent } from "../run-event.ts";
 
 export type ScreenOptions = ConsoleOptions & {
@@ -113,11 +113,13 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     process.on("SIGINT", end);
     stream.on("resize", onResize);
     // A frame is a whole viewport, so it is drawn only when there is something
-    // to see: the step tree changed, or a wait is open and its spinner is the
-    // proof the run is alive.
+    // to see: the step tree changed, or something is turning — an open wait's
+    // spinner, or the running step's marker. Both are the proof the run is
+    // alive, and a marker frozen on one frame is exactly what a hung run looks
+    // like.
     timer = globalThis.setInterval(() => {
       spin += 1;
-      if (dirty || tree.wait) draw();
+      if (dirty || tree.wait || steps(tree).some((step) => step.state === "running")) draw();
     }, FRAME_MS);
     timer.unref?.();
     draw();

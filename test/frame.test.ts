@@ -34,7 +34,7 @@ test("a frame is exactly rows lines, each at most columns - 1 wide", () => {
   assert.deepEqual(lines.slice(0, 4), [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
     "· 1/3 preflight",
-    "▸ 2/3 implement",
+    "⠋ 2/3 implement",
     "· 3/3 review",
   ]);
   assert.deepEqual(lines.slice(4), Array<string>(6).fill(""), "the rest of the viewport is blank, not stale");
@@ -152,7 +152,7 @@ test("the open step's stream fills the rest of the frame, stamped and tail-align
   assert.deepEqual(lines, [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
     "· 1/3 preflight",
-    "▸ 2/3 implement",
+    "⠋ 2/3 implement",
     "12:00:01   Read src/cli.ts",
     "12:00:02 │ on it",
     "12:00:03   Bash pnpm test",
@@ -205,14 +205,14 @@ test("the window shrinks before the outline does, and never below three rows", (
   assert.deepEqual(roomy.slice(0, 3).concat(roomy.slice(7)), [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
     "· 1/3 preflight",
-    "▸ 2/3 implement",
+    "⠋ 2/3 implement",
     "· 3/3 review",
   ], "the outline is whole and the window took the four rows left over");
 
   const cramped = frame(tree, watching, { columns: 60, rows: 5 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(cramped, [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "▸ 2/3 implement",
+    "⠋ 2/3 implement",
     "12:00:01   Read src/cli.ts",
     "12:00:02 │ on it",
     "12:00:03   Bash pnpm test",
@@ -222,7 +222,7 @@ test("the window shrinks before the outline does, and never below three rows", (
   assert.deepEqual(tiny, [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
     "· 1/3 preflight",
-    "▸ 2/3 implement",
+    "⠋ 2/3 implement",
     "· 3/3 review",
   ], "under five rows a window cannot have its three, and the thing always needed is the outline");
 });
@@ -301,6 +301,40 @@ test("a finished step's window shows its stream and no liveness, the run having 
   assert.equal(lines[8], "", "the spinner belongs to the running step, and this one is over");
 });
 
+test("the running step's marker turns with the clock, and no other step's does", () => {
+  const tree = script("FAB-6", ...WATCHING);
+  const size = { columns: 60, rows: 10 };
+
+  const first = frame(tree, watching, size, bare, { now: noon, spin: 0 });
+  const later = frame(tree, watching, size, bare, { now: noon, spin: 1 });
+
+  assert.equal(first[2], "⠋ 2/3 implement");
+  assert.equal(later[2], "⠙ 2/3 implement", "a still marker is what a hung run looks like");
+  assert.equal(first[1], later[1], "a pending step is not doing anything, so nothing about it moves");
+});
+
+test("a step is coloured by its state, marker and name alike", () => {
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [1, { kind: "step", name: "preflight", at: 1, of: 3, state: "start" }],
+    [2, { kind: "step", name: "preflight", at: 1, of: 3, state: "end", seconds: 2, outcome: "done" }],
+    [3, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+  );
+  const dressed: Array<[unknown, string]> = [];
+  frame(tree, { ...view, selected: "" }, { columns: 60, rows: 10 }, (style, text) => (dressed.push([style, text]), text), {
+    now: noon,
+    spin: 0,
+  });
+
+  const styleOf = (text: string) => JSON.stringify(dressed.find(([, drawn]) => drawn === text)?.[0]);
+  assert.equal(styleOf("✔ 1/3"), '["bold","green"]', "what is finished is green");
+  assert.equal(styleOf("preflight"), '["bold","green"]');
+  assert.equal(styleOf("⠋ 2/3"), '["bold","cyan"]', "and the one thing happening is not");
+  assert.equal(styleOf("implement"), '["bold","cyan"]');
+  assert.equal(styleOf("review"), undefined, "a step that has not started is dressed by nothing");
+});
+
 test("the selected row is marked, so moving the selection is something the operator can see", () => {
   const tree = script("FAB-6", ...WATCHING);
   const dressed: Array<[unknown, string]> = [];
@@ -309,7 +343,10 @@ test("the selected row is marked, so moving the selection is something the opera
   const lines = frame(tree, { ...watching, selected: "0:1" }, { columns: 60, rows: 10 }, spy, { now: noon, spin: 0 });
 
   assert.ok(dressed.some(([style, text]) => text === "· 1/3" && style === "inverse"), "picking a step to read means seeing which one is picked");
-  assert.ok(!dressed.some(([style, text]) => text === "▸ 2/3" && style === "inverse"), "and only one is");
+  assert.ok(
+    !dressed.some(([style, text]) => text === "⠋ 2/3" && JSON.stringify(style).includes("inverse")),
+    "and only one is",
+  );
   assert.equal(lines[1], "· 1/3 preflight", "the marking is dressing, so the line's text is the one the spec pins");
 });
 
@@ -376,7 +413,7 @@ test("a tab is a space by the time it reaches the terminal, because it costs mor
     lines.slice(1, 8),
     [
       "· 1/3 pre flight",
-      "▸ 2/3 implement",
+      "⠋ 2/3 implement",
       "12:00:01 │   go",
       "12:00:01 │   func main() {",
       '12:00:01 │    fmt.Println("hi',
@@ -403,7 +440,7 @@ test("below the window's floor the outline takes every row, so a fold costs no s
   });
 
   assert.equal(lines.length, 4);
-  assert.deepEqual(lines.slice(1), ["· 1/3 preflight", "▸ 2/3 implement", "· 3/3 review"], "no step loses its row to a window that was not drawn");
+  assert.deepEqual(lines.slice(1), ["· 1/3 preflight", "⠋ 2/3 implement", "· 3/3 review"], "no step loses its row to a window that was not drawn");
 });
 
 test("a scrolled outline keeps the running step on screen too, until the selection needs the room", () => {
@@ -416,7 +453,7 @@ test("a scrolled outline keeps the running step on screen too, until the selecti
 
   const both = frame(running(6), chosen, size, bare, { now: noon, spin: 0 });
   assert.equal(both[1], "· 2/11 step2", "the outline is pulled down far enough to hold both");
-  assert.equal(both.at(-1), "▸ 6/11 step6", "and the running step is the last row rather than off screen");
+  assert.equal(both.at(-1), "⠋ 6/11 step6", "and the running step is the last row rather than off screen");
 
   // Five rows cannot hold steps 2 and 10 at once, and the selection is the
   // operator's choice while the running step already has the window.

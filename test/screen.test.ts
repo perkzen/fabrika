@@ -117,29 +117,32 @@ test("a screen that never mounted leaves no buffer and writes no outline", () =>
   );
 });
 
-test("a frame is drawn on the timer while a wait is open, and not otherwise", (t) => {
+test("a frame is drawn on the timer while something is turning, and not otherwise", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const out = terminal();
   const presenter = open(out);
 
   presenter.show(RUN);
-  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
   t.mock.timers.tick(80);
   const settled = out.chunks.length;
   t.mock.timers.tick(160);
   assert.equal(out.chunks.length, settled, "a model nothing has changed is not redrawn twelve times a second");
 
-  presenter.show({ kind: "wait", state: "start", subject: "implement agent" });
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
   t.mock.timers.tick(80);
   const spinning = out.chunks.length;
   t.mock.timers.tick(160);
-  assert.equal(out.chunks.length, spinning + 2, "an open wait is what proves the run is alive, so it animates");
+  assert.equal(
+    out.chunks.length,
+    spinning + 2,
+    "the running step's marker is what proves the run is alive, so it animates",
+  );
 
-  presenter.show({ kind: "wait", state: "end", subject: "implement agent", seconds: 9 });
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 9, outcome: "done" });
   t.mock.timers.tick(80);
   const closed = out.chunks.length;
   t.mock.timers.tick(160);
-  assert.equal(out.chunks.length, closed, "and it stops when the wait does");
+  assert.equal(out.chunks.length, closed, "and it stops when the step does");
 
   presenter.end();
 });

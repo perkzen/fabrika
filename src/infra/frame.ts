@@ -1,4 +1,4 @@
-import { display, livenessRow, progressRow, type Clock } from "./lines.ts";
+import { display, livenessRow, progressRow, spinner, type Clock } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
 import { steps as stepsOf, type Node, type StepState, type Tree } from "../outline.ts";
@@ -23,7 +23,11 @@ export type View = {
 
 export type Size = { readonly columns: number; readonly rows: number };
 
-/** How a step's state reads at a glance. Already-done borrows done's tick and is dimmed instead. */
+/**
+ * How a step's state reads at a glance. Already-done borrows done's tick and
+ * is dimmed instead, and the running step's `▸` is what it falls back to when
+ * there is no clock to spin: see `marker`.
+ */
 const MARKERS: Record<StepState, string> = {
   pending: "·",
   running: "▸",
@@ -31,6 +35,25 @@ const MARKERS: Record<StepState, string> = {
   failed: "✖",
   skipped: "–",
   "already-done": "✔",
+};
+
+/**
+ * The colour a step is read in — marker, position and name together, because
+ * a row that disagrees with itself is harder to scan than one with no colour
+ * at all.
+ *
+ * Green for what is finished and cyan for the one thing happening, matching
+ * `styleOf`'s green for a passing gate and a done result. `dim` is kept for
+ * the steps that will never run, so it goes on meaning "nothing to read here";
+ * a pending step is dressed by nothing, which is how it sits between the two.
+ */
+const STATES: Record<StepState, Style | undefined> = {
+  pending: undefined,
+  running: ["bold", "cyan"],
+  done: ["bold", "green"],
+  failed: ["bold", "red"],
+  skipped: "dim",
+  "already-done": "dim",
 };
 
 /** Summary fields are joined by two spaces, and each is omitted when it has nothing to say. */
@@ -77,7 +100,7 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   const drawn = root.children.slice(top, top + outline);
   const body: Array<string> = [];
   for (const step of drawn) {
-    body.push(row(outlineRow(step, step.key === view.selected), width, dress));
+    body.push(row(outlineRow(step, step.key === view.selected, clock), width, dress));
     if (open && step.key === open.key) body.push(...windowRows(open, window, width, view, dress, live));
   }
   // The open step's own row can be scrolled out of the outline; its window is
@@ -286,7 +309,9 @@ const wrap = (line: string, width: number): ReadonlyArray<string> => {
  * and this is a line an operator scrolls back to an hour later.
  */
 export const outlineRows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
-  // Nothing is selected in scrollback: the run is over and there is no view.
+  // Nothing is selected in scrollback, and nothing spins: the run is over,
+  // there is no view, and a frozen spinner on a step an interrupt left running
+  // would read as a run still going.
   stepsOf(tree).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
 
 /** The run's own line: what the operator calls it, and the progress row every surface draws. */
@@ -310,16 +335,33 @@ const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> =
  * which row they are on is the surface's business, the way a failed gate's
  * red is.
  */
-const outlineRow = (step: Node, selected: boolean): ReadonlyArray<Segment> => [
-  { style: selected ? "inverse" : undefined, text: `${MARKERS[step.state]} ${step.at}/${step.of}` },
+const outlineRow = (step: Node, selected: boolean, clock?: Clock): ReadonlyArray<Segment> => [
+  { style: markerStyle(step.state, selected), text: `${marker(step.state, clock)} ${step.at}/${step.of}` },
   { text: " " },
-  { style: nameStyle(step.state), text: step.name },
+  { style: STATES[step.state], text: step.name },
   ...summary(step),
 ];
 
-/** A failed step is the one line worth reading; a skipped or resumed one recedes. */
-const nameStyle = (state: StepState): Style =>
-  state === "failed" ? ["bold", "red"] : state === "skipped" || state === "already-done" ? "dim" : "bold";
+/**
+ * The running step's marker is the spinner, on a surface that has a clock to
+ * turn it with: a step whose work is an agent call emits nothing for minutes
+ * at a time, and a still marker is the one thing that makes a live run look
+ * hung. One glyph wide either way, so no column moves as it turns.
+ */
+const marker = (state: StepState, clock: Clock | undefined): string =>
+  state === "running" && clock ? spinner(clock) : MARKERS[state];
+
+/**
+ * The selected row keeps its state's colour and gains the inverse on top:
+ * which row the operator is on is a mark, not a colour of its own, and
+ * replacing the colour would make the selection the one row that no longer
+ * says what state it is in.
+ */
+const markerStyle = (state: StepState, selected: boolean): Style | undefined => {
+  const style = STATES[state];
+  if (!selected) return style;
+  return style === undefined ? "inverse" : ["inverse", ...(typeof style === "string" ? [style] : style)];
+};
 
 /** What a step came to: its summary once it has finished, a reason if it never ran, nothing yet otherwise. */
 const summary = (step: Node): ReadonlyArray<Segment> => {
