@@ -455,3 +455,23 @@ test("a cut row never splits a character in half either, whatever width the term
     assert.ok([...line].length <= columns - 1, `"${line}" is wider than columns - 1`);
   }
 });
+
+test("dressing a frame changes its bytes and never how many rows it has", () => {
+  // `scrolled()` counts a window's rows with the identity styler while the
+  // screen draws it with a real one; the clamp is only right while those agree.
+  const dim = (_style: unknown, text: string) => `\x1b[2m${text}\x1b[22m`;
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "agent", stage: "implement", markdown: "# a heading\n\nand a paragraph long enough to wrap more than once across a narrow window" }],
+  );
+  const open = { ...view, selected: "0:2", opened: "0:2" };
+  const size = { columns: 40, rows: 14 };
+
+  const plain = frame(tree, open, size, bare, { now: noon, spin: 0 });
+  const dressed = frame(tree, open, size, dim, { now: noon, spin: 0 });
+
+  assert.equal(dressed.length, plain.length);
+  assert.deepEqual(dressed.map(visible), plain, "the same rows, with escapes around them");
+});
