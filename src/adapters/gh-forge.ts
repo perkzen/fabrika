@@ -5,7 +5,6 @@ import { exec, run } from "../infra/shell.ts";
 import { Forge, type Check, type CheckState, type MergeState, type NewPullRequest, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Reviewer } from "../ports/reviewer.ts";
-import { Workspace } from "../ports/workspace.ts";
 
 /**
  * GitHub through the `gh` CLI, which already holds the operator's
@@ -105,21 +104,28 @@ const detailOf = (pr: Listed): PullRequestDetail => ({
 });
 
 export type ForgeOptions = {
+  readonly repo: string;
   /** The branch PRs target, without the remote. */
   readonly base: string;
+  /** Where `gh` is spawned. Incidental — every call carries `-R` — but a
+   *  subprocess needs a directory, and a sweep has no worktree at discovery. */
+  readonly cwd: string;
 };
 
 /** A rollup can be empty for a moment after a push, or forever in a repo with no CI. */
 const EMPTY_ROLLUP_GRACE = Duration.minutes(2);
 const POLL = Duration.seconds(60);
 
+/** Long enough for GitHub to finish what the first listing asked it to start. */
+const REFRESH_GAP = Duration.seconds(3);
+const REFRESH_ATTEMPTS = 2;
+
 export const layer = (options: ForgeOptions) =>
   Layer.effect(Forge)(
     Effect.gen(function* () {
-      const workspace = yield* Workspace;
       const journal = yield* Journal;
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      const repo = yield* workspace.githubRepo;
+      const { repo, cwd } = options;
       // The reviewer reports itself as a check on the PR. The review loop owns
       // that signal, so waiting for it here would be waiting on the loop's own
       // output — which bot it is stays the reviewer's business, not GitHub's.
@@ -127,7 +133,18 @@ export const layer = (options: ForgeOptions) =>
       const spawned = <A, E>(effect: Effect.Effect<A, E, ChildProcessSpawner.ChildProcessSpawner>) =>
         Effect.provideService(effect, ChildProcessSpawner.ChildProcessSpawner, spawner);
       const gh = (argv: ReadonlyArray<string>) =>
-        spawned(run(workspace.dir, ["gh", ...argv])).pipe(Effect.mapError(asFabrikaError(`gh ${argv[0]} ${argv[1] ?? ""}`.trim())));
+        spawned(run(cwd, ["gh", ...argv])).pipe(Effect.mapError(asFabrikaError(`gh ${argv[0]} ${argv[1] ?? ""}`.trim())));
+
+      // `--limit` is explicit because `gh`'s default of 30 drops pull requests
+      // silently; `--base` is deliberately absent, because a stacked pull
+      // request has to be listed to be reported.
+      const listed = gh([
+        "pr", "list", "-R", repo,
+        "--author", "@me",
+        "--state", "open",
+        "--limit", "200",
+        "--json", LIST_FIELDS,
+      ]).pipe(Effect.map((out) => (JSON.parse(out) as Array<Listed>).map(detailOf)));
 
       const rollup = (pr: number) =>
         gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,statusCheckRollup"]).pipe(
@@ -177,7 +194,7 @@ export const layer = (options: ForgeOptions) =>
 
         failureLog: (check: Check) =>
           check.job
-            ? spawned(exec(workspace.dir, ["gh", "run", "view", "--job", check.job.jobId, "--log-failed", "-R", check.job.repo])).pipe(
+            ? spawned(exec(cwd, ["gh", "run", "view", "--job", check.job.jobId, "--log-failed", "-R", check.job.repo])).pipe(
                 Effect.mapError(asFabrikaError("gh run view")),
                 Effect.map((result) => {
                   const lines = result.out.split("\n").filter((line) => line.trim());
@@ -192,13 +209,30 @@ export const layer = (options: ForgeOptions) =>
         // `--limit` is explicit because `gh`'s default of 30 drops pull
         // requests silently; `--base` is deliberately absent, because a
         // stacked pull request has to be listed to be reported.
-        authored: gh([
-          "pr", "list", "-R", repo,
-          "--author", "@me",
-          "--state", "open",
-          "--limit", "200",
-          "--json", LIST_FIELDS,
-        ]).pipe(Effect.map((out) => (JSON.parse(out) as Array<Listed>).map(detailOf))),
+        authored: Effect.gen(function* () {
+          const first = yield* listed;
+          const pending = first.filter((pr) => pr.merge === "unknown").length;
+          if (pending === 0) return first;
+          // GitHub computes mergeability lazily and the query itself is what
+          // triggers it, so the refresh is the same list again — one call that
+          // resolves every pending pull request at once, where one call per
+          // pull request would cost one each. Measured 2026-09-13: a first
+          // listing of 100 came back 49 unknown, an immediate repeat all 100
+          // resolved.
+          return yield* Effect.gen(function* () {
+            const merged = new Map(first.map((pr) => [pr.number, pr] as const));
+            for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt += 1) {
+              yield* Effect.sleep(REFRESH_GAP);
+              for (const pr of yield* listed) {
+                // A pull request opened between attempts is added; one that
+                // flakes back to unknown does not undo an answer we have.
+                if (!merged.has(pr.number) || pr.merge !== "unknown") merged.set(pr.number, pr);
+              }
+              if ([...merged.values()].every((pr) => pr.merge !== "unknown")) break;
+            }
+            return [...merged.values()];
+          }).pipe(waitFor(journal, `merge state of ${pending} pull request(s)`));
+        }),
       } satisfies Forge;
     }),
   );

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
-import { classify } from "../src/adapters/gh-forge.ts";
+import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
@@ -138,4 +138,14 @@ test("a repo that needs no install step gets a config with no install key at all
 
 test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
   assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
+});
+
+test("GitHub's two merge fields map onto the four merge states", () => {
+  assert.equal(mergeStateOf("CONFLICTING", "DIRTY"), "conflicted");
+  assert.equal(mergeStateOf("MERGEABLE", "BEHIND"), "behind");
+  assert.equal(mergeStateOf("MERGEABLE", "CLEAN"), "clean");
+  assert.equal(mergeStateOf("MERGEABLE", undefined), "clean", "the expensive half of the query may be absent");
+  assert.equal(mergeStateOf("UNKNOWN", "UNKNOWN"), "unknown");
+  assert.equal(mergeStateOf("", ""), "unknown", "never assumed clean, never assumed conflicted");
+  assert.equal(mergeStateOf("CONFLICTING", undefined), "conflicted", "only `mergeable` decides anything");
 });

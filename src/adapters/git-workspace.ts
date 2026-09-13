@@ -19,6 +19,24 @@ export const WORK_DIR = ".fabrika/work";
 export const remoteOf = (base: string) => (base.includes("/") ? base.split("/")[0]! : "origin");
 export const baseBranch = (base: string) => (base.includes("/") ? base.slice(base.indexOf("/") + 1) : base);
 
+/**
+ * `owner/repo` for a repository, without building a `Workspace` first: a
+ * sweep resolves it before it has a tree, and `Workspace.githubRepo` answers
+ * through the same call, so the two cannot disagree.
+ */
+export const githubRepoAt = (repoRoot: string, base: string) => {
+  const remote = remoteOf(base);
+  return run(repoRoot, ["git", "remote", "get-url", remote]).pipe(
+    Effect.mapError(asFabrikaError("git remote")),
+    Effect.flatMap((url) => {
+      const repo = /github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/.exec(url)?.[1];
+      return repo
+        ? Effect.succeed(repo)
+        : Effect.fail(new FabrikaError({ message: `remote ${remote} is not a GitHub URL: ${url}` }));
+    }),
+  );
+};
+
 export type WorkspaceOptions = {
   readonly repoRoot: string;
   readonly dir: string;
@@ -70,14 +88,7 @@ export const layer = (options: WorkspaceOptions) =>
 
         exists: fs.exists(dir).pipe(Effect.orElseSucceed(() => false)),
         currentBranch: git(["branch", "--show-current"]),
-        githubRepo: git(["remote", "get-url", remote], repoRoot).pipe(
-          Effect.flatMap((url) => {
-            const match = /github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/.exec(url);
-            return match
-              ? Effect.succeed(match[1]!)
-              : Effect.fail(new FabrikaError({ message: `remote ${remote} is not a GitHub URL: ${url}` }));
-          }),
-        ),
+        githubRepo: spawned(githubRepoAt(repoRoot, base)),
         /**
          * Git rather than the filesystem: this catches a tree at *any* path —
          * a renamed pull request whose key no longer matches its directory

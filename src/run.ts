@@ -42,6 +42,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const path = yield* Path.Path;
     const repoRoot = process.cwd();
     const dir = yield* home("worktrees", repoRoot, ticket.identifier);
+    // Before the forge layer, because the forge no longer has a `Workspace` to
+    // ask: every `gh` call carries `-R`, so where it is spawned is incidental.
+    const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
     const runsDir = yield* home("runs", repoRoot, ticket.identifier);
 
     const foundation = Layer.mergeAll(
@@ -64,7 +67,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const ports = Layer.mergeAll(
       foundation,
       reviewer,
-      ghForge.layer({ base: gitWorkspace.baseBranch(config.base) }).pipe(Layer.provide(Layer.merge(foundation, reviewer))),
+      ghForge
+        .layer({ repo, base: gitWorkspace.baseBranch(config.base), cwd: repoRoot })
+        .pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),
       claudeAgent.layer({ repoRoot, defaultCwd: dir, credentials, deny: config.deny }).pipe(Layer.provide(foundation)),
     );
