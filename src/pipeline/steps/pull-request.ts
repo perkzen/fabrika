@@ -108,10 +108,9 @@ export const openPullRequest: Step = {
     const plain = composeBody(link, description, undefined);
     const opening = { branch, title: `${ticket.identifier}: ${ticket.title}`, draft: config.pr.draft };
     const uploading = section?.attachments ?? [];
-    const opened = yield* forge
+    const pr = yield* forge
       .open({ ...opening, body: composeBody(link, description, section?.markdown), attachments: uploading })
       .pipe(
-        Effect.map((pr) => ({ pr, attachments: uploading })),
         // Push access is already proven by the push above, so a create that
         // fails while carrying attachments failed on the upload. Only the
         // second attempt failing escalates, which is today's behaviour.
@@ -119,18 +118,20 @@ export const openPullRequest: Step = {
           uploading.length > 0
             ? journal
                 .log(`the pull request would not take the captures (${error.message}); opening it without them`)
-                .pipe(
-                  Effect.andThen(forge.open({ ...opening, body: plain, attachments: [] })),
-                  Effect.map((pr) => ({ pr, attachments: [] as ReadonlyArray<string> })),
-                )
+                .pipe(Effect.andThen(forge.open({ ...opening, body: plain, attachments: [] })))
             : Effect.fail(error),
         ),
       );
-    const pr = opened.pr;
+    // Stored before anything else is asked of the forge: a crash past this
+    // line resumes onto this pull request rather than opening a second one.
     yield* store.update((state) => void (state.prNumber = pr.number));
     yield* journal.log(`PR ${pr.url}`);
 
-    if (opened.attachments.length > 0) yield* withoutHostPaths(pr.number, opened.attachments, plain);
+    // Asked whether or not the upload survived. The body that opened after a
+    // rejected upload is the plain one, so the read-back finds no host path
+    // and does nothing — one `pr view` on a path that has already gone wrong,
+    // against threading the attachments back out of the create just to skip it.
+    if (uploading.length > 0) yield* withoutHostPaths(pr.number, uploading, plain);
 
     if (config.pr.emptyCommit) {
       // A preview deployment is skipped when its commit predates the PR.

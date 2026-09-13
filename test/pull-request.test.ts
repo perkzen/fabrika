@@ -98,6 +98,7 @@ test("an upload that fails opens the pull request without it", async () => {
     "the reason is in the journal",
   );
   assert.equal(retried.recording.state().prNumber, 7);
+  assert.deepEqual(retried.recording.edited, [], "the fallback body has no host path in it, so the read-back changes nothing");
 
   const dead = await exercise(openPullRequest.run, { ...withCapture, captures: [framed], open: "fails" });
   assert.equal(dead.failed, true, "a second failure is the failure it is today");
