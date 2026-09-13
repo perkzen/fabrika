@@ -119,12 +119,30 @@ test("a proposal keeps cubic and normalises anything else to none, without losin
   }
 });
 
+test("source globs are normalised entry by entry, and an unusable answer falls back to the template's", () => {
+  const base = { base: "origin/main", gate: [], provider: "none", notes: [] };
+
+  assert.deepEqual(asProposal({ ...base, source: ["  lib/**  ", "packages/*/src/**"] })?.source, ["lib/**", "packages/*/src/**"]);
+  assert.deepEqual(
+    asProposal({ ...base, source: ["lib/**", 5, "", "   ", null, "x".repeat(201)] })?.source,
+    ["lib/**"],
+    "an unusable entry is dropped, not the whole answer",
+  );
+
+  for (const source of [undefined, [], ["", 5], "src/**", 7]) {
+    const proposal = asProposal({ ...base, source });
+    assert.deepEqual(proposal?.source, ["src/**"], String(source));
+    assert.equal(proposal?.base, "origin/main", "the gate is the expensive part of this call and survives");
+  }
+});
+
 test("a proposal becomes the config init writes, and only the fields it proposed move", () => {
   const config = asConfig({
     base: "origin/trunk",
     install: "pnpm i --frozen-lockfile",
     gate: [{ name: "compile", run: "tsc" }],
     provider: "cubic",
+    source: ["src/**"],
     notes: ["read off the repo"],
   });
 
@@ -141,7 +159,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
 });
 
 test("a repo that needs no install step gets a config with no install key at all", () => {
-  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", notes: [] });
+  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", source: ["src/**"], notes: [] });
   assert.equal(config.install, undefined);
   assert.equal(JSON.parse(JSON.stringify(config)).install, undefined, "and `init` writes the file without it");
 });

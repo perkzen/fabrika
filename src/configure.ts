@@ -1,15 +1,17 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
-import { CONFIG_TEMPLATE, type Config, type GateStep } from "./config.ts";
+import { CONFIG_TEMPLATE, DEFAULT_SOURCE, type Config, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
-/** The four repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
+/** The five repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {
   readonly base: string;
   readonly install: string | undefined;
   readonly gate: ReadonlyArray<GateStep>;
   readonly provider: Config["review"]["provider"];
+  /** Where this repo's own source lives, as globs; never empty. */
+  readonly source: ReadonlyArray<string>;
   readonly notes: ReadonlyArray<string>;
 };
 
@@ -29,6 +31,12 @@ export const CONFIG_SCHEMA = JSON.stringify({
         },
         required: ["name", "run"],
       },
+    },
+    source: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Globs naming where this repo's own source lives — the tree whose change makes an architecture pass worth paying for, e.g. src/** or packages/*/src/**; leave tests, docs, fixtures and generated output out",
     },
     provider: {
       type: "string",
@@ -54,6 +62,19 @@ export const CONFIG_SCHEMA = JSON.stringify({
  * outside the worktree is not.
  */
 const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
+
+/**
+ * A glob names no command, so it gets no `FORBIDDEN` check — only a bound,
+ * because a path glob longer than this is not a path glob.
+ */
+const sourceGlobs = (raw: unknown): ReadonlyArray<string> => {
+  const globs = Array.isArray(raw)
+    ? raw.filter((g): g is string => typeof g === "string").map((g) => g.trim()).filter((g) => g && g.length <= 200)
+    : [];
+  // Rejecting the whole answer over this field would cost the gate, which is
+  // the expensive part of the call; the template's own default stands in.
+  return globs.length > 0 ? globs : DEFAULT_SOURCE;
+};
 
 /**
  * Shape is normalised, not rejected. The fallback for a rejected answer is no
@@ -97,7 +118,7 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string") : [];
   // Normalised like `stepName`: a wrong `"none"` loses a signal the human still sees on the PR, where a wrong `"cubic"` guarantees an escalation.
   const provider = r.provider === "cubic" ? "cubic" : "none";
-  return { base, install: r.install, gate, provider, notes };
+  return { base, install: r.install, gate, provider, source: sourceGlobs(r.source), notes };
 };
 
 /**
