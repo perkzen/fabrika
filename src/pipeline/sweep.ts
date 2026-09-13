@@ -153,6 +153,12 @@ export const sweep = (
     const workspace = yield* Workspace;
 
     const prs = yield* forge.authored;
+    // Both no-op lines return before the fan-out, so the command is safe to
+    // put on a schedule in a repo that has nothing for it to do.
+    if (prs.length === 0) {
+      yield* journal.log(`sync: nothing to sync — no open pull request(s) you authored on ${forge.repo}`);
+      return { outcomes: [], exitCode: 0 };
+    }
     yield* journal.log(`sync: ${prs.length} open pull request(s) you authored on ${forge.repo}`);
     const selections = select(prs, { base: options.base, checkedOut: yield* workspace.checkedOutBranches });
     const selected = selections.flatMap((selection) => (selection.decision === "sync" ? [selection.pr] : []));
@@ -171,6 +177,10 @@ export const sweep = (
       yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
     }
     const skipped = selections.length - selected.length;
+    if (selected.length === 0) {
+      yield* journal.log(`sync: nothing to sync — ${prs.length} open pull request(s), none conflicted on ${options.base}`);
+      return { outcomes, exitCode: 0 };
+    }
     yield* journal.log(`sync: ${selected.length} conflicted, ${skipped} skipped`);
 
     // Before any path is resolved: the run-directory scan is the only

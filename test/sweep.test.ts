@@ -232,3 +232,30 @@ test("the usage limit stops the sweep handing out new work", async () => {
     "sync: 0 synced, 0 already clean, 0 escalated, 1 failed, 2 skipped",
   ]);
 });
+
+const noWorker: SweepOptions["worker"] = () => Effect.die("nothing to sync, so no worker runs");
+const noPlace: SweepOptions["place"] = () => Effect.die("nothing to sync, so no path is resolved");
+
+test("a repo with no open pull requests says so and exits 0", async () => {
+  const { exit, recording } = await exercise(sweep({ ...oneAtATime(noWorker), place: noPlace }), {
+    pullRequests: [],
+  });
+
+  assert.equal((exit as { exitCode: number }).exitCode, 0);
+  assert.deepEqual(recording.log, ["sync: nothing to sync — no open pull request(s) you authored on perkzen/fabrika"]);
+});
+
+test("a repo where every pull request is clean says so and exits 0", async () => {
+  const clean = [1, 2, 3, 4, 5, 6, 7].map((number) => pullRequest({ number, merge: "clean" }));
+  const { exit, recording } = await exercise(sweep({ ...oneAtATime(noWorker), place: noPlace }), {
+    pullRequests: clean,
+  });
+
+  assert.equal((exit as { exitCode: number }).exitCode, 0);
+  assert.equal(recording.log[0], "sync: 7 open pull request(s) you authored on perkzen/fabrika");
+  assert.equal(recording.log[1], "  #1 [yours] fix: a thing — skipped: not conflicted (clean)");
+  assert.equal(
+    recording.log.at(-1),
+    "sync: nothing to sync — 7 open pull request(s), none conflicted on origin/main",
+  );
+});
