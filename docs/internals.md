@@ -94,6 +94,15 @@ untouched checkout and proposes only the green ones, which is the part a
 template or a regex cannot do, and returns a `notes` line per decision that
 `init` prints.
 
+The call proposes a fifth thing: **where this repo's source lives**, as globs.
+That one is not neutral in the template — `refactor` ships `when: ["src/**"]`
+— but a tree whose code is under `packages/*/src/**` needs the default read off
+it rather than guessed. `asConfig` puts the globs on `refactor` and on no other
+stage, which is why the call has no channel through which to put a `when` on
+`security`. An answer with no usable globs falls back to the template's own
+default instead of being rejected, because the gate is the expensive part of
+this call and one bad guess must not cost it.
+
 The host still writes the file. `asProposal` in `src/configure.ts` rejects an
 answer whose parts are unusable, and rejects any gate step containing
 `git push`, `gh pr merge`, a publish or an `rm -r`: the config denies those
@@ -155,15 +164,58 @@ land in a commit but survive the worktree.
 
 ## Skipping a stage
 
-A stage with `only` runs for those ticket types and is skipped for the rest —
-the type being the naming call's verdict, not the Linear label, recorded in
-`state.json` so a resumed run skips identically. The shipped config puts
-`only: ["feat"]` on `refactor`: a fix or a chore rarely has architecture worth
-reshaping, and with one session per stage the pass costs a cold start plus a
-full gate run. `security` deliberately has no `only` — a small diff is a small
-security review.
+A stage carries two optional filters, and is skipped when either says so.
 
-A stage nobody in the repo ever wants is deleted from `stages` instead.
+`only` lists the ticket types it runs for — the type being the naming call's
+verdict, not the Linear label, recorded in `state.json` so a resumed run skips
+identically.
+
+`when` lists globs, matched against the branch's changed files. It is the same
+field name, the same glob semantics and the same matcher as a gate step's
+`when`, so the two cannot drift into separate dialects. The scope is
+`changedFiles` — `base...HEAD`, the whole branch — and not the files since the
+last stage: `refactor` is judging what this branch does, not what the stage
+before it did. The skip reason names the globs that missed, because a stage's
+are in a config file the operator is not looking at:
+
+```
+refactor: skipped (no changed file matches src/**)
+```
+
+A stage may carry either, both or neither, and one carrying both runs only when
+both agree. `only` is asked first — it costs no port call — so it is also the
+reason reported when both reject, and a stage without `when` never reads the
+changed files at all.
+
+The shipped config puts `when: ["src/**"]` on `refactor` and no `only`: a
+docs-only ticket has no architecture to reshape whatever type it was named, and
+with one session per stage the pass costs a cold start plus a full gate run. A
+`chore` that rewrites a module gets it. `security` has neither filter — a
+weakness introduced *by* the change is not predictable from anything a filter
+can read.
+
+**An empty diff never skips.** `spec` and `plan` are reached before any tracked
+file has changed — `.fabrika/work/` is git-excluded — so a `when` there would
+skip forever. A skip requires positive evidence: a diff that exists and misses.
+The corollary is that a `when` on a stage which runs before anything has
+changed is a no-op rather than a skip, and the run's log shows the stage
+running. A gate step deliberately differs, because it runs inside a stage that
+has already produced a diff; see
+[ADR-0003](adr/0003-a-when-skip-requires-positive-evidence.md).
+
+The filter is evaluated at the stage's turn, not when the pipeline is built, so
+every preceding stage has already committed by then — which is what makes
+`when` mean anything. A skipped stage is not recorded in `completed`, so a
+resumed run re-asks the question against the larger diff: a stage that skipped
+on the first pass runs on the second once the diff has grown into its globs. A
+stage that ran is recorded and reported `already done` on a resume whatever the
+diff then says, so a resume can never double the bill.
+
+Nothing refuses a `when` on a stage named `security`. Stage names are free
+config text — a repo may call it `sec-review` — so a name check would be both
+evadable and surprising, and such a config is exactly as visible in review as
+deleting the stage. A stage nobody in the repo ever wants is deleted from
+`stages` instead.
 
 ## One session per stage
 
@@ -239,5 +291,8 @@ trusting anything else.
 A `.fabrika/config.json` written by an older `init` has a three-stage list.
 Run `fabrika init` in an empty directory and copy the `stages` array out of the
 file it writes — `src/config.ts` holds the same template as a TypeScript object
-now, which is not valid JSON. That is also where `only` shows up, if the
-upgrade is what brings you here.
+now, which is not valid JSON. That is also where `only` and `when` show up, if the
+upgrade is what brings you here — and `refactor`'s line changed: it used to
+carry `only: ["feat"]` and now carries `when: ["src/**"]`. Both fields are
+optional, so a config written before `when` existed keeps decoding and produces
+the same pipeline it always did.

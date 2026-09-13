@@ -45,10 +45,10 @@ const configure = (presenter: Presenter) =>
     // The gate is whatever this repo already checks with, so it is read off
     // the repo rather than shipped: a step that does not exist here would go
     // red on an untouched checkout, and the agent would be handed "fix it"
-    // for code it never wrote. One structured call proposes the four
+    // for code it never wrote. One structured call proposes the five
     // repo-specific fields; the host is still the one that writes the file,
     // so a rejected answer cannot produce a config that will not load.
-    yield* say("reading the repo: base branch, install command, the checks CI enforces, and the review bot.");
+    yield* say("reading the repo: base branch, install command, the checks CI enforces, where the source lives, and the review bot.");
     yield* say("this runs the candidate commands, so give it a minute.");
     const rejected = (message: string) => say({ kind: "note", level: "warn", text: message }).pipe(Effect.as(null));
     const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, presenter.show).pipe(

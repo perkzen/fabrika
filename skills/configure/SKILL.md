@@ -1,16 +1,16 @@
 ---
 name: configure
-description: Read a repository's base branch, install command, checks and review bot, and propose the repo-specific parts of .fabrika/config.json. Use when the host asks for a configuration at `fabrika init`.
+description: Read a repository's base branch, install command, checks, where its source lives and its review bot, and propose the repo-specific parts of .fabrika/config.json. Use when the host asks for a configuration at `fabrika init`.
 ---
 
 # Configure
 
-The host writes `.fabrika/config.json`; you supply the four fields that cannot
+The host writes `.fabrika/config.json`; you supply the five fields that cannot
 be shipped in a template because they belong to this repo: **base**, **install**,
-**gate** and **provider**. Return them as structured output. Write no files —
+**gate**, **source** and **provider**. Return them as structured output. Write no files —
 not the config, not a scratch note.
 
-The gate matters more than the other three. The host runs it after every stage
+The gate matters more than the other four. The host runs it after every stage
 that changes code, and a failing step goes back to the agent as "fix it". A
 step that does not exist here, or that is already red on an untouched checkout,
 teaches the agent to invent a script to go green and burns the run. **An empty
@@ -103,6 +103,28 @@ root (`apps/desktop/**`). If you are guessing, leave it off.
 `git push`, `gh pr merge`, `gh pr review`, any publish or deploy, or anything
 that writes outside the worktree. The host owns those and denies them to every
 stage; the answer is rejected outright if one appears in a gate step.
+
+## source
+
+Globs naming where this repo's own source lives. The host puts them on the
+`refactor` stage, which then runs only when the branch changed a file matching
+one — an architecture pass is worth paying for when there is architecture in
+the diff, and not when the ticket merely said `feat`.
+
+Read the tree and name what is there: `src/**`, `lib/**`, `apps/*/src/**`,
+`packages/*/src/**`. Several are fine when the code is genuinely in several
+places.
+
+Leave out tests, docs, fixtures, generated output and lockfiles. A branch that
+only touches those has nothing to reshape, which is exactly the case this field
+exists to skip.
+
+Globs match paths from the repo root, and `src/**` matches every file beneath
+`src` at any depth. Record what you chose and why in `notes` — it is the one
+judgement in the file a human will want to check.
+
+If nothing usable comes back the host writes `src/**` rather than rejecting the
+answer, so a repo whose layout you cannot read costs the field and not the gate.
 
 ## provider
 

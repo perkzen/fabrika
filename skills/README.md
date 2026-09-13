@@ -6,7 +6,7 @@ target repo's own `.claude/skills/` still load alongside.
 
 | Skill | Stage | Reads | Writes |
 | --- | --- | --- | --- |
-| `fabrika:configure` | `fabrika init`, before any run | CI workflows, lockfile, scripts | `{base, install, gate}` as structured output; the host writes the config |
+| `fabrika:configure` | `fabrika init`, before any run | CI workflows, lockfile, scripts | `{base, install, gate, source, provider}` as structured output; the host writes the config |
 | `fabrika:branch-naming` | naming call, before the worktree exists | ticket, repo | `{type, slug, preview}` as structured output; the host builds the branch |
 | `fabrika:to-tickets` | human-invoked, before a run | a spec, plan, or conversation | `.fabrika/tickets/<feature>/<NN>-<slug>.md`, each runnable with `fabrika run --file` |
 | `fabrika:to-spec` | spec | ticket, repo | `.fabrika/work/spec.md` |

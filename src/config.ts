@@ -9,7 +9,7 @@ export const Stage = Schema.Struct({
   gate: Schema.optional(Schema.Boolean),
   /** Ticket types this stage runs for, as the naming call decided; every type when absent. */
   only: Schema.optional(Schema.Array(Schema.Literals(["feat", "fix", "chore"]))),
-  /** Glob patterns; the stage runs only when a changed file matches one. */
+  /** Glob patterns; the stage runs only when a changed file matches one. An empty diff runs it — see ADR-0003. */
   when: Schema.optional(Schema.Array(Schema.String)),
 });
 export type Stage = typeof Stage.Type;
