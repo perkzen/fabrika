@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import type { Presenter } from "./console.ts";
+import { detached } from "./shell.ts";
 import type { RunEvent } from "../run-event.ts";
 
 export type NotifierOptions = {
@@ -13,18 +13,6 @@ export type NotifierOptions = {
   readonly bin?: string;
   /** Injected by the tests, so nothing here posts a real notification. */
   readonly post?: (text: string, title: string) => void;
-};
-
-/**
- * Fire and forget, like `keepAwake`: `spawn` forks before it returns, so the
- * child outlives the `process.exit` that `cli.ts` is about to call, and a
- * failure to post is swallowed — the console said the same thing first.
- */
-/** Fire and forget, and never fatal: a notification nobody sees is not a failed run. */
-const detached = (bin: string, args: ReadonlyArray<string>): void => {
-  const child = spawn(bin, [...args], { stdio: "ignore" });
-  child.on("error", () => {});
-  child.unref();
 };
 
 /** The bundle's own CLI. It posts as the bundle, which is where the icon comes from. */

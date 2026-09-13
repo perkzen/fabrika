@@ -1,8 +1,24 @@
+// Deliberate beside the Effect spawner below: `detached` is a fire-and-forget
+// fork whose child outlives this process, which is not a shape an Effect that
+// awaits an exit code can have.
+import { spawn } from "node:child_process";
 import { Data, Effect, Stream } from "effect";
 import type { PlatformError } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 export type ShellResult = { readonly code: number; readonly out: string };
+
+/**
+ * Fire and forget, and never fatal: the child outlives the `process.exit`
+ * `cli.ts` is about to call, and a failure to start it is swallowed — a
+ * notification nobody sees, or an editor that never opened, is not a failed
+ * run. No shell, ever.
+ */
+export const detached = (bin: string, args: ReadonlyArray<string>): void => {
+  const child = spawn(bin, [...args], { stdio: "ignore" });
+  child.on("error", () => {});
+  child.unref();
+};
 
 export class ShellFailed extends Data.TaggedError("ShellFailed")<{
   readonly argv: ReadonlyArray<string>;
