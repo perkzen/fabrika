@@ -196,7 +196,7 @@ After the draft PR opens, each round:
 4. hands threads and failed-step logs to the agent, which fixes or disputes each one
 5. posts the replies, resolves only threads the agent addressed, merges the base branch again, runs the gate, pushes
 
-Done depends on the provider. Under `"cubic"`: the score equals
+Done depends on the provider. Under `"cubic"`: the score is at least
 `review.requireScore`, no threads are open, and no check on the pushed commit
 is failing. Under `"none"`: no check on the pushed commit is failing — there is
 no verdict to satisfy, so the loop neither waits for one nor claims one in the
