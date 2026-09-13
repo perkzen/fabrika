@@ -186,3 +186,29 @@ test("a base whose install failed is a missing half rather than a wrong one", as
   );
   assert.ok(log.some((line) => line.includes("install failed (exit 7)")), "the operator is told which half went missing and why");
 });
+
+test("the budget the checkout and the install share is not also the capture's", async () => {
+  const base = here();
+  // 0.06 minutes is 3.6 seconds, and every part of this fits in it on its own:
+  // the checkout plus a two-second install, and then a two-second command. Only
+  // the sum does not, which is the thing that must not be measured.
+  const { shots } = await take(
+    [
+      {
+        name: "console",
+        // Slow only in the base checkout, which is the tree with a package.json.
+        run: `test -e package.json && sleep 2; ${writes({ "out.txt": "at the base" })}`,
+        timeoutMinutes: 0.06,
+      },
+    ],
+    () => {},
+    base,
+    "sleep 2",
+  );
+
+  assert.deepEqual(
+    shots[0]?.before,
+    [{ name: "out.txt", kind: "text", content: "at the base" }],
+    "a capture may spend at the base the time its own timeout grants it",
+  );
+});

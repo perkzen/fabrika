@@ -148,33 +148,38 @@ export const layer = (options: CapturesOptions) =>
       const inBaseTree = (baseSha: string, budgetMinutes: number, use: (dir: string) => Effect.Effect<void>) =>
         Effect.gen(function* () {
           const dir = path.join(store.directory, "base", baseSha);
-          yield* git(["worktree", "remove", "--force", dir]).pipe(Effect.ignore);
-          yield* git(["worktree", "prune"]).pipe(Effect.ignore);
-          yield* fs.remove(dir, { recursive: true, force: true }).pipe(Effect.ignore);
-          yield* git(["worktree", "add", "--detach", dir, baseSha]);
-          yield* Effect.addFinalizer(() =>
-            git(["worktree", "remove", "--force", dir]).pipe(Effect.ignore, Effect.andThen(git(["worktree", "prune"]).pipe(Effect.ignore))),
-          );
-          if (options.install) {
-            // `sh` answers a result rather than failing, so a non-zero install
-            // reads as a tree that is ready when it is half-built.
-            const install = yield* spawned(sh(dir, options.install));
-            if (install.code !== 0) {
-              yield* journal.log(`captures: base ${baseSha.slice(0, 7)} install failed (exit ${install.code}); no base half`);
-              return;
+          const ready = yield* Effect.gen(function* () {
+            yield* git(["worktree", "remove", "--force", dir]).pipe(Effect.ignore);
+            yield* git(["worktree", "prune"]).pipe(Effect.ignore);
+            yield* fs.remove(dir, { recursive: true, force: true }).pipe(Effect.ignore);
+            yield* git(["worktree", "add", "--detach", dir, baseSha]);
+            // Registered in the outer scope, so the tree is removed after the
+            // captures have had it rather than when this budget closes.
+            yield* Effect.addFinalizer(() =>
+              git(["worktree", "remove", "--force", dir]).pipe(Effect.ignore, Effect.andThen(git(["worktree", "prune"]).pipe(Effect.ignore))),
+            );
+            if (options.install) {
+              // `sh` answers a result rather than failing, so a non-zero
+              // install reads as a tree that is ready when it is half-built.
+              const install = yield* spawned(sh(dir, options.install));
+              if (install.code !== 0) {
+                yield* journal.log(`captures: base ${baseSha.slice(0, 7)} install failed (exit ${install.code}); no base half`);
+                return false;
+              }
             }
-          }
-          yield* use(dir);
-        }).pipe(
-          Effect.scoped,
-          // The checkout and the install sit outside any one capture's
-          // command, and an install that hangs stalls the run as surely as a
-          // capture that does; they share one budget.
-          Effect.timeoutOption(Duration.minutes(budgetMinutes)),
-          Effect.catchCause(() => Effect.void),
-          waitFor(journal, `base ${baseSha.slice(0, 7)} for the captures`, budgetMinutes),
-          Effect.asVoid,
-        );
+            return true;
+          }).pipe(
+            // The checkout and the install sit outside any one capture's
+            // command, and an install that hangs stalls the run as surely as a
+            // capture that does; they share one budget. The commands they make
+            // possible are bounded one by one, by their own `timeoutMinutes`.
+            Effect.timeoutOption(Duration.minutes(budgetMinutes)),
+            Effect.map((done) => Option.isSome(done) && done.value),
+            Effect.catchCause(() => Effect.succeed(false)),
+            waitFor(journal, `base ${baseSha.slice(0, 7)} for the captures`, budgetMinutes),
+          );
+          if (ready) yield* use(dir);
+        }).pipe(Effect.scoped, Effect.catchCause(() => Effect.void), Effect.asVoid);
 
       const take = (captures: ReadonlyArray<CaptureStep>, baseSha: string) =>
         Effect.gen(function* () {
