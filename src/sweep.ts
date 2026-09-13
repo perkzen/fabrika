@@ -8,7 +8,7 @@ import * as ghForge from "./adapters/gh-forge.ts";
 import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
-import type { Config } from "./config.ts";
+import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
 import { openConsole } from "./infra/console.ts";
 import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
@@ -63,7 +63,7 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       // A sweep never reads checks, so there is no reviewer-owned check to
       // exclude; the port is answered rather than made optional (ADR-0002).
       ghForge
-        .layer({ repo, base: gitWorkspace.baseBranch(config.base), cwd: repoRoot })
+        .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
         .pipe(Layer.provide(Layer.mergeAll(oneConsole, noReviewer.layer, platform))),
     );
 

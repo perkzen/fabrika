@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { baseBranch } from "../adapters/git-workspace.ts";
+import { baseBranch } from "../config.ts";
 import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";

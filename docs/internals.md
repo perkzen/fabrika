@@ -20,7 +20,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
 | `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
-| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
+| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |

@@ -9,7 +9,7 @@ import * as ghForge from "./adapters/gh-forge.ts";
 import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
-import type { Config } from "./config.ts";
+import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -72,7 +72,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       foundation,
       reviewer,
       ghForge
-        .layer({ repo, base: gitWorkspace.baseBranch(config.base), cwd: repoRoot })
+        .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
         .pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),
       claudeAgent.layer({ repoRoot, defaultCwd: dir, credentials, deny: config.deny }).pipe(Layer.provide(foundation)),

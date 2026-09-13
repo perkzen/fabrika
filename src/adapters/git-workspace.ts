@@ -1,5 +1,6 @@
 import { Effect, FileSystem, Layer, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { baseBranch, remoteOf } from "../config.ts";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
 import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
@@ -14,10 +15,6 @@ import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
  * who reads them next to the PR.
  */
 export const WORK_DIR = ".fabrika/work";
-
-/** `origin/main` → remote `origin`, branch `main`; a bare `main` means `origin`. */
-export const remoteOf = (base: string) => (base.includes("/") ? base.split("/")[0]! : "origin");
-export const baseBranch = (base: string) => (base.includes("/") ? base.slice(base.indexOf("/") + 1) : base);
 
 /**
  * `owner/repo` for a repository, without building a `Workspace` first: a

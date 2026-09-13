@@ -44,6 +44,15 @@ export const Config = Schema.Struct({
 });
 export type Config = typeof Config.Type;
 
+/**
+ * The two halves of `base`. It is written the way git writes a remote-tracking
+ * ref, `origin/main`, and a bare `main` means the default remote — so the
+ * remote is the first segment and everything after it is the branch, which may
+ * carry slashes of its own.
+ */
+export const remoteOf = (base: string) => (base.includes("/") ? base.split("/")[0]! : "origin");
+export const baseBranch = (base: string) => (base.includes("/") ? base.slice(base.indexOf("/") + 1) : base);
+
 export const CONFIG_PATH = ".fabrika/config.json";
 
 export class ConfigNotFound extends Data.TaggedError("ConfigNotFound")<{ readonly path: string }> {}

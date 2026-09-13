@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Effect } from "effect";
 import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
-import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
+import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -148,4 +148,15 @@ test("GitHub's two merge fields map onto the four merge states", () => {
   assert.equal(mergeStateOf("UNKNOWN", "UNKNOWN"), "unknown");
   assert.equal(mergeStateOf("", ""), "unknown", "never assumed clean, never assumed conflicted");
   assert.equal(mergeStateOf("CONFLICTING", undefined), "conflicted", "only `mergeable` decides anything");
+});
+
+test("the configured base splits into the remote and the branch", () => {
+  assert.equal(remoteOf("origin/main"), "origin");
+  assert.equal(baseBranch("origin/main"), "main");
+  assert.equal(remoteOf("main"), "origin", "a bare branch is the default remote's");
+  assert.equal(baseBranch("main"), "main");
+  // A branch name may carry slashes; a remote name may not, so only the
+  // first segment is ever the remote.
+  assert.equal(remoteOf("upstream/release/2.0"), "upstream");
+  assert.equal(baseBranch("upstream/release/2.0"), "release/2.0");
 });
