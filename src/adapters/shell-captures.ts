@@ -78,8 +78,8 @@ export const layer = (options: CapturesOptions) =>
 
       /**
        * Runs one capture in one tree, into an empty directory of its own.
-       * `false` when the command failed or ran out of time; the spawner kills
-       * the child it acquired when the timeout interrupts the scope.
+       * `false` when the command failed, never started, or ran out of time; the
+       * spawner kills the child it acquired when the timeout interrupts the scope.
        */
       const command = (capture: CaptureStep, cwd: string, into: string) =>
         Effect.gen(function* () {
@@ -89,14 +89,17 @@ export const layer = (options: CapturesOptions) =>
             sh(cwd, capture.run, { ...withoutSecrets(process.env), FABRIKA_CAPTURE_DIR: into }, false),
           ).pipe(
             Effect.timeoutOption(Duration.minutes(capture.timeoutMinutes ?? DEFAULT_CAPTURE_MINUTES)),
-            Effect.orElseSucceed(() => Option.none<{ code: number; out: string }>()),
+            Effect.map((done) => (Option.isSome(done) ? done.value : ("timed out" as const))),
+            // A child that never started is a different thing to tell the
+            // operator than one that outstayed a deadline.
+            Effect.orElseSucceed(() => "could not be started" as const),
           );
-          if (Option.isNone(result)) {
-            yield* journal.log(`capture ${capture.name}: timed out; no half`);
+          if (typeof result === "string") {
+            yield* journal.log(`capture ${capture.name}: ${result}; no half`);
             return false;
           }
-          if (result.value.code !== 0) {
-            yield* journal.log(`capture ${capture.name}: command failed (exit ${result.value.code}); no half`);
+          if (result.code !== 0) {
+            yield* journal.log(`capture ${capture.name}: command failed (exit ${result.code}); no half`);
             return false;
           }
           return true;

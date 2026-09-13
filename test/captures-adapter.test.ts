@@ -24,11 +24,16 @@ const BASE = "a1b2c3d4e5f6";
 const take = async (
   captures: ReadonlyArray<CaptureStep>,
   seed: (cache: (capture: string) => string) => void,
-  /** A real repository and a real sha make the base half an actual checkout. */
-  base: { repoRoot: string; sha: string } = { repoRoot: "/repo", sha: BASE },
-  /** What the fresh base checkout runs before the captures do. */
-  install?: string,
+  options: {
+    /** A real repository and a real sha make the base half an actual checkout. */
+    readonly base?: { repoRoot: string; sha: string };
+    /** What the fresh base checkout runs before the captures do. */
+    readonly install?: string;
+    /** `"missing"` leaves the run's own tree off the disk, as a crashed run would. */
+    readonly worktree?: "missing";
+  } = {},
 ) => {
+  const { base = { repoRoot: "/repo", sha: BASE }, install } = options;
   const root = mkdtempSync(join(tmpdir(), "fabrika-captures-"));
   const cacheRoot = join(root, "cache");
   const cacheFor = (capture: string) => {
@@ -39,7 +44,7 @@ const take = async (
   seed(cacheFor);
 
   const dir = join(root, "worktree");
-  mkdirSync(dir, { recursive: true });
+  if (options.worktree !== "missing") mkdirSync(dir, { recursive: true });
   const world = harness({ dir, runs: join(root, "run"), repoRoot: base.repoRoot });
 
   const shots = await Effect.runPromise(
@@ -123,7 +128,7 @@ const here = () => ({ repoRoot: process.cwd(), sha: execFileSync("git", ["rev-pa
 
 test("a base with no cached half is checked out, run, and kept for the next ticket", async () => {
   const base = here();
-  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, base);
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, { base });
 
   assert.deepEqual(shots[0]?.before, [{ name: "out.txt", kind: "text", content: "at the base" }], "the base half ran");
   assert.ok(log.some((line) => line.includes(`capture console: base ${base.sha.slice(0, 7)} captured in`)));
@@ -137,7 +142,7 @@ test("a base with no cached half is checked out, run, and kept for the next tick
 
 test("a base command that fails leaves nothing in the cache to become a permanent hit", async () => {
   const base = here();
-  const { shots, log, cacheRoot } = await take([{ name: "console", run: "exit 1" }], () => {}, base);
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: "exit 1" }], () => {}, { base });
 
   assert.equal(shots[0]?.before, undefined);
   assert.equal(existsSync(join(cacheRoot, base.sha, "console")), false, "the staged half was never promoted");
@@ -174,8 +179,7 @@ test("a base whose install failed is a missing half rather than a wrong one", as
   const { shots, log, cacheRoot } = await take(
     [{ name: "console", run: writes({ "out.txt": "at the base" }) }],
     () => {},
-    base,
-    "exit 7",
+    { base, install: "exit 7" },
   );
 
   assert.equal(shots[0]?.before, undefined, "a tree whose dependencies are not there is not a base to capture");
@@ -202,8 +206,7 @@ test("the budget the checkout and the install share is not also the capture's", 
       },
     ],
     () => {},
-    base,
-    "sleep 2",
+    { base, install: "sleep 2" },
   );
 
   assert.deepEqual(
@@ -211,4 +214,15 @@ test("the budget the checkout and the install share is not also the capture's", 
     [{ name: "out.txt", kind: "text", content: "at the base" }],
     "a capture may spend at the base the time its own timeout grants it",
   );
+});
+
+test("a capture that could not be started says so, rather than saying it ran out of time", async () => {
+  // The run's own tree is gone, so `sh` never spawns. The two outcomes are a
+  // minute apart in what they cost and in what an operator should do about
+  // them, and both used to reach the journal as a timeout.
+  const { shots, log } = await take([{ name: "console", run: "true" }], () => {}, { worktree: "missing" });
+
+  assert.equal(shots[0]?.after, undefined);
+  assert.ok(log.some((line) => line.includes("capture console: could not be started; no half")));
+  assert.ok(!log.some((line) => line.includes("timed out")), "and nothing claims a deadline passed");
 });
