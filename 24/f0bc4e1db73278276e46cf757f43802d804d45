@@ -1,0 +1,24 @@
+README.md
+  s_275e3a26e070ce::t_cee42106486aa6 39,120,125-126,133-140
+skills/configure/SKILL.md
+  s_275e3a26e070ce::t_78006eb2f31355 3,8-9,107-133
+  s_275e3a26e070ce::t_c8235f4d0e4c12 10-11,13,139-140
+docs/internals.md
+  s_275e3a26e070ce::t_cee42106486aa6 20,183,192-194,199-209,219-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "24f0bc4e1db73278276e46cf757f43802d804d45",
+  "prompts": {},
+  "sessions": {
+    "s_275e3a26e070ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bef34747-bedc-4cca-a6ca-9a0f2283cbb8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
