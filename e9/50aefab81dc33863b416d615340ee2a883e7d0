@@ -1,0 +1,21 @@
+src/infra/markdown.ts
+  s_e6e6c8aa7b504c::t_f7bb772c9e7508 78-82,85,93
+test/console.test.ts
+  s_e6e6c8aa7b504c::t_9f7861df22c8c6 287-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e950aefab81dc33863b416d615340ee2a883e7d0",
+  "prompts": {},
+  "sessions": {
+    "s_e6e6c8aa7b504c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e0fef91-57c4-4f54-a693-e56cc1d2c6c6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
