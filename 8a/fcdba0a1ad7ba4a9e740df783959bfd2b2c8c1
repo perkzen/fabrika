@@ -1,0 +1,23 @@
+test/rehearse.test.ts
+  s_23c0881e851125::t_420cd6f78e9359 6,20-22
+docs/internals.md
+  s_23c0881e851125::t_420cd6f78e9359 102-103
+scripts/rehearse.ts
+  s_23c0881e851125::t_420cd6f78e9359 10-11,152-157,195-199,203,318-322,329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8afcdba0a1ad7ba4a9e740df783959bfd2b2c8c1",
+  "prompts": {},
+  "sessions": {
+    "s_23c0881e851125": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8fb004e6-4413-4a16-88fc-aa8b872f0097",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
