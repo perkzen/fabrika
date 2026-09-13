@@ -1,5 +1,6 @@
 import { styleText } from "node:util";
 import { frame, rows, type View } from "./frame.ts";
+import { display } from "./lines.ts";
 import { decode, follow, press } from "./keys.ts";
 import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
 import type { Styler } from "./markdown.ts";
@@ -154,7 +155,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     stream.off("resize", onResize);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
     for (const line of rows(tree, size().columns, dress)) stream.write(line + "\n");
-    if (tree.result) stream.write(dress(["bold", tree.result.outcome === "done" ? "green" : "red"], tree.result.text) + "\n");
+    // Through `display`, like every other line this repo writes: it is where
+    // the result's colour is decided and, more to the point, where the text is
+    // scrubbed. An escalation's wording carries `gh` output and agent text,
+    // and this is the line the operator reads the outcome off.
+    if (tree.result) for (const line of display(tree.result, dress)) stream.write(line + "\n");
   };
 
   return { show, end };

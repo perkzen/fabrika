@@ -266,3 +266,27 @@ test("show after end is a no-op, so a late event cannot write over restored scro
   presenter.end();
   assert.equal(out.text(), settled);
 });
+
+test("the result line is scrubbed on the way to scrollback, so it cannot forge the line above it", () => {
+  const out = terminal({ columns: 80, rows: 12 });
+  const presenter = open(out);
+
+  presenter.show(RUN);
+  // The escalation wording carries `gh` output and agent text; an escape in it
+  // reaches the terminal at the one moment the operator reads the outcome.
+  presenter.show({
+    kind: "result",
+    outcome: "escalated",
+    text: "escalated: \x1b[2Jcannot push\rdone: ready for human review: https://example.test/1",
+  });
+  presenter.end();
+
+  const left = out.text().slice(out.text().lastIndexOf("\x1b[?1049l"));
+  assert.ok(!left.includes("\x1b[2J"), "no escape of the agent's survives into the terminal");
+  assert.ok(!left.includes("\r"), "and no carriage return, which would overwrite the line it is on");
+  assert.equal(
+    left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n").at(-1),
+    "escalated: [2Jcannot pushdone: ready for human review: https://example.test/1",
+    "the escape stays on screen as the defanged text it is",
+  );
+});
