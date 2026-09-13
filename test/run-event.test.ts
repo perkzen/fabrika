@@ -96,3 +96,28 @@ test("a wait's start line is what the poll loop wrote per poll", () => {
     "waiting for checks on abc1234",
   ]);
 });
+
+/**
+ * A run event's text is not the run's own words. It carries what the agent
+ * said, what a tool was called with, and what `gh` handed back — all of it
+ * derived from repo files, review threads and fetched pages, none of it
+ * trusted with the operator's terminal.
+ */
+test("a control character in an event's text never reaches a surface", () => {
+  assert.deepEqual(
+    plain({ kind: "agent", stage: "implement", markdown: "all good \x1b[2J\x1b[H\x1b]52;c;cHduZWQ=\x07 done" }),
+    ["all good [2J[H]52;c;cHduZWQ= done"],
+    "the escape byte goes and the rest stays visible, so the attempt is legible rather than obeyed",
+  );
+  assert.deepEqual(
+    plain({ kind: "note", level: "warn", text: "[retry] overloaded\rdone: ready for human review" }),
+    ["[retry] overloadeddone: ready for human review"],
+    "a carriage return can overwrite the line it is on, which is how a failure forges a success",
+  );
+  assert.deepEqual(plain({ kind: "tool", stage: "implement", tool: "Bash", subject: "run \x1b[31mtests" }), ["  Bash run [31mtests"]);
+  assert.deepEqual(plain("wrote \x07.fabrika/config.json"), ["wrote .fabrika/config.json"]);
+});
+
+test("scrubbing keeps the characters a line is actually made of", () => {
+  assert.deepEqual(plain({ kind: "note", level: "info", text: "one\ttwo\nthree — ✓ │ ünïcode" }), ["one\ttwo", "three — ✓ │ ünïcode"]);
+});

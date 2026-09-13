@@ -1,6 +1,6 @@
 import { styleText } from "node:util";
 import { renderMarkdown } from "./markdown.ts";
-import { elapsed, plain, stamp, type RunEvent } from "../run-event.ts";
+import { elapsed, plain, scrub, stamp, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
 export type Presenter = {
@@ -99,9 +99,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   /**
    * Cut before styling, never after: truncating a styled line mid-escape
    * corrupts it, and a line of exactly `columns - 1` occupies exactly one row,
-   * which is what makes the cursor arithmetic below correct.
+   * which is what makes the cursor arithmetic below correct. Scrubbed for the
+   * same reason: one escape in a subject and a row is no longer a row.
    */
-  const cut = (line: string) => line.slice(0, width() - 1);
+  const cut = (line: string) => scrub(line).slice(0, width() - 1);
 
   const liveLines = (): ReadonlyArray<string> => {
     const lines: Array<string> = [];
@@ -198,7 +199,9 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
    */
   const lines = (entry: RunEvent | string): ReadonlyArray<string> => {
     if (typeof entry === "string" || entry.kind !== "agent") return plain(entry);
-    const walked = renderMarkdown(entry.markdown, dress);
+    // Scrubbed before the lexer, never after the walk: after it, the styling
+    // this presenter just added would be scrubbed along with the agent's.
+    const walked = renderMarkdown(scrub(entry.markdown), dress);
     const missing = walked.length - MESSAGE_LINES;
     const block =
       missing <= 0

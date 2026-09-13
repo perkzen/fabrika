@@ -54,11 +54,33 @@ export const elapsed = (seconds: number): string => {
 export const stamp = (at: number): string => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
 
 /**
+ * Every control character but tab and newline, gone.
+ *
+ * An event's text is not the run's own words: it carries what the agent said,
+ * what a tool was called with, what `gh` handed back — all of it derived from
+ * repo files, review threads and fetched pages. A terminal obeys what it is
+ * sent, so an escape sequence in any of that can clear the screen over a
+ * failed gate, retitle the window, or write the operator's clipboard, and a
+ * carriage return can overwrite a line to forge the `done:` one.
+ *
+ * The escape byte alone is dropped rather than the whole sequence: `[2J`
+ * stays on screen as the defanged text it is, which is more honest than a
+ * matcher that has to be right about every sequence there is.
+ */
+export const scrub = (text: string): string => text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
+
+/**
  * A run event as ANSI-free, unstamped text lines — one element per physical
  * line, because each surface stamps every line it writes. A bare string is
  * an info note that has already been written out.
+ *
+ * Scrubbed on the way out, at the one point every surface's every line
+ * passes through. The console's agent branch is the sole line that does not
+ * come through here, and it scrubs before it lexes.
  */
-export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
+export const plain = (entry: RunEvent | string): ReadonlyArray<string> => render(entry).map(scrub);
+
+const render = (entry: RunEvent | string): ReadonlyArray<string> => {
   if (typeof entry === "string") return entry.split("\n");
   switch (entry.kind) {
     // The ticket header is preflight's line and stays preflight's line; this

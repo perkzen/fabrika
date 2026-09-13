@@ -376,3 +376,32 @@ test("a plain console installs no signal handler, having no terminal to restore"
   assert.equal(process.listenerCount("SIGINT"), before);
   presenter.end();
 });
+
+/**
+ * The agent's markdown is the one thing the console renders itself, so the
+ * scrub in `plain()` does not cover it. It has to happen before the lexer —
+ * after it, the styling this presenter adds would be scrubbed too.
+ */
+test("an agent message cannot drive the terminal, and is still dressed", () => {
+  const out = sink({ isTTY: true, columns: 200 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "agent", stage: "implement", markdown: "## Done\n\nall good \x1b[2J\x1b[H\x1b]52;c;cHduZWQ=\x07" });
+  presenter.end();
+
+  const written = out.text();
+  assert.doesNotMatch(written, /\x1b\[2J/, "a clear-screen would take the failed gate above it off the operator's screen");
+  assert.doesNotMatch(written, /\x1b\]/, "an OSC sequence can write the clipboard and retitle the window");
+  assert.match(written, /\x1b\[1m/, "and the heading is still bold: the scrub is before the lexer, not after the styling");
+  assert.match(written, /\[2J\[H\]52;c;cHduZWQ=/, "what it tried to do stays readable");
+});
+
+test("the live region is scrubbed too, since a stray escape there moves the cursor the redraw counts on", () => {
+  const out = sink({ isTTY: true, columns: 80 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "wait", state: "start", subject: "checks on \x1b[1Aabc1234" });
+  presenter.end();
+  // `clearLive` writes a real `\x1b[1A` of its own, so the assertion is about
+  // the subject: it arrives defanged, and never as the escape it was.
+  assert.doesNotMatch(out.text(), /\x1b\[1Aabc1234/, "one row up is what clearLive says; a subject must not get to say it too");
+  assert.match(out.text(), /waiting for checks on \[1Aabc1234/);
+});

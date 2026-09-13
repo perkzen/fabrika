@@ -47,3 +47,11 @@ test("a line that cannot be written is dropped rather than failing the run", () 
   assert.doesNotThrow(() => archive.show("the console still has it"));
   assert.doesNotThrow(archive.end);
 });
+
+test("agent speech cannot carry escapes into the file either", () => {
+  const file = logFile();
+  const archive = openArchive({ file, now: noon });
+  archive.show({ kind: "agent", stage: "plan", markdown: "## Slices\n\x1b]0;pwned\x07- one" });
+  archive.end();
+  assert.doesNotMatch(readFileSync(file, "utf8"), /[\x00-\x08\x0b-\x1f\x7f-\x9f]/, "the archive is the ANSI-free copy, whatever the agent said");
+});
