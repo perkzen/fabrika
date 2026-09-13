@@ -99,8 +99,9 @@ export const layer = (directory: string) =>
           }).pipe(Effect.mapError(asFabrikaError(`copying ${from}`))),
         update: (change: (state: RunState) => void) => Effect.suspend(() => (change(state), save)),
       } satisfies RunStore;
+    })
       // Building the store reads and creates directories, and a layer that
       // could not be built has to fail with the one error the ports speak —
       // otherwise a platform error escapes into every caller's error type.
-    }).pipe(Effect.mapError(asFabrikaError(`opening ${directory}`))),
+      .pipe(Effect.mapError(asFabrikaError(`opening ${directory}`))),
   );
