@@ -77,13 +77,17 @@ export const layer = (options: AgentOptions) =>
               stage: request.stage,
               onEvent: journal.write,
             }).pipe(
+              // Suspended, because `ensuring` builds its argument up front:
+              // reading the clock in the literal would time nothing at all.
               Effect.ensuring(
-                journal.log({
-                  kind: "wait",
-                  state: "end",
-                  subject: `${request.stage} agent`,
-                  seconds: (Date.now() - started) / 1000,
-                }),
+                Effect.suspend(() =>
+                  journal.log({
+                    kind: "wait",
+                    state: "end",
+                    subject: `${request.stage} agent`,
+                    seconds: (Date.now() - started) / 1000,
+                  }),
+                ),
               ),
             );
             // Recorded before anything is done with the answer: a run that
