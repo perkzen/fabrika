@@ -34,9 +34,9 @@ const inline = (tokens: ReadonlyArray<Token> | undefined, style: Styler, fallbac
           return "tokens" in token && token.tokens ? inline(token.tokens, style, token.text) : token.text;
         default:
           // Its own text, never its markdown: a link arrives as its label
-          // and loses its href, which is what the spec asked for
-          // ("everything else falls through as its text"). The archive is
-          // where the raw form survives.
+          // and loses its href. That is the rule FAB-1 settled on —
+          // everything unhandled falls through as its text — and the
+          // archive is where the raw form survives.
           return "text" in token && typeof token.text === "string" ? token.text : (token.raw ?? "");
       }
     })
