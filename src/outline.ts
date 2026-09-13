@@ -61,6 +61,13 @@ export type Tree = {
   readonly label?: string;
   /** Held rather than streamed, so the exit rendering can write it last. */
   readonly result?: Extract<RunEvent, { kind: "result" }>;
+  /** The wait the run is inside, if any, for the liveness line. */
+  readonly wait?: { readonly subject: string; readonly since: number; readonly deadlineMinutes?: number };
+  /**
+   * The gate step running now. It carries the command as well as the position,
+   * because a running gate's row names what it is on.
+   */
+  readonly gate?: { readonly name: string; readonly at: number; readonly of: number; readonly command: string };
 };
 
 const noSummary = (): Summary => ({ calls: 0, tools: [], skills: [], gates: [] });
@@ -103,6 +110,22 @@ export const take = (tree: Tree, at: number, entry: RunEvent | string): Tree => 
     // one the exit scrollback has to write last, after the whole outline.
     case "result":
       return { ...tree, result: entry };
+    // Both are streamed as well as held: they are part of what the step did,
+    // and the held copy is only what the liveness row reads.
+    case "wait":
+      return {
+        ...streamed(tree, { at, entry }),
+        wait: entry.state === "start" ? { subject: entry.subject, since: at, deadlineMinutes: entry.deadlineMinutes } : undefined,
+      };
+    case "gate": {
+      // Over when it fails or when its last step is behind it — the same rule
+      // the scrollback console's live region follows.
+      const over = entry.state === "fail" || (entry.at === entry.of && entry.state !== "start");
+      return {
+        ...streamed(tree, { at, entry }),
+        gate: over ? undefined : { name: entry.name, at: entry.at, of: entry.of, command: entry.command },
+      };
+    }
     default:
       return streamed(tree, { at, entry });
   }

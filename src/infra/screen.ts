@@ -80,9 +80,12 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     stream.write(ALTERNATE_ON + HIDE_CURSOR);
     mounted = true;
     process.on("SIGINT", end);
+    // A frame is a whole viewport, so it is drawn only when there is something
+    // to see: the model changed, or a wait is open and its spinner is the
+    // proof the run is alive.
     timer = globalThis.setInterval(() => {
       spin += 1;
-      if (dirty) draw();
+      if (dirty || tree.wait) draw();
     }, FRAME_MS);
     timer.unref?.();
     draw();

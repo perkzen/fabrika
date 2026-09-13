@@ -227,3 +227,64 @@ test("the footer names the keys, and is the row dropped first when rows are scar
   assert.equal(cramped.length, 11);
   assert.equal(cramped.at(-1), "", "under twelve rows it is the row worth losing first");
 });
+
+test("an open wait's spinner, elapsed and deadline are the window's last row", () => {
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [1, { kind: "tool", stage: "implement", tool: "Read", subject: "src/cli.ts" }],
+    [1, { kind: "wait", state: "start", subject: "implement agent", deadlineMinutes: 25 }],
+  );
+  const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 0 });
+
+  assert.deepEqual(lines.slice(3), [
+    "12:00:01   Read src/cli.ts",
+    "12:00:01 waiting for implement agent",
+    "",
+    "",
+    "",
+    "⠋ waiting for implement agent — 4m 12s / 25m",
+    "· 3/3 review",
+  ], "the liveness moves under the running step's line, where the work is");
+
+  const later = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 1 });
+  assert.notEqual(later[8]![0], lines[8]![0], "the frame advances, which is what proves the run is alive");
+});
+
+test("a running gate's n/N and the command it is on take that row instead", () => {
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [1, { kind: "gate", name: "compile", at: 1, of: 2, command: "tsc --noEmit", state: "start" }],
+  );
+  const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 1000, spin: 0 });
+  assert.equal(lines[8], "gate 1/2 compile: tsc --noEmit", "the gate's liveness survives the new shape");
+
+  // A gate is over when it fails or when its last step is behind it — the same
+  // rule the scrollback console's live region follows.
+  const done = script(
+    "FAB-6",
+    [0, RUN],
+    [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [1, { kind: "gate", name: "compile", at: 1, of: 2, command: "tsc --noEmit", state: "start" }],
+    [2, { kind: "gate", name: "compile", at: 1, of: 2, command: "tsc --noEmit", state: "pass", seconds: 3 }],
+    [3, { kind: "gate", name: "test", at: 2, of: 2, command: "pnpm test", state: "start" }],
+    [4, { kind: "gate", name: "test", at: 2, of: 2, command: "pnpm test", state: "pass", seconds: 41 }],
+  );
+  assert.equal(frame(done, watching, { columns: 60, rows: 10 }, bare, { now: noon, spin: 0 })[8], "");
+});
+
+test("a finished step's window shows its stream and no liveness, the run having moved on", () => {
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [1, { kind: "wait", state: "start", subject: "implement agent", deadlineMinutes: 25 }],
+    [2, { kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 2, outcome: "done" }],
+  );
+  const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 0 });
+  assert.equal(lines[3], "12:00:01 waiting for implement agent");
+  assert.equal(lines[8], "", "the spinner belongs to the running step, and this one is over");
+});

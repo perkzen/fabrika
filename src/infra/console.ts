@@ -22,8 +22,8 @@ export type Style = Parameters<typeof styleText>[0];
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const BAR = 12;
-/** The conventional braille cadence; one array literal is cheaper than a dependency. */
-const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+/** The conventional braille cadence; one array literal is cheaper than a dependency. Shared, so the two live surfaces spin alike. */
+export const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const FRAME_MS = 80;
 /** What the poll loops printed per poll. A pipe needs the proof of life; a file does not. */
 const HEARTBEAT_MS = 60_000;

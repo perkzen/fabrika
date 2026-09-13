@@ -1,6 +1,6 @@
 import { display } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
-import type { Style } from "./console.ts";
+import { FRAMES, type Style } from "./console.ts";
 import type { Node, StepState, Tree } from "../outline.ts";
 import { elapsed, scrub, stamp } from "../run-event.ts";
 
@@ -66,7 +66,7 @@ type Segment = { readonly style?: Style; readonly text: string };
  * one row — a row wider than the terminal is cut, never wrapped — which is
  * what keeps the screen's cursor arithmetic to a home and a write.
  */
-export const frame = (tree: Tree, view: View, size: Size, dress: Styler, _clock: Clock): ReadonlyArray<string> => {
+export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: Clock): ReadonlyArray<string> => {
   const width = Math.max(size.columns - 1, 0);
   const root = tree.roots.at(-1);
   if (!root) return blank(size.rows);
@@ -77,16 +77,19 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, _clock:
   // The window shrinks before the outline does, and is not drawn at all when
   // it cannot have its floor: under five rows the outline is the thing needed.
   const height = open && spare >= WINDOW + 1 ? Math.max(WINDOW, spare - root.children.length) : 0;
+  // The spinner belongs to the step the run is inside; an unfolded finished
+  // step is being read, not watched.
+  const live = open?.state === "running" ? liveness(tree, clock) : undefined;
 
   const drawn = root.children.slice(view.top, view.top + (spare - height));
   const body: Array<string> = [];
   for (const step of drawn) {
     body.push(row(outlineRow(step), width, dress));
-    if (open && step.key === open.key) body.push(...windowRows(open, height, width, view, dress));
+    if (open && step.key === open.key) body.push(...windowRows(open, height, width, view, dress, live));
   }
   // The open step's own row can be scrolled out of the outline; its window is
   // still owed the rows the budget gave it.
-  if (open && height > 0 && !drawn.includes(open)) body.push(...windowRows(open, height, width, view, dress));
+  if (open && height > 0 && !drawn.includes(open)) body.push(...windowRows(open, height, width, view, dress, live));
 
   return [
     row(header(root, tree.label), width, dress),
@@ -112,8 +115,10 @@ const windowRows = (
   width: number,
   view: View,
   dress: Styler,
+  live: ReadonlyArray<Segment> | undefined,
 ): ReadonlyArray<string> => {
-  const wanted = height + view.scroll;
+  const rows = live === undefined ? height : height - 1;
+  const wanted = rows + view.scroll;
   const rendered: Array<string> = [];
   for (let index = step.stream.length - 1; index >= 0 && rendered.length < wanted; index -= 1) {
     const entry = step.stream[index]!;
@@ -121,10 +126,29 @@ const windowRows = (
     rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${at} ${line}`, width)));
   }
   const end = Math.max(rendered.length - view.scroll, 0);
-  const shown = rendered.slice(Math.max(end - height, 0), end);
+  const shown = rendered.slice(Math.max(end - rows, 0), end);
   // Top-aligned when the stream is shorter than the window, the way a terminal
-  // fills a buffer it has not used up.
-  return [...shown, ...blank(height - shown.length)];
+  // fills a buffer it has not used up; the liveness row is always the last.
+  return [...shown, ...blank(rows - shown.length), ...(live === undefined ? [] : [row(live, width, dress)])];
+};
+
+/**
+ * What the run is blocked on, as the window's last row: an open wait's
+ * spinner, elapsed time and deadline, or the gate step running now and the
+ * command it is on. It is the live region's second line, moved to where the
+ * work is.
+ */
+const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined => {
+  // A gate is a synchronous shell run and a wait is not, so the two can never
+  // both be open; the row belongs to whichever one is.
+  if (tree.wait) {
+    const against = tree.wait.deadlineMinutes ? ` / ${tree.wait.deadlineMinutes}m` : "";
+    const spinner = FRAMES[clock.spin % FRAMES.length];
+    const elapsedSince = elapsed((clock.now - tree.wait.since) / 1000);
+    return [{ style: "dim", text: `${spinner} waiting for ${tree.wait.subject} — ${elapsedSince}${against}` }];
+  }
+  if (tree.gate) return [{ style: "dim", text: `gate ${tree.gate.at}/${tree.gate.of} ${tree.gate.name}: ${tree.gate.command}` }];
+  return undefined;
 };
 
 /**
