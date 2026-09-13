@@ -1,5 +1,5 @@
 import type { Effect } from "effect";
-import type { Ticket, TicketSourceError } from "../ticket.ts";
+import type { Ticket, TicketSourceError } from "../domain/ticket.ts";
 
 /**
  * Where the work to do comes from. An adapter is bound to one reference — a

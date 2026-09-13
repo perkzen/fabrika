@@ -5,7 +5,7 @@ import { Effect, Layer } from "effect";
 import * as shellGate from "../src/adapters/shell-gate.ts";
 import type { GateStep } from "../src/config.ts";
 import { Gate } from "../src/ports/gate.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 import { harness } from "./harness.ts";
 
 /** `true` and `false` are the cheapest deterministic commands there are, so `(0s)` is stable. */

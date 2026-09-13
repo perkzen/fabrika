@@ -1,6 +1,6 @@
 import { Context, type Effect } from "effect";
 import type { FabrikaError } from "../errors.ts";
-import type { TicketType } from "../ticket.ts";
+import type { TicketType } from "../domain/ticket.ts";
 
 /**
  * Persisted after every step so a dead run resumes rather than restarts.
@@ -13,7 +13,7 @@ export type RunState = {
   sessions: Record<string, string>;
   /** Chosen once by the naming call; a resume must land on the same branch. */
   branch: string | null;
-  /** The naming call's verdict, kept so a resumed run skips the same stages. */
+  /** The naming call's verdict, kept so a resumed run fills `{type}` the way the first one did. */
   type: TicketType | null;
   completed: Array<string>;
   prNumber: number | null;

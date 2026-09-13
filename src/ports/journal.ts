@@ -1,5 +1,5 @@
 import { Context, Effect } from "effect";
-import type { RunEvent } from "../run-event.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 
 /**
  * Where a run says what it is doing. It carries run events, not pre-formatted

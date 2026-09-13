@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { banner } from "../src/infra/banner.ts";
+import { banner } from "../src/terminal/banner.ts";
 
 /** A stream the banner can own: it writes and it has a width. */
 const sink = (columns?: number) => {

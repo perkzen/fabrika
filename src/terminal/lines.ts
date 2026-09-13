@@ -1,7 +1,7 @@
 import { renderMarkdown, type Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
-import type { Tree } from "../outline.ts";
-import { elapsed, plain, scrub, type RunEvent } from "../run-event.ts";
+import type { Tree } from "../domain/outline.ts";
+import { elapsed, plain, scrub, type RunEvent } from "../domain/run-event.ts";
 
 /** Marks the agent's own lines, so its speech is never mistaken for the run's. */
 const GUTTER = "│ ";

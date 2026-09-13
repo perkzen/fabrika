@@ -21,7 +21,7 @@ import type { PlatformError } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { AgentFailed, AgentRateLimited, AgentUnauthorized } from "../ports/agent.ts";
 import { PLUGIN_DIR } from "../paths.ts";
-import type { RunEvent } from "../run-event.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 import { describeContent, type ContentBlock } from "./transcript.ts";
 
 export type Credential = {

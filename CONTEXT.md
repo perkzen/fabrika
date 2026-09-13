@@ -13,10 +13,19 @@ of the domain.
 
 **Stage**:
 One entry in the committed config's `stages` — a prompt, the role it runs
-under, the model it runs on, the servers it may reach, whether the gate follows
-it, and which ticket types it runs for. It is one conversation by construction.
+under, the model it runs on, the servers it may reach, and whether the gate
+follows it. It is one conversation by construction.
 _Avoid_: step — a step is the pipeline's unit of work, of which a configured
 stage is one kind; phase.
+
+**Chosen steps**:
+Which of a run's steps this invocation runs, decided before the run is
+assembled — `--steps`, or the operator's answer to the select the command
+opens with. A step nobody chose is left out of the pipeline rather than
+skipped inside it, so the outline shows the run that was asked for.
+_Avoid_: selection — the glossary already spends that word on what the
+operator has highlighted on the screen; filter, subset; skip — a skipped step
+is one the run contains and passes over, which an unchosen step never was.
 
 **Session**:
 The conversation an agent call belongs to, named by a key and resumed by the
@@ -97,6 +106,30 @@ Everything above it is permanent scrollback and is never rewritten. It is the
 scrollback shape's device; a screen redraws its whole viewport instead.
 _Avoid_: status bar, footer, HUD.
 
+**Select**:
+The question `fabrika run` opens with: one row per step the run may leave
+out, ticked, in the outline's own markers and columns, held in a rail that
+opens at the title and closes under the list. It is drawn into scrollback
+rather than onto the alternate buffer, and what it leaves behind is one
+settled row naming the run that was chosen.
+_Avoid_: prompt — that is what a stage sends the agent; picker, menu,
+checklist.
+
+**Rail**:
+The line down the left of the select — the chip at `┌`, `◇` for a step
+already settled, `◆` for the one being answered, `│` beside everything a
+step has to say, and `◇` again on the row the answer leaves behind. It is
+what says the question is one step of a flow rather than a wall of rows,
+and it is the select's alone: a screen has the outline's margin instead.
+_Avoid_: gutter, border, tree.
+
+**Bulk row**:
+The row above the list that takes or clears every step at once, named for
+what it would do rather than what is true — `Select None (7/7)` when the
+list is full. It is why there is no key for all and none: a row the operator
+can see beats a letter they have to be told about.
+_Avoid_: select all — that is one of its two labels, not its name; header.
+
 **Screen**:
 The presenter that owns the terminal's alternate buffer for the length of a
 run and redraws the whole viewport — the outline, the unfolded step under its
@@ -106,9 +139,10 @@ _Avoid_: TUI, full-screen mode, alternate buffer — that is the terminal
 facility a screen is drawn on, not the presenter.
 
 **Rehearsal**:
-The whole run on a stage set: the real pipeline, driver, journal and screen
-over the test harness's in-memory ports, with a scripted agent and timed
-waits, so the screen can be looked at and a pipeline change watched end to
+The whole run on a stage set: the real select, pipeline, driver, journal and
+screen over the test harness's in-memory ports, with a scripted agent and
+timed waits, so everything the command does to a terminal — the question it
+opens with included — can be looked at and a pipeline change watched end to
 end without an agent bill. `pnpm rehearse`; a script, never a command the
 CLI ships.
 _Avoid_: demo, dry run — a dry run implies the real ports with side effects

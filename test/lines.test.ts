@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { display, livenessRow, progressRow } from "../src/infra/lines.ts";
-import type { Style } from "../src/infra/console.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import { display, livenessRow, progressRow } from "../src/terminal/lines.ts";
+import type { Style } from "../src/terminal/console.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 /** The identity styler: a test asserts on the text, never on the escape codes around it. */
 const bare = (_style: Style, text: string) => text;

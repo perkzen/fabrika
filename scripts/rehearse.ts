@@ -5,9 +5,11 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fileJournal from "../src/adapters/file-journal.ts";
-import type { Config } from "../src/config.ts";
-import { isInteractive, openConsole } from "../src/infra/console.ts";
-import { openScreen } from "../src/infra/screen.ts";
+import { CONFIG_TEMPLATE, type Config } from "../src/config.ts";
+import { banner, VERSION } from "../src/terminal/banner.ts";
+import { isInteractive, openConsole } from "../src/terminal/console.ts";
+import { selectSteps } from "../src/terminal/select.ts";
+import { openScreen } from "../src/terminal/screen.ts";
 import { fabrikaPipeline } from "../src/pipeline/fabrika.ts";
 import { Agent, type AgentRequest } from "../src/ports/agent.ts";
 import { Forge } from "../src/ports/forge.ts";
@@ -31,9 +33,10 @@ import { harness } from "../test/harness.ts";
  *   pnpm rehearse          # about two minutes, paced like a run
  *   pnpm rehearse --fast   # the same run in a few seconds
  *
- * Every stage the shipped config has runs here, in its order: a rehearsal is
- * the whole run, and which steps a run contains is now the operator's answer
- * to the select rather than anything a rehearsal can stand in for.
+ * It opens the way the command does, with the select: answering it is part
+ * of the run to be looked at, and the answer is the run that follows. Press
+ * enter and every stage the shipped config has runs, in its order; untick
+ * one and watch an outline that never had it.
  */
 
 /** One thing the agent does, and how long after the last one. */
@@ -144,6 +147,13 @@ const GATE = [
 export type RehearsalOptions = {
   readonly stream: NodeJS.WriteStream;
   readonly input?: NodeJS.ReadStream;
+  /**
+   * Which steps to rehearse, or every one of them when absent — the same
+   * argument `runTicket` takes, and answered the same way: the select in
+   * `main`, and nothing at all for the test's sink, which has no keyboard to
+   * ask.
+   */
+  readonly steps?: ReadonlyArray<string>;
   /** Multiplies every pause. `1` is paced like a run; `0` waits for nothing, for a test. */
   readonly speed: number;
   /** Where `log.txt` goes; a temp directory by default. */
@@ -303,16 +313,27 @@ export const rehearse = (options: RehearsalOptions) =>
     const overrides = Layer.mergeAll(agent, gate, reviewer, forge).pipe(Layer.provide(base));
     const ports = Layer.merge(base, overrides);
 
-    yield* fabrikaPipeline(world.config).run.pipe(Effect.provide(ports));
+    yield* fabrikaPipeline(world.config, options.steps).run.pipe(Effect.provide(ports));
     return dir;
   });
 
 const main = fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "");
 if (main) {
   const fast = process.argv.includes("--fast");
-  rehearse({ stream: process.stdout, input: process.stdin, speed: fast ? 0.08 : 1 }).pipe(
-    Effect.tap((dir) => Effect.sync(() => console.log(`rehearsal log: ${join(dir, "log.txt")}`))),
-    Effect.provide(NodeServices.layer),
-    NodeRuntime.runMain,
-  );
+  const surface = { stream: process.stdout, input: process.stdin };
+  // The same three things `fabrika run` does before a step runs, in the same
+  // order: the nameplate, the question, and then the run assembled from what
+  // the question was told. The template is what the choices are read off
+  // because a rehearsal overrides the gate and the reviewer, never the stages.
+  banner({ stream: process.stdout, version: VERSION });
+  selectSteps(CONFIG_TEMPLATE, surface)
+    .pipe(
+      Effect.flatMap((steps) => rehearse({ ...surface, speed: fast ? 0.08 : 1, steps })),
+      Effect.tap((dir) => Effect.sync(() => console.log(`rehearsal log: ${join(dir, "log.txt")}`))),
+      // `^C` at the select is leaving before the rehearsal began, and the
+      // shell's own code for it — the same answer `fabrika run` gives.
+      Effect.catchTag("Cancelled", () => Effect.sync(() => process.exit(130))),
+      Effect.provide(NodeServices.layer),
+    )
+    .pipe(NodeRuntime.runMain);
 }

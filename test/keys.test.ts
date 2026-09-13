@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { View } from "../src/infra/frame.ts";
-import { decode, follow, press } from "../src/infra/keys.ts";
-import { outline, type Tree } from "../src/outline.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import type { View } from "../src/terminal/frame.ts";
+import { decode, follow, press } from "../src/terminal/keys.ts";
+import { outline, type Tree } from "../src/domain/outline.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 const noon = new Date(2026, 0, 1, 12, 0, 0).getTime();
 

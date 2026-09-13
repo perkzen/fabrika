@@ -5,7 +5,6 @@ import { Gate } from "../../ports/gate.ts";
 import { Journal } from "../../ports/journal.ts";
 import { Prompts } from "../../ports/prompts.ts";
 import { RunContext } from "../../ports/run-context.ts";
-import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
@@ -19,12 +18,10 @@ import type { Step } from "../step.ts";
 const titleOf = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " ");
 
 /**
- * What a stage will do, for its row before it has done it: an agent call,
- * the gate after it if the stage has one, and the ticket types it runs for
- * if it does not run for all of them.
+ * What a stage will do, for its row before it has done it: an agent call, and
+ * the gate after it if the stage has one.
  */
-const aboutOf = (stage: Stage): string =>
-  ["agent", ...(stage.gate ? ["gate"] : []), ...(stage.only ? [`${stage.only.join("/")} only`] : [])].join(" · ");
+const aboutOf = (stage: Stage): string => ["agent", ...(stage.gate ? ["gate"] : [])].join(" · ");
 
 /**
  * One configured stage: run the agent, then hand it the gate's verdict until
@@ -40,12 +37,6 @@ export const codeStage = (stage: Stage): Step => ({
   title: titleOf(stage.name),
   about: aboutOf(stage),
   once: true,
-  skip: Effect.gen(function* () {
-    const type = (yield* RunStore).get().type;
-    return stage.only && type && !stage.only.includes(type)
-      ? `${type} ticket; runs for ${stage.only.join(", ")}`
-      : undefined;
-  }),
   run: Effect.gen(function* () {
     const { config } = yield* RunContext;
     const agent = yield* Agent;

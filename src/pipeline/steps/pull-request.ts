@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { asCaptureDecision, beforeAfter, CAPTURE_SCHEMA, type Section } from "../../captures.ts";
+import { asCaptureDecision, beforeAfter, CAPTURE_SCHEMA, type Section } from "../../domain/captures.ts";
 import { applies, type CaptureStep, type Config } from "../../config.ts";
 import { Agent } from "../../ports/agent.ts";
 import { Captures } from "../../ports/captures.ts";
@@ -9,7 +9,7 @@ import { Journal } from "../../ports/journal.ts";
 import { RunContext } from "../../ports/run-context.ts";
 import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
-import { titleOf, TRAILER } from "../../pull-request.ts";
+import { titleOf, TRAILER } from "../../domain/pull-request.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
 import { syncWithBase } from "../sync.ts";

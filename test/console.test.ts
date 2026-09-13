@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { Writable } from "node:stream";
 import { test } from "node:test";
-import { openConsole } from "../src/infra/console.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import { openConsole } from "../src/terminal/console.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 /** Local noon on a fixed day: the stamp is `toLocaleTimeString`, so the clock must be local, not UTC. */
 const noon = () => new Date(2026, 0, 1, 12, 0, 0).getTime();

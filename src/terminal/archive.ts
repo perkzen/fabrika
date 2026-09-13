@@ -1,6 +1,6 @@
 import { appendFileSync } from "node:fs";
 import type { Presenter } from "./console.ts";
-import { plain, stamp, type RunEvent } from "../run-event.ts";
+import { plain, stamp, type RunEvent } from "../domain/run-event.ts";
 
 export type ArchiveOptions = {
   /** The run's own `log.txt`. Appended to, never truncated: a resumed run continues it. */

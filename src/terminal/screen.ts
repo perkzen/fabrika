@@ -5,8 +5,8 @@ import { display } from "./lines.ts";
 import { decode, follow, press } from "./keys.ts";
 import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
 import type { Styler } from "./markdown.ts";
-import { empty, steps, take, type Tree } from "../outline.ts";
-import type { RunEvent } from "../run-event.ts";
+import { empty, steps, take, type Tree } from "../domain/outline.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 
 export type ScreenOptions = ConsoleOptions & {
   /** What the header calls this run. No run event carries it; see `Tree.label`. */

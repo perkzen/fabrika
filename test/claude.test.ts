@@ -4,7 +4,7 @@ import { ChildProcessSpawner, type ChildProcess } from "effect/unstable/process"
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runClaudeWithFallback, type Credential } from "../src/infra/claude.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 const RESULT = '{"type":"result","result":"ok"}\n';
 /** What the CLI says when the credential is out of budget; `runClaude` reads it as a rate limit and falls back. */

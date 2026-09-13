@@ -1,6 +1,6 @@
 import { Context, type Effect } from "effect";
 import type { CaptureStep } from "../config.ts";
-import type { Shot } from "../captures.ts";
+import type { Shot } from "../domain/captures.ts";
 
 /**
  * What the pull request may show of the change a diff cannot: each capture

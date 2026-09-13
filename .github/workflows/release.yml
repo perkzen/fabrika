@@ -32,6 +32,10 @@ jobs:
 
       - run: pnpm compile
 
+      # A tag is pushed by hand, so CI on `main` may not have run on this exact
+      # commit; a red suite must stop the publish here rather than ship.
+      - run: pnpm test
+
       # `prepack` builds dist/ on its own, but failing here is a clearer signal.
       - run: pnpm build
 

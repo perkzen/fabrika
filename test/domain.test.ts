@@ -9,9 +9,9 @@ import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { checkedOut } from "../src/adapters/git-workspace.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
 import { home } from "../src/paths.ts";
-import { identified, openedByFabrika, titleOf, TRAILER } from "../src/pull-request.ts";
+import { identified, openedByFabrika, titleOf, TRAILER } from "../src/domain/pull-request.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
-import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
+import { asBranchParts, branchName, slug, type Ticket } from "../src/domain/ticket.ts";
 
 const ticket: Ticket = { identifier: "PAR-12", title: "Add a new export button", description: "", type: "feat" };
 

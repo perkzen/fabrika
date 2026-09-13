@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  typecheck:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,5 +22,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm compile
+
+      # The suite is in-memory but for `git`, which the runner has, and the
+      # CLI test, which spawns `node src/cli.ts` with a PATH that hides `claude`
+      # on purpose — so nothing here needs a login or a secret.
+      - run: pnpm test
 
       - run: pnpm build

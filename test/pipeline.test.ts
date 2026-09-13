@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
+import { CONFIG_TEMPLATE } from "../src/config.ts";
 import { Escalated } from "../src/pipeline/escalated.ts";
+import { choices, fabrikaPipeline, PULL_REQUEST, unknown } from "../src/pipeline/fabrika.ts";
 import { pipeline, type Step } from "../src/pipeline/step.ts";
 import { RunStore } from "../src/ports/run-store.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 import { exercise, type Recording } from "./harness.ts";
 
 const noop = (name: string, extra: Partial<Step> = {}): Step => ({
@@ -176,4 +178,59 @@ test("a step's title and what it will do travel on the run event and its step li
   );
   assert.equal(start?.title, "Spec", "the step's own lines carry it too, for the live region that reads them");
   assert.equal(recording.log[0], "steps: spec, review", "and no plain line says anything but the name");
+});
+
+/**
+ * The run fabrika ships, and the one an operator asked for a part of.
+ *
+ * A step nobody chose is left out rather than skipped, so these read the
+ * built pipeline's names: that list is what the `run` event announces and
+ * what the outline draws, and it is the whole of what choosing changes.
+ */
+const names = (chosen?: ReadonlyArray<string>) => fabrikaPipeline(CONFIG_TEMPLATE, chosen).steps.map((step) => step.name);
+
+test("no selection runs the whole pipeline, which is what a pipe and a schedule get", () => {
+  assert.deepEqual(names(), [
+    "preflight",
+    "branch",
+    "workspace",
+    "spec",
+    "plan",
+    "implement",
+    "refactor",
+    "security",
+    "review",
+    "pull-request",
+    "review",
+  ]);
+});
+
+test("choosing keeps those stages, in the config's order rather than the order they were named in", () => {
+  assert.deepEqual(names(["security", "implement"]), ["preflight", "branch", "workspace", "implement", "security"]);
+});
+
+test("the tree is never a choice: a run with nothing chosen still has somewhere to work", () => {
+  assert.deepEqual(names([]), ["preflight", "branch", "workspace"]);
+});
+
+test("the review loop goes with the pull request, having no rounds without one", () => {
+  assert.deepEqual(names(["implement"]), ["preflight", "branch", "workspace", "implement"]);
+  assert.deepEqual(names(["implement", PULL_REQUEST]).slice(-2), ["pull-request", "review"]);
+});
+
+test("choosing the review stage does not drag in the review loop, though they share a name", () => {
+  assert.deepEqual(names(["review"]), ["preflight", "branch", "workspace", "review"]);
+});
+
+test("the choices are the stages this repo configured, plus the pull request", () => {
+  assert.deepEqual(
+    choices(CONFIG_TEMPLATE).map((choice) => choice.name),
+    ["spec", "plan", "implement", "refactor", "security", "review", PULL_REQUEST],
+  );
+  assert.equal(choices(CONFIG_TEMPLATE)[2]!.about, "agent · gate", "a choice says what the step will do");
+});
+
+test("a name that is nothing in this repo is named back, so a typo is not a stage silently not running", () => {
+  assert.deepEqual(unknown(CONFIG_TEMPLATE, ["implement", "refacter", "pr"]), ["refacter", "pr"]);
+  assert.deepEqual(unknown(CONFIG_TEMPLATE, ["implement", PULL_REQUEST]), []);
 });

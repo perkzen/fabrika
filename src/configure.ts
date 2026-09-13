@@ -2,7 +2,7 @@ import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
 import { CONFIG_TEMPLATE, FORBIDDEN, type CaptureStep, type Config, type GateStep } from "./config.ts";
-import type { RunEvent } from "./run-event.ts";
+import type { RunEvent } from "./domain/run-event.ts";
 
 /** The repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {

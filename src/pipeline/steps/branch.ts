@@ -5,7 +5,7 @@ import { Prompts } from "../../ports/prompts.ts";
 import { RunContext } from "../../ports/run-context.ts";
 import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
-import { asBranchParts, branchName, BRANCH_SCHEMA, defaultParts } from "../../ticket.ts";
+import { asBranchParts, branchName, BRANCH_SCHEMA, defaultParts } from "../../domain/ticket.ts";
 import type { Step } from "../step.ts";
 
 /**
@@ -13,10 +13,11 @@ import type { Step } from "../step.ts";
  *
  * An existing worktree pins it. Otherwise one short structured call applies
  * the `fabrika:branch-naming` skill — it reads the ticket more carefully than
- * a label regex, so its verdict on the type is the one the stages see — and
- * the deterministic parts stand in whenever the answer breaks the naming
- * rules or the call fails outright. The result is saved before anything is
- * built on it, because a resume has to land on the same branch.
+ * a label regex, so its verdict on the type is the one the branch and every
+ * prompt's `{type}` carry — and the deterministic parts stand in whenever the
+ * answer breaks the naming rules or the call fails outright. The result is
+ * saved before anything is built on it, because a resume has to land on the
+ * same branch.
  */
 export const nameBranch: Step = {
   name: "branch",

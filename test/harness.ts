@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 import { noReviewer } from "../src/adapters/no-reviewer.ts";
-import type { Shot } from "../src/captures.ts";
+import type { Shot } from "../src/domain/captures.ts";
 import type { Config } from "../src/config.ts";
 import { FabrikaError } from "../src/errors.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
@@ -23,8 +23,8 @@ import { Reviewer, type Review } from "../src/ports/reviewer.ts";
 import { RunContext } from "../src/ports/run-context.ts";
 import { RunStore, type RunState } from "../src/ports/run-store.ts";
 import { Workspace, type MergeOutcome } from "../src/ports/workspace.ts";
-import { plain, type RunEvent } from "../src/run-event.ts";
-import type { Ticket } from "../src/ticket.ts";
+import { plain, type RunEvent } from "../src/domain/run-event.ts";
+import type { Ticket } from "../src/domain/ticket.ts";
 
 /**
  * Every port, in memory.

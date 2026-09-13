@@ -7,38 +7,50 @@ is and how to run it; this file covers how it is built.
 
 A run is a pipeline of steps over a set of ports. Each port is an interface
 with one adapter in production and an in-memory one in the tests; nothing in
-`pipeline/` knows which is behind it.
+`pipeline/` knows which is behind it. The top of `src/` is the three commands
+and what every folder shares — the config, the errors and the paths. Under it,
+`domain/` is the pure models, `ports/` the interfaces, `adapters/` their
+production implementations, `pipeline/` the steps and the driver, `terminal/`
+the presenters and everything they draw with, and `infra/` the subprocess
+plumbing the adapters and the commands sit on. Nothing in `terminal/` reaches
+into `infra/`: a presenter never spawns anything, which is what keeps the
+terminal testable without a machine behind it.
 
 | Path | Role |
 | --- | --- |
 | `src/cli.ts` | `fabrika init` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
 | `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
+| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
+| `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
+| `src/errors.ts` | `FabrikaError`, the one error every port speaks, and the mapping from an adapter's own failure onto it |
+| `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
+| `src/domain/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
+| `src/domain/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
+| `src/domain/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `cacheKey()` and `asCaptureDecision()`, the rules a per-run capture answer is held to |
+| `src/domain/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
+| `src/domain/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
+| `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
+| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
-| `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
-| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
-| `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
-| `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
-| `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
-| `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
-| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `cacheKey()` and `asCaptureDecision()`, the rules a per-run capture answer is held to |
-| `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
-| `src/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
-| `src/infra/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
-| `src/infra/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow` / `spinner`, the run's progress, whatever is blocking it and the frame anything turning is on, drawn once so the console and the screen cannot drift |
-| `src/infra/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
-| `src/infra/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the header and, under it, the worktree's path in `~` form, the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
-| `src/infra/keys.ts` | `decode`, `press` and `follow` — a keystroke and a view in, a view out. Pure, so the keyboard is tested without a terminal |
-| `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
-| `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
-| `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
+| `src/terminal/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
+| `src/terminal/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow` / `spinner`, the run's progress, whatever is blocking it and the frame anything turning is on, drawn once so the console and the screen cannot drift |
+| `src/terminal/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
+| `src/terminal/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the header and, under it, the worktree's path in `~` form, the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
+| `src/terminal/keys.ts` | `decode`, `press` and `follow` — a keystroke and a view in, a view out. Pure, so the keyboard is tested without a terminal |
+| `src/terminal/select.ts` | The question `run` opens with: a pure key table, a pure render to lines and a thin driver over the keyboard |
+| `src/terminal/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
+| `src/terminal/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
+| `src/terminal/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
+| `src/infra/claude.ts` | The Claude Code CLI as a subprocess: the credential contract, the plugin flag, the stream-json walk |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
+| `src/infra/mcp.ts` | Claude Code's own MCP config as the registry a stage's `mcp` array is resolved against |
+| `src/infra/shell.ts` | The subprocess helper, the detached fork, and the environment minus its credentials |
 | `src/infra/editor.ts` | `editorOpener()` — `FABRIKA_EDITOR` and the platform into the opener the screen's `o` calls, already bound to the worktree, or nothing where there is no default worth guessing |
-| `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
-| `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
+| `src/infra/keep-awake.ts` | The `caffeinate` assertion that holds the machine up for as long as the process lives |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
 | `test/harness.ts` | Every port in memory, so a step can be exercised with no repository, no GitHub and no agent |
@@ -92,11 +104,13 @@ instead, unchanged but for one `step refactor: done (8m 53s)` line per step.
 `log.txt` is the same, plain, stamped and uncapped. ADR-0004 records why the
 screen is hand-rolled rather than built on a framework.
 
-To look at any of it without a ticket, `pnpm rehearse` runs the whole
-pipeline on the test harness's in-memory ports — no `git`, `gh` or `claude`,
-nothing under `~/.fabrika` — with a scripted agent, a gate that goes red
-once, a skipped stage and a reviewer that opens one thread before signing
-off, paced like a run; `pnpm rehearse --fast` is the same run in seconds.
+To look at any of it without a ticket, `pnpm rehearse` opens with the same
+nameplate and the same select `fabrika run` does, then runs what was chosen
+on the test harness's in-memory ports — no `git`, `gh` or `claude`, nothing
+under `~/.fabrika` — with a scripted agent, a gate that goes red once and a
+reviewer that opens one thread before signing off, paced like a run;
+`pnpm rehearse --fast` is the same run in seconds, and a pipe gets every step
+with nothing asked. Clear a stage to watch an outline that never had it.
 It is `scripts/rehearse.ts`, and it does not ship.
 
 ## Exit codes
@@ -107,6 +121,7 @@ It is `scripts/rehearse.ts`, and it does not ship.
 | 1 | Configuration or CLI error |
 | 2 | A human needs to look: a run escalated, or a `sync` worker escalated or failed. The worktree and PR (if any) are left in place; rerun to resume |
 | 3 | Claude usage limit hit; state is saved, rerun once the window resets |
+| 130 | `^C` — at the select, before anything ran, or during the run |
 
 ## Why the CLI is installed rather than run via a package manager
 
@@ -220,7 +235,12 @@ land in a commit but survive the worktree.
 Which steps a run contains is decided once, before the pipeline is built:
 `--steps spec,plan,implement`, or — on a terminal with nobody piping it — the
 operator's answer to the select that opens the command, with everything
-pre-selected. A pipe, `NO_COLOR`, CI and any shell an agent drives run every
+selected. The select is hand-rolled for the reason ADR-0004 gives for the
+screen: `src/terminal/select.ts` is a pure key table, a pure render to lines and
+a thin driver, so it is tested on whole lines. It draws a rail — the chip,
+the config it read, the question, the list, and one line of description for
+whatever row the operator is standing on — and leaves one settled row behind
+when it is answered. A pipe, `NO_COLOR`, CI and any shell an agent drives run every
 step, because a run nobody can answer must not stop on a question.
 
 The choices are this repo's stages, in their configured order, plus

@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { TicketSource } from "../ports/ticket-source.ts";
-import { TicketSourceError, type Ticket, type TicketType } from "../ticket.ts";
+import { TicketSourceError, type Ticket, type TicketType } from "../domain/ticket.ts";
 
 const asType = (raw: string | undefined): TicketType => (raw === "fix" || raw === "chore" ? raw : "feat");
 

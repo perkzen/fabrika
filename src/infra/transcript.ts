@@ -1,5 +1,5 @@
 import { isAbsolute, relative } from "node:path";
-import type { RunEvent } from "../run-event.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 
 /** Long enough to name a file or a command, short enough that a tool call is one line. */
 const SUBJECT = 120;

@@ -1,8 +1,8 @@
 import { display, livenessRow, progressRow, spinner, type Clock } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
-import { steps as stepsOf, type Node, type StepState, type Tree } from "../outline.ts";
-import { elapsed, scrub, stamp } from "../run-event.ts";
+import { steps as stepsOf, type Node, type StepState, type Tree } from "../domain/outline.ts";
+import { elapsed, scrub, stamp } from "../domain/run-event.ts";
 
 /**
  * What the operator has selected, unfolded and scrolled to — the step tree's
@@ -90,8 +90,13 @@ const keys = (editor: boolean): string =>
 /** How a gate verdict reads in a summary — the same three words the gate's own line uses. */
 const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
 
-/** A piece of a row and how it is dressed, so a row can be cut by its text and styled after. */
-type Segment = { readonly style?: Style; readonly text: string };
+/**
+ * A piece of a row and how it is dressed, so a row can be cut by its text and
+ * styled after. Exported with `row` because the select draws its list in
+ * these same terms: two surfaces that share the outline's shape must not have
+ * two ways of laying a line out.
+ */
+export type Segment = { readonly style?: Style; readonly text: string };
 
 /**
  * The two facts a frame needs that come from the machine rather than from the
@@ -561,7 +566,7 @@ const verdicts = (gates: Node["summary"]["gates"]): ReadonlyArray<Segment> =>
  * of an emoji leaves a lone surrogate, which is the garbage a terminal draws a
  * replacement character for.
  */
-const row = (segments: ReadonlyArray<Segment>, width: number, dress: Styler): string => {
+export const row = (segments: ReadonlyArray<Segment>, width: number, dress: Styler): string => {
   const out: Array<string> = [];
   let left = width;
   for (const segment of segments) {

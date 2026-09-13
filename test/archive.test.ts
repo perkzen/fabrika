@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openArchive } from "../src/infra/archive.ts";
+import { openArchive } from "../src/terminal/archive.ts";
 
 /** Local noon on a fixed day: the stamp is `toLocaleTimeString`, so the clock must be local, not UTC. */
 const noon = () => new Date(2026, 0, 1, 12, 0, 0).getTime();

@@ -10,7 +10,7 @@ import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
-import { openConsole } from "./infra/console.ts";
+import { openConsole } from "./terminal/console.ts";
 import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
 import { Journal } from "./ports/journal.ts";
 import { home } from "./paths.ts";

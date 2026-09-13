@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Shot } from "../src/captures.ts";
+import type { Shot } from "../src/domain/captures.ts";
 import { openPullRequest } from "../src/pipeline/steps/pull-request.ts";
 import { exercise } from "./harness.ts";
 

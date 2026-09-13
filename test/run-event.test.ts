@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { plain, type RunEvent } from "../src/run-event.ts";
+import { plain, type RunEvent } from "../src/domain/run-event.ts";
 
 /**
  * One row per call site converted from a string to an event. Every expected

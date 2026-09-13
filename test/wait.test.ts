@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
 import { Journal, waitFor } from "../src/ports/journal.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 import { harness } from "./harness.ts";
 
 /** The wait events a run recorded, in order — the only thing this seam is about. */

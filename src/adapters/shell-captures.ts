@@ -1,6 +1,6 @@
 import { Duration, Effect, FileSystem, Layer, Option, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { cacheKey, kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../captures.ts";
+import { cacheKey, kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../domain/captures.ts";
 import type { CaptureStep } from "../config.ts";
 import { run, sh, withoutSecrets } from "../infra/shell.ts";
 import { Captures } from "../ports/captures.ts";
@@ -33,7 +33,7 @@ const seconds = (from: number) => Number(((Date.now() - from) / 1000).toFixed(0)
  * or install — ends as a missing half, because the pull request is the point
  * and the captures are evidence attached to it.
  *
- * Everything that can be decided from the data is in `src/captures.ts` and
+ * Everything that can be decided from the data is in `src/domain/captures.ts` and
  * tested there; what is left here is process spawning, `git worktree` and
  * directory reads, which this repo has no seam for.
  */

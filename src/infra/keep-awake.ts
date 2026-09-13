@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { RunEvent } from "../run-event.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 
 /**
  * Holds the machine awake for as long as this process lives.

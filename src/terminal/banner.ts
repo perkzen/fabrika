@@ -1,5 +1,18 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { styleText } from "node:util";
 import { isInteractive, type Style } from "./console.ts";
+
+/**
+ * The version on the nameplate, read rather than hard-coded: the two drifted
+ * once already, and `npm version` only bumps package.json and the plugin
+ * manifest. It lives beside the banner because the banner is what shows it,
+ * and because a rehearsal prints the same nameplate a run does.
+ */
+export const VERSION = ((): string => {
+  const pkg: unknown = JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"));
+  return typeof pkg === "object" && pkg !== null && "version" in pkg && typeof pkg.version === "string" ? pkg.version : "0.0.0";
+})();
 
 /**
  * The seven letters, one row per line, in the block font the progress bar
@@ -43,7 +56,10 @@ export const banner = ({ stream, version, interactive }: BannerOptions): void =>
   if (!(interactive ?? isInteractive(stream))) return;
   const columns = typeof stream.columns === "number" && stream.columns > 1 ? stream.columns : 80;
   const credit = `by perkzen · v${version}`;
-  const wordmark: Style = ["bold", "cyan"];
+  // White, so the nameplate is the plainest thing on the screen and the
+  // colour is spent on what the run is doing: the select's chip under it,
+  // and the outline's own cyan for whatever is happening now.
+  const wordmark: Style = ["bold", "white"];
   const block: ReadonlyArray<readonly [Style, string]> =
     columns - 1 < WIDTH
       ? [["dim", `fabrika — ${credit}`]]

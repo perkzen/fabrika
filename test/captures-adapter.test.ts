@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { NodeServices } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import * as shellCaptures from "../src/adapters/shell-captures.ts";
-import { cacheKey } from "../src/captures.ts";
+import { cacheKey } from "../src/domain/captures.ts";
 import type { CaptureStep } from "../src/config.ts";
 import { Captures } from "../src/ports/captures.ts";
 import { harness } from "./harness.ts";

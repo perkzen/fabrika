@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SECTION_CHARS, asCaptureDecision, beforeAfter, cacheKey, kindOf, linkTarget, textContent, type BeforeAfterOptions, type CaptureFile, type Shot } from "../src/captures.ts";
+import { SECTION_CHARS, asCaptureDecision, beforeAfter, cacheKey, kindOf, linkTarget, textContent, type BeforeAfterOptions, type CaptureFile, type Shot } from "../src/domain/captures.ts";
 
 const OPTIONS: BeforeAfterOptions = { baseSha: "a1b2c3d4e5", headSha: "e4f5g6h7i8", images: true };
 

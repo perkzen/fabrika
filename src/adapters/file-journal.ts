@@ -1,9 +1,9 @@
 import { Effect, Layer } from "effect";
 import { basename } from "node:path";
-import { openArchive } from "../infra/archive.ts";
-import { openConsole, type ConsoleOptions, type Presenter } from "../infra/console.ts";
+import { openArchive } from "../terminal/archive.ts";
+import { openConsole, type ConsoleOptions, type Presenter } from "../terminal/console.ts";
 import { Journal } from "../ports/journal.ts";
-import type { RunEvent } from "../run-event.ts";
+import type { RunEvent } from "../domain/run-event.ts";
 
 /** The fan-out both forms share; `null` builds the archive alone. */
 const journal = (

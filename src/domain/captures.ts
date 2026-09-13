@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Option, Schema } from "effect";
-import { CaptureStep, FORBIDDEN } from "./config.ts";
+import { CaptureStep, FORBIDDEN } from "../config.ts";
 import { scrub } from "./run-event.ts";
 
 /** One file a capture wrote, and how the body may carry it. */

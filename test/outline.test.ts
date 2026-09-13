@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { outline } from "../src/outline.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import { outline } from "../src/domain/outline.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 /** Local noon on a fixed day, so a stamped entry reads the way the console's does. */
 const noon = new Date(2026, 0, 1, 12, 0, 0).getTime();

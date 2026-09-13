@@ -1,5 +1,5 @@
 import { layout, scrolled, type Size, type View } from "./frame.ts";
-import { steps as outlineSteps, type Node, type Tree } from "../outline.ts";
+import { steps as outlineSteps, type Node, type Tree } from "../domain/outline.ts";
 
 /**
  * What one keystroke means. Keys change nothing about the run, so one in a

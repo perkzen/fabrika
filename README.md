@@ -93,21 +93,33 @@ fabrika run --file .fabrika/tickets/login-timeout.md
 ```
 
 It opens by asking which steps to run — every stage this repo configured,
-plus the pull request and its review loop — with all of them ticked. Press
-enter for the whole run; untick what this ticket does not need. Space toggles,
-enter confirms.
+plus the pull request and its review loop — with all of them selected:
 
-Nothing is asked when nobody is there to answer: a pipe, `NO_COLOR`, CI and
-any shell an agent drives run every step, as they always have. To choose
-without a keyboard, name the steps:
-
-```bash
-fabrika run --file .fabrika/tickets/login-timeout.md --steps implement,security,pull-request
+```
+┌  fabrika
+│
+◇ 7 steps in .fabrika/config.json
+│
+◆ Steps to run
+│ ↑↓ move, space select, enter confirm
+│
+│ ) ● Select None (7/7)
+│   ────────────────────
+│   ● Spec
+│   ● Plan
+│   ● Implement
+│   ○ Refactor
+│   ● Security
+│   ● Review
+│   ● Pull request
+│
+│ Description
+│ One agent session on refactor.md, then your gate until it passes.
 ```
 
-`preflight`, `branch` and `workspace` are not on the list — a run has to have
-somewhere to work — and `pull-request` carries the review loop with it,
-because the loop has no rounds without a PR.
+Press enter for the whole run; clear what this ticket does not need. The row
+at the top of the list takes or clears all of them. What you settled on stays
+in scrollback as one line, and the run's own screen takes over from there.
 
 The last log line of a clean run is the PR URL. If the run stops, rerun the
 same command and it picks up where it left off.

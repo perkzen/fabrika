@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Console, Effect, FileSystem, Path } from "effect";
+import { Console, Effect, FileSystem, Option, Path } from "effect";
 import { CliError, Command, Flag } from "effect/unstable/cli";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import * as fileTickets from "./adapters/file-tickets.ts";
 import { runClaude } from "./infra/claude.ts";
-import { CONFIG_PATH, loadConfig } from "./config.ts";
+import { CONFIG_PATH, loadConfig, type Config } from "./config.ts";
 import { asConfig, proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
 import { runSweep } from "./sweep.ts";
-import { openConsole, type Presenter } from "./infra/console.ts";
-import { banner } from "./infra/banner.ts";
-import type { RunEvent } from "./run-event.ts";
+import { openConsole, type Presenter } from "./terminal/console.ts";
+import { selectSteps } from "./terminal/select.ts";
+import { choices, unknown } from "./pipeline/fabrika.ts";
+import { banner, VERSION } from "./terminal/banner.ts";
+import type { RunEvent } from "./domain/run-event.ts";
 import { exec } from "./infra/shell.ts";
 
 const credentials = [{ name: "default", env: {} }];
@@ -81,15 +81,6 @@ const configure = (presenter: Presenter) =>
   });
 
 /**
- * Read rather than hard-coded: the two drifted once already, and `npm version`
- * only bumps package.json and the plugin manifest.
- */
-const VERSION = ((): string => {
-  const pkg: unknown = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
-  return typeof pkg === "object" && pkg !== null && "version" in pkg && typeof pkg.version === "string" ? pkg.version : "0.0.0";
-})();
-
-/**
  * A stale keychain token fails every `claude -p` while `claude auth status`
  * still says logged in (seen 2026-09-10 with the desktop app signed in). One cheap call up front beats
  * dying in the plan stage.
@@ -100,6 +91,36 @@ const authProbe = runClaude({ cwd: process.cwd(), prompt: "Reply with exactly: O
   ),
   Effect.asVoid,
 );
+
+/**
+ * Which of a run's steps this invocation runs, or `undefined` for all of them.
+ *
+ * Three inputs and one rule: `--steps` wins wherever it is given, because a
+ * flag is the answer already written down; a terminal with nobody piping it
+ * is asked; everything else — a pipe, `NO_COLOR`, CI, an agent's shell —
+ * runs the whole pipeline, which is what it has always run. The select never
+ * renders on a surface that cannot answer it, so a scheduled `fabrika run`
+ * cannot hang on a question.
+ */
+const chooseSteps = (config: Config, flag: Option.Option<string>) =>
+  Effect.gen(function* () {
+    if (Option.isSome(flag)) {
+      const asked = flag.value
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean);
+      const strangers = unknown(config, asked);
+      if (strangers.length > 0) {
+        return yield* new FabrikaError({
+          message: `--steps: no step called ${strangers.join(", ")} — this repo runs ${choices(config)
+            .map((choice) => choice.name)
+            .join(", ")}`,
+        });
+      }
+      return asked;
+    }
+    return yield* selectSteps(config, { stream: process.stdout, input: process.stdin });
+  });
 
 /**
  * A run's ticket is a markdown file, and only a markdown file.
@@ -117,14 +138,32 @@ const run = Command.make(
   "run",
   {
     file: Flag.File("file").pipe(Flag.withDescription("the markdown spec to run, e.g. .fabrika/tickets/FAB-7.md")),
+    // Comma-separated rather than repeated, so the whole answer is one
+    // argument an agent can build from `--help` and a schedule can carry in
+    // one string.
+    steps: Flag.String("steps").pipe(
+      Flag.withDescription("comma-separated steps to run, e.g. implement,security,pull-request; asks when omitted on a terminal, runs all of them otherwise"),
+      Flag.withMetavar("names"),
+      Flag.optional,
+    ),
   },
-  ({ file }) =>
+  ({ file, steps }) =>
     Effect.gen(function* () {
       banner({ stream: process.stdout, version: VERSION });
       const config = yield* loadConfig(process.cwd());
+      // Before the auth probe and the ticket read: the operator is at the
+      // keyboard now, and asking them to watch a liveness call first is
+      // asking them to wait for nothing.
+      const chosen = yield* chooseSteps(config, steps).pipe(
+        // `^C` at the select is the operator leaving before the run began:
+        // no stack trace, and the shell's own code for it rather than `0`,
+        // because `fabrika run` exiting 0 is what a caller reads as a run
+        // that finished.
+        Effect.catchTag("Cancelled", () => Effect.sync(() => process.exit(130))),
+      );
       yield* authProbe;
       const record = yield* fileTickets.source(file).fetch;
-      yield* runTicket(config, record, credentials).pipe(
+      yield* runTicket(config, record, credentials, { steps: chosen }).pipe(
         Effect.catchTag("Escalated", (e) =>
           Console.error(
             [

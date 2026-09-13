@@ -1,7 +1,7 @@
 import { styleText } from "node:util";
 import { display, livenessRow, progressRow } from "./lines.ts";
-import type { Tree } from "../outline.ts";
-import { gateOver, plain, scrub, stamp, type RunEvent } from "../run-event.ts";
+import type { Tree } from "../domain/outline.ts";
+import { gateOver, plain, scrub, stamp, type RunEvent } from "../domain/run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
 export type Presenter = {

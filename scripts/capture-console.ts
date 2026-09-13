@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { openConsole } from "../src/infra/console.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import { openConsole } from "../src/terminal/console.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 /**
  * This repo's own capture: what a run looks like on a terminal.
@@ -21,7 +21,7 @@ const FIXTURE: ReadonlyArray<RunEvent | string> = [
   { kind: "step", name: "implement", title: "Implement", at: 3, of: 4, state: "start" },
   { kind: "agent", stage: "implement", markdown: "Working the plan's **third slice**: the read-back that puts the plain body\nback when a host path survived the upload.\n\n- `test/pull-request.test.ts` — the failing test\n- `src/pipeline/steps/pull-request.ts` — the step" },
   { kind: "tool", stage: "implement", tool: "Read", subject: "src/pipeline/steps/pull-request.ts" },
-  { kind: "tool", stage: "implement", tool: "Edit", subject: "src/captures.ts" },
+  { kind: "tool", stage: "implement", tool: "Edit", subject: "src/domain/captures.ts" },
   { kind: "cost", stage: "implement", usd: 0.41 },
   { kind: "gate", name: "compile", at: 1, of: 3, command: "pnpm compile", state: "pass", seconds: 3 },
   { kind: "gate", name: "build", at: 2, of: 3, command: "pnpm build", state: "pass", seconds: 5 },

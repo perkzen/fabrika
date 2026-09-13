@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
-import { openScreen } from "../src/infra/screen.ts";
-import type { RunEvent } from "../src/run-event.ts";
+import { openScreen } from "../src/terminal/screen.ts";
+import type { RunEvent } from "../src/domain/run-event.ts";
 
 const noon = () => new Date(2026, 0, 1, 12, 0, 0).getTime();
 

@@ -9,7 +9,7 @@ const table: ReadonlyArray<[string, Record<string, unknown>, string]> = [
   ["Bash", { command: "pnpm test", description: "Run the test suite" }, "Run the test suite"],
   ["Bash", { command: "git status --short" }, "git status --short"],
   ["Read", { file_path: `${CWD}/src/cli.ts` }, "src/cli.ts"],
-  ["Write", { file_path: `${CWD}/src/infra/console.ts` }, "src/infra/console.ts"],
+  ["Write", { file_path: `${CWD}/src/terminal/console.ts` }, "src/terminal/console.ts"],
   ["Edit", { file_path: `${CWD}/test/harness.ts` }, "test/harness.ts"],
   ["NotebookEdit", { file_path: `${CWD}/notes.ipynb` }, "notes.ipynb"],
   ["Glob", { pattern: "**/*.test.ts" }, "**/*.test.ts"],

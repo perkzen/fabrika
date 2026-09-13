@@ -9,8 +9,6 @@ export const Stage = Schema.Struct({
   model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
   mcp: Schema.optional(Schema.Array(Schema.String)),
   gate: Schema.optional(Schema.Boolean),
-  /** Ticket types this stage runs for, as the naming call decided; every type when absent. */
-  only: Schema.optional(Schema.Array(Schema.Literals(["feat", "fix", "chore"]))),
 });
 export type Stage = typeof Stage.Type;
 
@@ -162,9 +160,7 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "spec", prompt: "spec.md", system: "plan.system.md", mcp: ["linear-ro"] },
     { name: "plan", prompt: "plan.md", system: "plan.system.md" },
     { name: "implement", prompt: "implement.md", system: "implement.system.md", gate: true },
-    // A fix or a chore rarely has architecture worth reshaping, and the stage
-    // costs a cold start plus a full gate run; security stays on for everything.
-    { name: "refactor", prompt: "refactor.md", system: "implement.system.md", gate: true, only: ["feat"] },
+    { name: "refactor", prompt: "refactor.md", system: "implement.system.md", gate: true },
     { name: "security", prompt: "security.md", system: "implement.system.md", gate: true },
     { name: "review", prompt: "review.md", system: "implement.system.md", gate: true },
   ],
