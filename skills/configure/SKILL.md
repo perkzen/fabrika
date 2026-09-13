@@ -5,12 +5,12 @@ description: Read a repository's base branch, install command, checks and review
 
 # Configure
 
-The host writes `.fabrika/config.json`; you supply the four fields that cannot
-be shipped in a template because they belong to this repo: **base**, **install**,
-**gate** and **provider**. Return them as structured output. Write no files —
-not the config, not a scratch note.
+The host writes `.fabrika/config.json`; you supply the fields that cannot be
+shipped in a template because they belong to this repo: **base**, **install**,
+**gate**, **capture** and **provider**. Return them as structured output. Write
+no files — not the config, not a scratch note.
 
-The gate matters more than the other three. The host runs it after every stage
+The gate matters more than the rest. The host runs it after every stage
 that changes code, and a failing step goes back to the agent as "fix it". A
 step that does not exist here, or that is already red on an untouched checkout,
 teaches the agent to invent a script to go green and burns the run. **An empty
@@ -104,6 +104,44 @@ root (`apps/desktop/**`). If you are guessing, leave it off.
 that writes outside the worktree. The host owns those and denies them to every
 stage; the answer is rejected outright if one appears in a gate step.
 
+## capture
+
+A capture renders one user-visible surface to files, so the pull request can
+show the same surface at the base and on the branch. The host runs it twice —
+once in a checkout of the base, once in the run's tree — with
+`$FABRIKA_CAPTURE_DIR` pointing at an empty directory it must write into. It
+never fails a run: a missing tool, a non-zero exit or an empty directory just
+leaves the pull request as it is today.
+
+**Propose one only where the repo already has the mechanism.** Not a plan to
+add one. Look for something that already renders a surface without a human
+watching:
+
+- a script that screenshots a page, a window or a simulator
+- a UI or snapshot test that already writes an image
+- a CLI entry point that can be given a fixture and made to print a frame
+- a static site build whose output a headless browser on `PATH` could shoot
+
+None of those: propose nothing and say so in `notes`. A repo with no
+user-visible surface — a library, a server with no UI — has nothing to capture
+and that is the normal answer.
+
+Each capture is `{ name, run, when, timeoutMinutes }`:
+
+- `run` writes into `$FABRIKA_CAPTURE_DIR` and exits zero. Only `.png` `.jpg`
+  `.jpeg` `.gif` `.webp` (shown side by side), `.txt` (fenced, capped) and
+  `.url` (an `https://` link) are read; everything else is ignored. An image is
+  the goal; a `.txt` is the floor and still beats prose.
+- `when` is the globs that decide whether the surface changed at all — the
+  files that render it, not the whole tree. Without one the capture runs on
+  every branch, including a docs-only one. Prefer naming the files.
+- `timeoutMinutes` when the command is slow (a build, a simulator boot);
+  omitted means 2.
+
+The same rules as a gate step otherwise: run it on the untouched checkout
+before proposing it, look at what it wrote, drop it if it needs something the
+host does not have, and never propose `git push`, a publish or a deploy.
+
 ## provider
 
 Which review bot this repo has. The run waits for it after it opens the draft
@@ -136,6 +174,7 @@ correcting `none` to `cubic` is a one-word edit.
 
 One line per gate step saying where it came from and that it passed, plus every
 judgement a human should check: a dropped step and why, a base branch that was
-not obvious, a check that CI runs but the host cannot, and the review bot you
-found or did not find, with what you looked at. This is the only place
+not obvious, a check that CI runs but the host cannot, the capture mechanism
+you found or the reason there is none, and the review bot you found or did not
+find, with what you looked at. This is the only place
 the reasoning survives — the config itself is just JSON.

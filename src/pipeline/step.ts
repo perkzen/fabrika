@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import type { FabrikaError } from "../errors.ts";
 import type { AgentError } from "../ports/agent.ts";
 import { Agent } from "../ports/agent.ts";
+import { Captures } from "../ports/captures.ts";
 import { Forge } from "../ports/forge.ts";
 import { Gate } from "../ports/gate.ts";
 import { Journal } from "../ports/journal.ts";
@@ -15,6 +16,7 @@ import type { Escalated } from "./escalated.ts";
 /** Everything a step may reach for. All of it is a port, so all of it is replaceable. */
 export type StepServices =
   | Agent
+  | Captures
   | Forge
   | Gate
   | Journal

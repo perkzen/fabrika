@@ -1,14 +1,15 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
-import { CONFIG_TEMPLATE, type Config, type GateStep } from "./config.ts";
+import { CONFIG_TEMPLATE, type CaptureStep, type Config, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
-/** The four repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
+/** The repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {
   readonly base: string;
   readonly install: string | undefined;
   readonly gate: ReadonlyArray<GateStep>;
+  readonly capture: ReadonlyArray<CaptureStep>;
   readonly provider: Config["review"]["provider"];
   readonly notes: ReadonlyArray<string>;
 };
@@ -26,6 +27,21 @@ export const CONFIG_SCHEMA = JSON.stringify({
           name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Short kebab-case label for the log, e.g. compile" },
           run: { type: "string" },
           when: { type: "array", items: { type: "string" }, description: "Globs; the step runs only when a changed file matches" },
+        },
+        required: ["name", "run"],
+      },
+    },
+    capture: {
+      type: "array",
+      description:
+        "Commands that render one user-visible surface to files in $FABRIKA_CAPTURE_DIR; propose one only where the repo already has a screenshot mechanism, and none otherwise",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Short kebab-case label for the log, e.g. console" },
+          run: { type: "string" },
+          when: { type: "array", items: { type: "string" }, description: "Globs; the capture runs only when a changed file matches" },
+          timeoutMinutes: { type: "number", description: "Killed and its half dropped after this long; 2 when absent" },
         },
         required: ["name", "run"],
       },
@@ -64,8 +80,22 @@ const stepName = (raw: unknown): string =>
   (typeof raw === "string" ? raw : "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "check";
+    .slice(0, 40)
+    // Trimmed after the cut, not before: a 41st character makes the cut land
+    // on a hyphen, and a capture name with one on the end is a config the
+    // schema will not load.
+    .replace(/^-+|-+$/g, "") || "check";
+
+/** Names only reach the log and the escalation line, but two `check` steps there would be unreadable. */
+const unique = <S extends { readonly name: string }>(steps: ReadonlyArray<S>): Array<S> => {
+  const out: Array<S> = [];
+  for (const step of steps) {
+    let name = step.name;
+    for (let n = 2; out.some((seen) => seen.name === name); n++) name = `${step.name}-${n}`;
+    out.push({ ...step, name });
+  }
+  return out;
+};
 
 const asStep = (raw: unknown): GateStep | null => {
   const s = raw as Partial<GateStep> | undefined;
@@ -73,6 +103,14 @@ const asStep = (raw: unknown): GateStep | null => {
   if (s.when !== undefined && (!Array.isArray(s.when) || !s.when.every((g) => typeof g === "string"))) return null;
   const step = { name: stepName(s.name), run: s.run.trim() };
   return s.when ? { ...step, when: s.when } : step;
+};
+
+/** A capture is a gate step the host runs for evidence rather than for a verdict, so it takes the same path plus a timeout. */
+const asCapture = (raw: unknown): CaptureStep | null => {
+  const step = asStep(raw);
+  if (!step) return null;
+  const minutes = (raw as Partial<CaptureStep> | undefined)?.timeoutMinutes;
+  return typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? { ...step, timeoutMinutes: minutes } : step;
 };
 
 /** Accepts the answer only if every part of it is usable; a partial one is not merged. */
@@ -88,16 +126,19 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
   for (const entry of r.gate) {
     const step = asStep(entry);
     if (!step) return null;
-    // Names only reach the log and the escalation line, but two `check` steps
-    // there would be unreadable.
-    let name = step.name;
-    for (let n = 2; gate.some((g) => g.name === name); n++) name = `${step.name}-${n}`;
-    gate.push({ ...step, name });
+    gate.push(step);
+  }
+  if (r.capture !== undefined && !Array.isArray(r.capture)) return null;
+  const capture: Array<CaptureStep> = [];
+  for (const entry of r.capture ?? []) {
+    const step = asCapture(entry);
+    if (!step) return null;
+    capture.push(step);
   }
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string") : [];
   // Normalised like `stepName`: a wrong `"none"` loses a signal the human still sees on the PR, where a wrong `"cubic"` guarantees an escalation.
   const provider = r.provider === "cubic" ? "cubic" : "none";
-  return { base, install: r.install, gate, provider, notes };
+  return { base, install: r.install, gate: unique(gate), capture: unique(capture), provider, notes };
 };
 
 /**
@@ -107,8 +148,8 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
  * fields are declared, validated and applied in one place, so a fifth one is
  * added here rather than in a merge the CLI keeps on the side.
  *
- * `review` is spread, not replaced — the call proposes one of its four fields
- * and the other three are the template's.
+ * `review` and `pr` are spread, not replaced — the call proposes one field of
+ * each and the rest are the template's.
  */
 export const asConfig = (proposal: ConfigProposal | null): Config =>
   proposal
@@ -117,6 +158,7 @@ export const asConfig = (proposal: ConfigProposal | null): Config =>
         base: proposal.base,
         install: proposal.install,
         gate: proposal.gate,
+        pr: { ...CONFIG_TEMPLATE.pr, capture: proposal.capture.length > 0 ? proposal.capture : undefined },
         review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
       }
     : CONFIG_TEMPLATE;

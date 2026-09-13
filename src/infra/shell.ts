@@ -16,11 +16,16 @@ export class ShellFailed extends Data.TaggedError("ShellFailed")<{
  * in arrival order, which is what a human reads in a gate failure — that is
  * exactly what the handle's `all` stream carries.
  * `GH_PROMPT_DISABLED` keeps `gh` from hanging on a question nobody answers.
+ *
+ * `extendEnv` false gives the child `env` and nothing else, for the caller
+ * that needs a variable *absent* rather than overridden — merging cannot
+ * unset.
  */
 export const exec = (
   cwd: string,
   argv: ReadonlyArray<string>,
   env: Record<string, string> = {},
+  extendEnv = true,
 ): Effect.Effect<ShellResult, PlatformError.PlatformError, ChildProcessSpawner.ChildProcessSpawner> =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -31,7 +36,7 @@ export const exec = (
         ChildProcess.make(bin!, args, {
           cwd,
           env: { GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", ...env },
-          extendEnv: true,
+          extendEnv,
         }),
       );
       const out = yield* proc.all.pipe(Stream.decodeText(), Stream.mkString);
@@ -49,4 +54,5 @@ export const run = (cwd: string, argv: ReadonlyArray<string>, env?: Record<strin
   );
 
 /** Same, through `sh -c`: for gate commands the user wrote as one string. */
-export const sh = (cwd: string, script: string, env?: Record<string, string>) => exec(cwd, ["sh", "-c", script], env);
+export const sh = (cwd: string, script: string, env?: Record<string, string>, extendEnv?: boolean) =>
+  exec(cwd, ["sh", "-c", script], env, extendEnv);

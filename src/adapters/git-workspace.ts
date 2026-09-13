@@ -133,6 +133,7 @@ export const layer = (options: WorkspaceOptions) =>
           }),
         emptyCommit: (message: string) => git(["commit", "--quiet", "--allow-empty", "-m", message]).pipe(Effect.asVoid),
         head: git(["rev-parse", "HEAD"]),
+        baseSha: git(["rev-parse", base]),
         commitCount: git(["rev-list", "--count", `${base}..HEAD`]).pipe(Effect.map(Number)),
         changedFiles: git(["diff", "--name-only", `${base}...HEAD`]).pipe(Effect.map(lines)),
         filesSince: (sha: string) => git(["diff", "--name-only", `${sha}..HEAD`]).pipe(Effect.map(lines)),

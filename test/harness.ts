@@ -1,9 +1,12 @@
 import { Effect, Layer } from "effect";
 import { noReviewer } from "../src/adapters/no-reviewer.ts";
+import type { Shot } from "../src/captures.ts";
 import type { Config } from "../src/config.ts";
+import { FabrikaError } from "../src/errors.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
 import { Agent, type AgentReply, type AgentRequest } from "../src/ports/agent.ts";
+import { Captures } from "../src/ports/captures.ts";
 import { Forge, type Check } from "../src/ports/forge.ts";
 import { Gate, type GateFailure } from "../src/ports/gate.ts";
 import { Journal } from "../src/ports/journal.ts";
@@ -31,6 +34,16 @@ export type Script = {
   /** Swaps the shipped no-reviewer adapter in for the scripted fake. */
   readonly reviewer?: "none";
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
+  /** What `Captures.take` answers; the fake still records what it was asked for. */
+  readonly captures?: ReadonlyArray<Shot>;
+  /** What `git rev-parse <base>` printed, warnings and all. */
+  readonly baseSha?: string;
+  /** False for a `gh` too old to upload an image. */
+  readonly attaches?: boolean;
+  /** A forge that rejects the upload, or one that will not open a pull request at all. */
+  readonly open?: "fails-with-attachments" | "fails";
+  /** `"verbatim"` is a forge that posted the body without rewriting any attachment path into a URL. */
+  readonly body?: "verbatim";
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
@@ -39,6 +52,10 @@ export type Script = {
   readonly worktreeExists?: boolean;
   /** Where a real adapter would spawn commands; the fakes never touch it. */
   readonly dir?: string;
+  /** The run's own directory, for a real adapter that writes under it. */
+  readonly runs?: string;
+  /** The repository a real adapter runs `git` in. */
+  readonly repoRoot?: string;
   readonly config?: Partial<Config>;
   readonly ticket?: Partial<Ticket>;
   readonly state?: Partial<RunState>;
@@ -55,7 +72,11 @@ export type Recording = {
   readonly replied: Array<{ thread: string; body: string }>;
   readonly resolved: Array<string>;
   readonly rerun: Array<string>;
-  readonly prs: Array<{ title: string; draft: boolean }>;
+  /** Every pull request the forge was asked to open, including an attempt it then rejected. */
+  readonly prs: Array<{ title: string; draft: boolean; body: string; attachments: ReadonlyArray<string> }>;
+  /** One entry per capture asked for, so "no command ran" is assertable as "was never asked". */
+  readonly captures: Array<{ name: string; sha: string }>;
+  readonly edited: Array<string>;
   readonly removed: Array<string>;
   readonly state: () => RunState;
 };
@@ -71,6 +92,9 @@ const emptyState = (): RunState => ({
   reran: [],
   done: false,
 });
+
+/** The base every run in the harness is diffed against. */
+export const BASE_SHA = "a1b2c3d4e5f6";
 
 /** Answers each call in turn and then repeats its last answer forever. */
 const queue = <A>(values: ReadonlyArray<A>, fallback: A) => {
@@ -93,6 +117,8 @@ export const harness = (script: Script = {}) => {
     resolved: [],
     rerun: [],
     prs: [],
+    captures: [],
+    edited: [],
     removed: [],
     state: () => state,
   };
@@ -132,7 +158,7 @@ export const harness = (script: Script = {}) => {
       write: record,
     }),
     Layer.succeed(RunStore)({
-      directory: "/runs/FAB-1",
+      directory: script.runs ?? "/runs/FAB-1",
       get: () => state,
       archive: () => Effect.succeed(undefined),
       update: (change: (state: RunState) => void) => Effect.sync(() => change(state)),
@@ -153,13 +179,20 @@ export const harness = (script: Script = {}) => {
         }),
       ensureTools: () => Effect.void,
     }),
+    Layer.succeed(Captures)({
+      take: (captures, baseSha) =>
+        Effect.sync(() => {
+          for (const capture of captures) recording.captures.push({ name: capture.name, sha: baseSha });
+          return script.captures ?? [];
+        }),
+    }),
     Layer.succeed(Gate)({
       check: Effect.sync(nextGate),
       feedback: (failure: GateFailure) => `gate ${failure.name} failed`,
     }),
     Layer.succeed(Workspace)({
       dir: script.dir ?? "/worktree",
-      repoRoot: "/repo",
+      repoRoot: script.repoRoot ?? "/repo",
       artifactsDir: "/worktree/.fabrika/work",
       readArtifact: () => Effect.succeed(undefined),
       exists: Effect.succeed(script.worktreeExists ?? false),
@@ -172,6 +205,7 @@ export const harness = (script: Script = {}) => {
       commitAll: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead(), true)),
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
       head: Effect.sync(() => head),
+      baseSha: Effect.succeed(script.baseSha ?? BASE_SHA),
       commitCount: Effect.succeed(script.commits ?? 1),
       changedFiles: Effect.succeed(["src/a.ts"]),
       filesSince: () => Effect.succeed(script.touched ?? []),
@@ -184,10 +218,30 @@ export const harness = (script: Script = {}) => {
       repo: "perkzen/fabrika",
       urlOf: (pr: number) => `https://github.com/perkzen/fabrika/pull/${pr}`,
       open: (input) =>
-        Effect.sync(() => {
-          recording.prs.push({ title: input.title, draft: input.draft });
-          return { number: 7, url: "https://github.com/perkzen/fabrika/pull/7" };
+        Effect.suspend(() => {
+          recording.prs.push({
+            title: input.title,
+            draft: input.draft,
+            body: input.body,
+            attachments: input.attachments,
+          });
+          const rejects = script.open === "fails" || (script.open === "fails-with-attachments" && input.attachments.length > 0);
+          return rejects
+            ? Effect.fail(new FabrikaError({ message: "gh pr create: attachment rejected" }))
+            : Effect.succeed({ number: 7, url: "https://github.com/perkzen/fabrika/pull/7" });
         }),
+      attaches: Effect.succeed(script.attaches ?? true),
+      // What `gh` actually does with an attachment: the host path in the body
+      // becomes the uploaded asset's URL. A default that skipped the rewrite
+      // would trip the step's read-back on every happy path.
+      body: () =>
+        Effect.succeed(
+          (script.body === "verbatim" ? [] : (recording.prs.at(-1)?.attachments ?? [])).reduce(
+            (body, path, index) => body.split(path).join(`https://github.com/user-attachments/assets/${index}`),
+            recording.prs.at(-1)?.body ?? "",
+          ),
+        ),
+      editBody: (_pr: number, body: string) => Effect.sync(() => void recording.edited.push(body)),
       settledChecks: () => Effect.sync(nextChecks),
       failureLog: () => Effect.succeed("the failing log"),
       rerun: (check: Check) => Effect.sync(() => void recording.rerun.push(check.job!.id)),
