@@ -1,0 +1,19 @@
+src/adapters/file-journal.ts
+  s_e6e6c8aa7b504c::t_a201490c19a4fc 20,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "663e74427b53daff86f274ec4aa7bd3f5b872013",
+  "prompts": {},
+  "sessions": {
+    "s_e6e6c8aa7b504c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e0fef91-57c4-4f54-a693-e56cc1d2c6c6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
