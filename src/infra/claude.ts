@@ -269,5 +269,12 @@ export const runClaudeWithFallback = (
   // Suspended: `attempt` names the credential as it is called, and a caller
   // that brackets this in a wait builds the call before the wait opens. A
   // function returning an effect does not get to speak when it is called.
-  return Effect.suspend(() => attempt(0, opts.resume ?? null));
+  return Effect.suspend(() => {
+    // Once for the call, not once per attempt: the model does not change when
+    // the credential does, and repeating it would add noise at exactly the
+    // moment something else did. Nothing is said when no model was asked for —
+    // the CLI's own default is the CLI's business.
+    if (opts.model) opts.onEvent?.({ kind: "note", level: "detail", text: `[model] ${opts.model}` });
+    return attempt(0, opts.resume ?? null);
+  });
 };
