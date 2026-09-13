@@ -66,3 +66,15 @@ test("a cached base half and a branch that writes are the shot's two halves", as
   ]);
   assert.ok(log.includes("capture console: base a1b2c3d (from cache)"), "the operator is told the base cost nothing");
 });
+
+test("a branch command that fails is a missing half, not a failed run", async () => {
+  const { shots, log } = await take([{ name: "console", run: "exit 3" }], (cache) => {
+    writeFileSync(join(cache("console"), "out.txt"), "before");
+  });
+
+  assert.equal(shots.length, 1, "the run got its answer");
+  assert.equal(shots[0]?.after, undefined, "and the half that did not happen is absent, not empty");
+  assert.deepEqual(shots[0]?.before, [{ name: "out.txt", kind: "text", content: "before" }]);
+  assert.ok(log.includes("capture console: command failed (exit 3); no half"), "with the exit code the operator needs");
+  assert.ok(log.includes("capture console: no output; no section"), "and what it means for the pull request");
+});
