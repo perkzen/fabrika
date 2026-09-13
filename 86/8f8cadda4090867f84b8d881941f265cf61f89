@@ -1,0 +1,128 @@
+src/pipeline/steps/branch.ts
+  s_6cf0a86008bf6a::t_869afde1e356e8 34-36
+src/cli.ts
+  s_6cf0a86008bf6a::t_f0d8e36b52fa10 38-81
+  s_6cf0a86008bf6a::t_ddfd5990b9d63b 5,16,23-28,33,37,82
+  s_6cf0a86008bf6a::t_2de232eacf67ba 14
+scripts/rehearse.ts
+  s_6cf0a86008bf6a::t_e177ee64d811b2 192-207,307-311
+src/pipeline/install.ts
+  s_6cf0a86008bf6a::t_0b5cbdfb6f3bf7 1-31
+src/terminal/select.ts
+  s_6cf0a86008bf6a::t_f0f450ad1ab82c 4-16,90,248-251,257,271
+  s_6cf0a86008bf6a::t_2de232eacf67ba 3
+test/harness.ts
+  s_6cf0a86008bf6a::t_869afde1e356e8 242,276-280
+test/journal.test.ts
+  s_6cf0a86008bf6a::t_4d455abdf98851 47-85
+  s_6cf0a86008bf6a::t_e177ee64d811b2 20,40
+src/domain/choices.ts
+  s_6cf0a86008bf6a::t_ec555d86c892ea 1-80
+src/terminal/banner.ts
+  s_6cf0a86008bf6a::t_2f35b48737af2d 3,56,68-69
+src/pipeline/steps/workspace.ts
+  s_6cf0a86008bf6a::t_0b5cbdfb6f3bf7 6,22
+src/adapters/git-workspace.ts
+  s_6cf0a86008bf6a::t_618b1d99ac639f 3
+  s_6cf0a86008bf6a::t_869afde1e356e8 103-106,246-249
+src/pipeline/steps/pull-request.ts
+  s_6cf0a86008bf6a::t_869afde1e356e8 141,179
+src/pipeline/sweep.ts
+  s_6cf0a86008bf6a::t_fc2df70461a30c 5-11,20-21
+src/ports/workspace.ts
+  s_6cf0a86008bf6a::t_869afde1e356e8 33-40,91-98
+test/sweep.test.ts
+  s_6cf0a86008bf6a::t_55dd51a8d1badf 121-148
+  s_6cf0a86008bf6a::t_0c39363ee8d4ce 6-8
+src/terminal/markdown.ts
+  s_6cf0a86008bf6a::t_079b099445f744 2
+src/sweep.ts
+  s_6cf0a86008bf6a::t_0c39363ee8d4ce 13-15
+  s_6cf0a86008bf6a::t_9f8bf2df2605a0 53-56,108
+test/captures.test.ts
+  s_6cf0a86008bf6a::t_2cc52a9b19d9b1 3-4,199-228
+src/pipeline/steps/review.ts
+  s_6cf0a86008bf6a::t_869afde1e356e8 68,166
+src/terminal/frame.ts
+  s_6cf0a86008bf6a::t_9ccbc7a43fcc67 2
+src/pipeline/sync-worker.ts
+  s_6cf0a86008bf6a::t_f3690aac0affd5 1-48
+CONTEXT.md
+  s_6cf0a86008bf6a::t_894a3a253f5463 21-29,85-91,94,305-312
+  s_6cf0a86008bf6a::t_6b0ae5cd741cb5 92-93
+docs/internals.md
+  s_6cf0a86008bf6a::t_ea08db145aad1e 14,17-20,33-34,42-50
+  s_6cf0a86008bf6a::t_6b0ae5cd741cb5 39
+src/pipeline/fabrika.ts
+  s_6cf0a86008bf6a::t_2de232eacf67ba 2
+src/terminal/screen.ts
+  s_6cf0a86008bf6a::t_2f35b48737af2d 5-18,76,79
+test/select.test.ts
+  s_6cf0a86008bf6a::t_3e788e3eb5a08c 4-5
+src/pipeline/steps/stage.ts
+  s_6cf0a86008bf6a::t_2de232eacf67ba 3
+src/run.ts
+  s_6cf0a86008bf6a::t_9f8bf2df2605a0 61-70
+.fabrika/tickets/parallel-run.md
+  s_e770d0228c7aec::t_7f44237dd4c575 13-16,49-54
+  s_e770d0228c7aec::t_69a5fdf8b90fbd 1-12,17-48,55-183
+src/terminal/lines.ts
+  s_6cf0a86008bf6a::t_9ccbc7a43fcc67 1-2
+test/lines.test.ts
+  s_6cf0a86008bf6a::t_e177ee64d811b2 4
+src/pipeline/sweep-selection.ts
+  s_6cf0a86008bf6a::t_87c4874d1efbf5 1-78
+src/pipeline/sweep-report.ts
+  s_6cf0a86008bf6a::t_7239531b05b217 1-45
+test/pipeline.test.ts
+  s_6cf0a86008bf6a::t_2de232eacf67ba 6-7
+src/terminal/archive.ts
+  s_6cf0a86008bf6a::t_9ccbc7a43fcc67 2
+src/terminal/console.ts
+  s_6cf0a86008bf6a::t_67c696a1aa973e 62,64-65
+  s_6cf0a86008bf6a::t_9ccbc7a43fcc67 2
+  s_6cf0a86008bf6a::t_2cc673676781b5 84
+src/adapters/file-journal.ts
+  s_6cf0a86008bf6a::t_4315ed1b1f1a1f 4-6,10-17,20,23-24,29-48,52-58,60-93,95-98,100-101,108
+.fabrika/config.json
+  s_c22b1f87ded85d::t_72c33af5b42cec 41,77
+src/terminal/keys.ts
+  s_6cf0a86008bf6a::t_9ccbc7a43fcc67 1-2,42
+test/captures-adapter.test.ts
+  s_6cf0a86008bf6a::t_2cc52a9b19d9b1 17-23
+src/terminal/surface.ts
+  s_6cf0a86008bf6a::t_70f31dcf505a72 18,20-27,29
+  s_6cf0a86008bf6a::t_42179e1a80af22 1-17,19,28,30-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "868f8cadda4090867f84b8d881941f265cf61f89",
+  "prompts": {},
+  "sessions": {
+    "s_6cf0a86008bf6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c5967d7-17ff-4916-8840-d37ea22ed93e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_c22b1f87ded85d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1bf943b-c440-40dc-a26a-de338ce78ba5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_e770d0228c7aec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a44e9221-9445-43df-85cc-713474c69de5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
