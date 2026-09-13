@@ -1,0 +1,186 @@
+src/terminal/archive.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-37
+src/terminal/markdown.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-96
+test/transcript.test.ts
+  s_2fb1cf8d289b1e::t_96c616685a3591 12
+src/adapters/shell-captures.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+  s_2fb1cf8d289b1e::t_96c616685a3591 36
+src/terminal/banner.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-2,6-16,59-62
+src/ports/run-store.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+  s_035014a8ab5aef::t_35731b3708a9c0 16
+test/pipeline.test.ts
+  s_035014a8ab5aef::t_7aa33fbe5a548e 4,6,182-235
+  s_2fb1cf8d289b1e::t_89412a5931945b 9
+test/claude.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 7
+src/terminal/keys.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-124
+test/domain.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 12,14
+README.md
+  s_035014a8ab5aef::t_caa86de681e27f 96,99-102,104,106-114,116-117,120-122
+  s_035014a8ab5aef::t_0bbed33f883483 98,103,105,115
+src/infra/transcript.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 2
+src/terminal/console.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-236
+test/frame.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3-5
+test/screen.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 4-5
+src/pipeline/fabrika.ts
+  s_035014a8ab5aef::t_61f6872fba186d 24,26-27,41-48,50-55
+  s_035014a8ab5aef::t_7aa33fbe5a548e 11-23,25,28-40,49,56-67,70,77-82,84-88,92-93,95
+test/cli.test.ts
+  s_035014a8ab5aef::t_ff462b8e3aaba4 3,5,8,60-64,66-96,98-101,103-111,114
+  s_035014a8ab5aef::t_7aa33fbe5a548e 58-59,65,102,112-113,115
+  s_035014a8ab5aef::t_c4d68913f8c16c 97
+test/banner.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+test/keys.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3-6
+src/terminal/lines.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-132
+src/pipeline/steps/pull-request.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 2,12
+src/config.ts
+  s_035014a8ab5aef::t_7aa33fbe5a548e 163
+test/captures.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+test/captures-adapter.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 10
+test/console.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 4-5
+test/run-event.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+src/domain/outline.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-263
+src/infra/keep-awake.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 2
+src/adapters/file-tickets.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 5
+src/run.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 14,17,23
+  s_035014a8ab5aef::t_7aa33fbe5a548e 27-99,101,110-153,157,161-162,168,171-174,179-180
+test/archive.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 6
+src/ports/ticket-source.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 2
+docs/internals.md
+  s_035014a8ab5aef::t_eb52d8d326de06 107,111
+  s_035014a8ab5aef::t_caa86de681e27f 238,240-243
+  s_035014a8ab5aef::t_2c527cfe50fdc6 124
+  s_2fb1cf8d289b1e::t_96c616685a3591 10-17,24-34,39-48,50-51,53,239
+  s_035014a8ab5aef::t_c9ae97e1eb8e64 108-110,112-113
+src/domain/pull-request.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-43
+test/select.test.ts
+  s_035014a8ab5aef::t_5f18d05ed8c280 1-3,17-37,39-41,44-45,54-55,57-59,61-62,64,66-76,78-81,87-88,114-115,119-122,129,131,135,138-142,179-186
+  s_035014a8ab5aef::t_bc0c08c418be58 4-14,89-94,96,98,100-102,104-105,107-113,116-118,123-128,132-134,136-137,148,152-153,155-156,159-160,167,173-178
+  s_035014a8ab5aef::t_afefd3d49ac48d 151,154,161
+  s_2fb1cf8d289b1e::t_89412a5931945b 15-16
+  s_035014a8ab5aef::t_8e585c50cdcdc7 82-86,143-147,149-150,157-158,162-166,168-172
+  s_035014a8ab5aef::t_c604253c002fb7 38,42-43,46-53,56,60,63,65,77
+  s_035014a8ab5aef::t_16e8ff5c752f08 99
+  s_035014a8ab5aef::t_e9b51e8b5257ee 95,97,103,106
+  s_035014a8ab5aef::t_7b203c1384c12d 130
+test/lines.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3-5
+scripts/capture-console.ts
+  s_2fb1cf8d289b1e::t_96c616685a3591 24
+  s_2fb1cf8d289b1e::t_89412a5931945b 4-5
+test/pull-request.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+test/outline.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3-4
+src/sweep.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 13
+test/gate.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 8
+CONTEXT.md
+  s_035014a8ab5aef::t_7aa33fbe5a548e 16-17,21-28
+  s_035014a8ab5aef::t_cd2557f7895b62 142-145
+  s_035014a8ab5aef::t_2518bd0b9693ef 109-110,115-116,132
+  s_035014a8ab5aef::t_caa86de681e27f 119-123,125-131
+  s_035014a8ab5aef::t_0bbed33f883483 111-114,117-118,124
+.github/workflows/ci.yml
+  s_2fb1cf8d289b1e::t_b86d1fab131bc0 9,26-29
+src/adapters/file-journal.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3-4,6
+src/ports/run-context.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+src/pipeline/steps/stage.ts
+  s_035014a8ab5aef::t_7aa33fbe5a548e 21-22,24
+src/domain/run-event.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-168
+test/wait.test.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 5
+src/ports/journal.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 2
+src/domain/ticket.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-78
+src/domain/captures.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-278
+src/pipeline/sweep.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 16
+src/pipeline/steps/branch.ts
+  s_035014a8ab5aef::t_35731b3708a9c0 16-17
+  s_035014a8ab5aef::t_61302ac48eab07 18-20
+  s_2fb1cf8d289b1e::t_89412a5931945b 8
+src/ports/captures.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3
+.github/workflows/release.yml
+  s_2fb1cf8d289b1e::t_b86d1fab131bc0 35-38
+scripts/rehearse.ts
+  s_035014a8ab5aef::t_9238b926e9bef7 324-328
+  s_035014a8ab5aef::t_1f155b7657e380 335
+  s_2fb1cf8d289b1e::t_89412a5931945b 9-12
+  s_035014a8ab5aef::t_c0d128aa21324e 8,329
+  s_035014a8ab5aef::t_e01a5ee6ba82b3 36-39,150-156,316,323,330-334,336-338
+src/infra/claude.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 24
+src/terminal/select.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-323
+src/configure.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 5
+src/terminal/frame.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 4-5,93-99,569
+src/cli.ts
+  s_035014a8ab5aef::t_1840a2ed704f5f 122
+  s_2fb1cf8d289b1e::t_89412a5931945b 12-13,15-16
+  s_035014a8ab5aef::t_ab960d1d57bf01 158-161
+  s_035014a8ab5aef::t_7aa33fbe5a548e 3,7,14,96-121,123-124,141-148,150,154-157,163,166
+  s_035014a8ab5aef::t_1f155b7657e380 162
+src/terminal/screen.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 1-188
+test/harness.ts
+  s_2fb1cf8d289b1e::t_89412a5931945b 3,26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "06a5dfc9213c5c95bb88adc5a4a6ded8508e40c5",
+  "prompts": {},
+  "sessions": {
+    "s_035014a8ab5aef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7db80f7d-882c-4fb0-b8f5-b498a36bc798",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_2fb1cf8d289b1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e89f3c8-2b40-41d9-8470-c71d8ed32ab5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
