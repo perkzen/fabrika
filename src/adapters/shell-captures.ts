@@ -110,7 +110,7 @@ export const layer = (options: CapturesOptions) =>
        * deterministically, bounded by the byte caps. A file whose kind the
        * body cannot carry is not a file.
        */
-      const filesIn = (dir: string) =>
+      const filesIn = (capture: string, dir: string) =>
         Effect.gen(function* () {
           const names = [...(yield* fs.readDirectory(dir))].sort();
           const files: Array<CaptureFile> = [];
@@ -120,7 +120,12 @@ export const layer = (options: CapturesOptions) =>
             if (!kind) continue;
             const full = path.join(dir, name);
             const size = Number((yield* fs.stat(full)).size);
-            if (size > budget || (kind === "image" && size > ATTACHMENT_BYTES)) continue;
+            if (size > budget || (kind === "image" && size > ATTACHMENT_BYTES)) {
+              // Said out loud: an image that is simply never there reads as a
+              // capture that failed, and the operator would go looking.
+              yield* journal.log(`capture ${capture}: ${name} (${(size / 1024 / 1024).toFixed(1)} MB) left out — over the cap`);
+              continue;
+            }
             budget -= size;
             if (kind === "image") {
               files.push({ name, kind, content: full });
@@ -207,7 +212,7 @@ export const layer = (options: CapturesOptions) =>
                   // directory would be a permanent hit.
                   const into = yield* emptied(path.join(staging, capture.name, "base"));
                   if (!(yield* command(capture, dir, into))) continue;
-                  const files = yield* filesIn(into);
+                  const files = yield* filesIn(capture.name, into);
                   if (files.length === 0) {
                     yield* journal.log(`capture ${capture.name}: base wrote nothing`);
                     continue;
@@ -223,11 +228,11 @@ export const layer = (options: CapturesOptions) =>
           const shots: Array<Shot> = [];
           for (const capture of captures) {
             const hit = yield* cached(baseSha, capture.name);
-            const before = hit ? yield* filesIn(cacheDir(baseSha, capture.name)) : undefined;
+            const before = hit ? yield* filesIn(capture.name, cacheDir(baseSha, capture.name)) : undefined;
             const into = yield* emptied(path.join(staging, capture.name, "head"));
             // The branch half is never cached: it is cheap next to the base
             // and it has to follow the commits.
-            const after = (yield* command(capture, workspace.dir, into)) ? yield* filesIn(into) : undefined;
+            const after = (yield* command(capture, workspace.dir, into)) ? yield* filesIn(capture.name, into) : undefined;
             if (!after || after.length === 0) yield* journal.log(`capture ${capture.name}: no output; no section`);
             shots.push({ capture: capture.name, before, after });
           }

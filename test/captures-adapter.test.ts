@@ -226,3 +226,23 @@ test("a capture that could not be started says so, rather than saying it ran out
   assert.ok(log.some((line) => line.includes("capture console: could not be started; no half")));
   assert.ok(!log.some((line) => line.includes("timed out")), "and nothing claims a deadline passed");
 });
+
+test("a file too big for the body is left out, and the journal says which", async () => {
+  // 11 MB: over `ATTACHMENT_BYTES`, which is GitHub's own per-attachment
+  // limit, so uploading it would fail the create rather than be dropped here.
+  const { shots, log } = await take(
+    [
+      {
+        name: "console",
+        run: `head -c 11534336 /dev/zero > "$FABRIKA_CAPTURE_DIR/big.png" && ${writes({ "small.txt": "kept" })}`,
+      },
+    ],
+    () => {},
+  );
+
+  assert.deepEqual(shots[0]?.after, [{ name: "small.txt", kind: "text", content: "kept" }], "the rest of the capture still shows");
+  assert.ok(
+    log.some((line) => line.includes("big.png") && line.includes("left out")),
+    "a dropped file is explicable rather than an image that silently never appears",
+  );
+});
