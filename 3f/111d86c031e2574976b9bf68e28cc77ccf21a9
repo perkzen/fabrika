@@ -1,0 +1,9 @@
+src/adapters/claude-agent.ts
+  ai_agent 17-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3f111d86c031e2574976b9bf68e28cc77ccf21a9",
+  "prompts": {}
+}
