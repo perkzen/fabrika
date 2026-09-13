@@ -75,5 +75,7 @@
   "checks": {
     "timeoutMinutes": 30
   },
-  "maxIterations": 4
+  "maxIterations": 4,
+  "keepAwake": true,
+  "notify": true
 }
