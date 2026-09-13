@@ -284,6 +284,23 @@ test("agent speech is walked as markdown, and the plain walk agrees on every lin
   );
 });
 
+test("a checklist item is one line, marker and all", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
+  presenter.show({ kind: "agent", stage: "plan", markdown: "- [ ] write the test\n- [x] read the diff\n  - [ ] and the artifacts" });
+  presenter.end();
+
+  assert.deepEqual(
+    out.text().trimEnd().split("\n").map((line) => line.replace("12:00:00 ", "")),
+    [
+      "\u2502 \u2022 [ ] write the test",
+      "\u2502 \u2022 [x] read the diff",
+      "\u2502   \u2022 [ ] and the artifacts",
+    ],
+    "an agent writes checklists constantly; a box on its own line doubles what one costs against the cap",
+  );
+});
+
 test("an interactive walk styles the same lines it broke the same way", () => {
   const plainOut = sink();
   const dressedOut = sink({ isTTY: true, columns: 200 });

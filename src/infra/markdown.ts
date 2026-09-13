@@ -75,9 +75,14 @@ const block = (token: Token, style: Styler, indent: string): ReadonlyArray<strin
 const list = (token: Tokens.List, style: Styler, indent: string): ReadonlyArray<string> => {
   const start = Number(token.start) || 1;
   return token.items.flatMap((item, index) => {
-    const marker = token.ordered ? `${start + index}.` : "•";
+    // A tick box belongs to the marker, not to a line of its own: `marked`
+    // makes it a sibling of the text it ticks, so walking it as a block puts
+    // `[ ]` above the item and costs a checklist twice its height.
+    const box = item.task ? `[${item.checked ? "x" : " "}] ` : "";
+    const marker = `${token.ordered ? `${start + index}.` : "•"} ${box}`;
     const lines: Array<string> = [];
     for (const inner of item.tokens) {
+      if (inner.type === "checkbox") continue;
       // A nested list is the one child that indents; everything else is the
       // item's own prose and sits behind the marker.
       if (isList(inner)) lines.push(...list(inner, style, indent + INDENT));
@@ -85,6 +90,6 @@ const list = (token: Tokens.List, style: Styler, indent: string): ReadonlyArray<
       else lines.push(...block(inner, style, ""));
     }
     const [first = "", ...rest] = lines;
-    return [`${indent}${marker} ${first}`, ...rest.map((line) => (line.startsWith(INDENT) ? line : indent + INDENT + line))];
+    return [`${indent}${marker}${first}`, ...rest.map((line) => (line.startsWith(INDENT) ? line : indent + INDENT + line))];
   });
 };
