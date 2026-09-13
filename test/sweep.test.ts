@@ -161,6 +161,10 @@ test("a dry run reports the selection and calls no worker", async () => {
 
   assert.equal((exit as { exitCode: number }).exitCode, 0);
   assert.equal(called, 0, "the dry run's promise is that it touches nothing, the run directory scan included");
+  assert.ok(
+    !recording.events.some((event) => typeof event !== "string" && event.kind === "run"),
+    "and a screen is something it touches: the `run` event is what mounts one, and a dry run emits none",
+  );
   assert.deepEqual(recording.log.slice(-4), [
     "sync: 2 conflicted, 7 skipped",
     "  #43 [yours] fix: being worked on — would sync branch-43 into origin/main",
@@ -203,8 +207,10 @@ test("one worker's escalation leaves the others alone and sets the exit code", a
 
   assert.equal(failed, false, "a worker's failure is a value; the fan-out is not taken down by it");
   assert.equal((exit as { exitCode: number }).exitCode, 2);
-  assert.deepEqual(recording.log.slice(-4), [
+  assert.deepEqual(recording.log.slice(-6), [
     "  #42 [yours] FAB-5: Conflicted PRs pile up — synced: pushed 9f1c2ab — log: /runs/pr-42/log.txt",
+    "step 2/2: pr-40",
+    "step pr-40: failed (0s)",
     "  #40 [yours] fix: thing — escalated: merge left conflicts in src/a.ts — worktree: /worktrees/pr-40 — log: /runs/pr-40/log.txt",
     "waited 0s for syncing 2 pull request(s)",
     "sync: 1 synced, 0 already clean, 1 escalated, 0 failed, 0 skipped",
@@ -255,9 +261,14 @@ test("the usage limit stops the sweep handing out new work", async () => {
 
   assert.equal((exit as { exitCode: number }).exitCode, 3, "3 beats the 2 the failed worker would have set");
   assert.deepEqual(placed, [42], "a pull request that never started gets no worktree and no run directory");
-  assert.deepEqual(recording.log.slice(-5), [
+  assert.deepEqual(recording.log.slice(-8), [
+    "step FAB-5-42: failed (0s)",
     "  #42 [yours] FAB-5: Conflicted PRs pile up — failed: usage limit hit — worktree: /worktrees/pr-42 — log: /runs/pr-42/log.txt",
+    // A row of its own for each, so a screen shows the two that never started
+    // as skipped rather than leaving them pending forever.
+    "pr-41: skipped (usage limit hit — not started)",
     "  #41 [yours] fix: second — skipped: usage limit hit — not started",
+    "pr-40: skipped (usage limit hit — not started)",
     "  #40 [yours] fix: thing — skipped: usage limit hit — not started",
     "waited 0s for syncing 3 pull request(s)",
     "sync: 0 synced, 0 already clean, 0 escalated, 1 failed, 2 skipped",
@@ -476,6 +487,57 @@ test("a worker that crashes outright is still one pull request's failure", async
     "waited 0s for syncing 2 pull request(s)",
     "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
   ]);
+});
+
+/**
+ * The rows a screen draws, as the events that make them: one per pull request
+ * the sweep considered, in list order, named by the key its worker's events
+ * are addressed to.
+ */
+test("the sweep emits a row per pull request it considered, and the counts as its result", async () => {
+  const { recording } = await exercise(
+    sweep(oneAtATime((target) => (target.number === 40 ? Effect.fail(new FabrikaError({ message: "boom" })) : Effect.succeed({ pushed: "9f1c2ab3d4e5f6" })))),
+    {
+      pullRequests: [
+        pullRequest({ number: 42, title: "FAB-5: Conflicted PRs pile up" }),
+        pullRequest({ number: 41, title: "fix: merely behind", merge: "behind" }),
+        pullRequest({ number: 40, title: "fix: thing" }),
+      ],
+    },
+  );
+
+  const events = recording.events.filter((event): event is Exclude<typeof event, string> => typeof event !== "string");
+  const run = events.find((event) => event.kind === "run");
+  assert.deepEqual(
+    run?.kind === "run" ? run.steps : [],
+    [
+      { name: "FAB-5-42", title: "#42 FAB-5", about: "[yours] Conflicted PRs pile up — would sync branch-42 into origin/main", done: false },
+      { name: "pr-41", title: "#41", about: "[yours] fix: merely behind", done: false },
+      { name: "pr-40", title: "#40", about: "[yours] fix: thing — would sync branch-40 into origin/main", done: false },
+    ],
+    "the skipped one has a row of its own, and only the two being touched say what would happen to them",
+  );
+  assert.deepEqual(
+    events.flatMap((event) => (event.kind === "step" ? [`${event.name} ${event.state}${event.outcome ? ` ${event.outcome}` : ""}`] : [])),
+    ["pr-41 skipped", "FAB-5-42 start", "FAB-5-42 end done", "pr-40 start", "pr-40 end failed"],
+    "the rule-skipped row is settled before the first worker is handed out, and each worker's row starts and ends with it",
+  );
+  assert.deepEqual(
+    events.filter((event) => event.kind === "result"),
+    [{ kind: "result", outcome: "escalated", text: "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 1 skipped" }],
+    "the counts are the result event, whose outcome is the same condition the exit code reads",
+  );
+});
+
+test("a sweep that comes to nothing needing a human says so as a done result", async () => {
+  const { recording } = await exercise(sweep(oneAtATime(() => Effect.succeed({ pushed: "9f1c2ab3d4e5f6" }))), {
+    pullRequests: [pullRequest({ number: 42, title: "FAB-5: Conflicted PRs pile up" })],
+  });
+
+  assert.deepEqual(
+    recording.events.filter((event) => typeof event !== "string" && event.kind === "result"),
+    [{ kind: "result", outcome: "done", text: "sync: 1 synced, 0 already clean, 0 escalated, 0 failed, 0 skipped" }],
+  );
 });
 
 /**

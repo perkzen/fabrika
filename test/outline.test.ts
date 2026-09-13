@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { outline } from "../src/domain/outline.ts";
+import { bound, outline, take, waiting } from "../src/domain/outline.ts";
 import type { RunEvent } from "../src/domain/run-event.ts";
 
 /** Local noon on a fixed day, so a stamped entry reads the way the console's does. */
@@ -168,4 +168,106 @@ test("a step knows when it started, and the root when the run did, so a live row
   assert.equal(root.since, noon, "the run's own clock starts at its event");
   assert.equal(root.children[1]!.since, noon + 7000, "and a step's at its start");
   assert.equal(root.children[2]!.since, undefined, "a step that has not started has no since to count from");
+});
+
+/**
+ * A sweep's shape: several steps open at once, which a run never has. What
+ * decides where an event goes is then the address the presenter put on it, not
+ * "the one child whose state is `running`".
+ */
+const addressed = (...events: ReadonlyArray<readonly [number, RunEvent | string, string?]>) =>
+  outline(events.map(([seconds, entry, address]) => ({ when: noon + seconds * 1000, entry, address })));
+
+const SWEEP: RunEvent = {
+  kind: "run",
+  completed: [],
+  steps: [{ name: "FAB-5-42", done: false }, { name: "pr-41", done: false }, { name: "FAB-9-40", done: false }],
+};
+
+const swept = (...extra: ReadonlyArray<readonly [number, RunEvent | string, string?]>) =>
+  addressed(
+    [0, SWEEP],
+    [1, { kind: "step", name: "FAB-5-42", at: 1, of: 3, state: "start" }],
+    [1, { kind: "step", name: "pr-41", at: 2, of: 3, state: "start" }],
+    [1, { kind: "step", name: "FAB-9-40", at: 3, of: 3, state: "start" }],
+    ...extra,
+  );
+
+test("an addressed event lands in the row it names, whatever else is running", () => {
+  const tree = swept(
+    [2, "worktree /worktrees/pr-41", "pr-41"],
+    [3, "worktree /worktrees/FAB-5-42", "FAB-5-42"],
+    [4, { kind: "tool", stage: "sync", tool: "Edit", subject: "src/b.ts" }, "pr-41"],
+  );
+  const rows = tree.roots[0]!.children;
+
+  assert.deepEqual(rows.map((row) => row.stream.map(({ entry }) => (typeof entry === "string" ? entry : entry.kind))), [
+    ["worktree /worktrees/FAB-5-42"],
+    ["worktree /worktrees/pr-41", "tool"],
+    [],
+  ]);
+  assert.equal(rows[1]!.summary.calls, 1, "and the summary it folds into is that row's too");
+});
+
+test("with more than one row open, an unaddressed event belongs to none of them", () => {
+  const tree = swept([2, "sync: 2 conflicted, 1 skipped"]);
+
+  assert.deepEqual(tree.roots[0]!.children.map((row) => row.stream.length), [0, 0, 0]);
+  assert.equal(tree.roots[0]!.stream.length, 1, "the sweep's own line is the sweep's, not the first worker's");
+});
+
+test("each row's waits are its own, so one ending leaves the others open", () => {
+  const wait = (state: "start" | "end") => ({ kind: "wait" as const, state, subject: "the merge agent" });
+  const tree = swept([2, wait("start"), "FAB-5-42"], [3, wait("start"), "pr-41"], [4, wait("end"), "pr-41"]);
+  const rows = tree.roots[0]!.children;
+
+  assert.deepEqual(rows.map((row) => row.waits.map((open) => open.subject)), [["the merge agent"], [], []]);
+  assert.equal(rows[0]!.waits[0]!.since, noon + 2000, "and it is still timed from where it opened");
+});
+
+test("a wait that opened before any row started is the sweep's, and its end finds it there", () => {
+  const subject = "syncing 2 pull request(s)";
+  const opened = addressed([0, SWEEP], [1, { kind: "wait", state: "start", subject }]);
+  assert.deepEqual(opened.roots[0]!.waits.map((wait) => wait.subject), [subject], "no row was running, so it is the root's");
+
+  const closed = addressed(
+    [0, SWEEP],
+    [1, { kind: "wait", state: "start", subject }],
+    [2, { kind: "step", name: "FAB-5-42", at: 1, of: 3, state: "start" }],
+    [3, { kind: "step", name: "FAB-5-42", at: 1, of: 3, state: "end", seconds: 1, outcome: "done" }],
+    [4, { kind: "wait", state: "end", subject, seconds: 3 }],
+  );
+  assert.deepEqual(closed.roots[0]!.waits, [], "and the end clears it wherever it was opened");
+});
+
+test("a row's worktree is told to the tree rather than carried by an event", () => {
+  const tree = bound(swept(), "pr-41", "/worktrees/pr-41");
+
+  assert.deepEqual(tree.roots[0]!.children.map((row) => row.worktree), [undefined, "/worktrees/pr-41", undefined]);
+  assert.deepEqual(
+    bound(tree, "no-such-row", "/worktrees/nowhere").roots[0]!.children.map((row) => row.worktree),
+    [undefined, "/worktrees/pr-41", undefined],
+    "a name that names no row places no tree",
+  );
+  assert.equal(waiting(tree), false, "and nothing here is a wait");
+});
+
+/**
+ * The case a "one open step" rule gets wrong: a sweep of two at concurrency
+ * two, where the first worker has finished and the second has not, and the
+ * sweep reports the first one's outcome.
+ */
+test("once rows have writers of their own, an unaddressed event is never the last one running's", () => {
+  const running = addressed(
+    [0, SWEEP],
+    [1, { kind: "step", name: "FAB-5-42", at: 1, of: 3, state: "start" }],
+    [1, { kind: "step", name: "pr-41", at: 2, of: 3, state: "start" }],
+    [2, { kind: "step", name: "FAB-5-42", at: 1, of: 3, state: "end", seconds: 1, outcome: "done" }],
+  );
+  const one = running.roots[0]!.children.filter((row) => row.state === "running");
+  assert.equal(one.length, 1, "exactly one row is left running, which is the trap");
+
+  const told = take(bound(running, "pr-41", "/worktrees/pr-41"), noon + 3000, "  #42 [yours] a thing — synced: pushed 9f1c2ab");
+  assert.deepEqual(told.roots[0]!.children.map((row) => row.stream.length), [0, 0, 0], "the line is in no row's window");
+  assert.equal(told.roots[0]!.stream.length, 1, "it is the sweep's own");
 });

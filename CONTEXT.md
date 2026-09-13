@@ -152,10 +152,19 @@ _Avoid_: select all — that is one of its two labels, not its name; header.
 **Screen**:
 The presenter that owns the terminal's alternate buffer for the length of a
 run and redraws the whole viewport — the outline, the unfolded step under its
-line, and the keys that move and fold. An interactive run gets one; `init`, a
-pipe and every plain verdict get a scrollback console instead.
+line, and the keys that move and fold. An interactive run gets one and so does
+an interactive sweep; `init`, a dry run, a pipe and every plain verdict get a
+scrollback console instead.
 _Avoid_: TUI, full-screen mode, alternate buffer — that is the terminal
 facility a screen is drawn on, not the presenter.
+
+**Row**:
+One pull request's line on a sweep's screen, and the presenter bound to it
+that the pull request's own worker writes through. It is what makes six
+concurrent streams six windows rather than one: an event carries the row it
+belongs to, and the address travels with the worker's layer graph. A run's
+steps are drawn as rows too; only a sweep hands one out.
+_Avoid_: lane, channel, track — and *step*, which is what a row draws.
 
 **Rehearsal**:
 The whole run on a stage set: the real select, pipeline, driver, journal and
@@ -171,7 +180,9 @@ off, and these are not the real ports; mock mode, simulation.
 A run as its shape rather than its stream: a root per run, a node per step,
 and under each node the events that happened while it was open. It is a pure
 function of the run events and holds a list of roots, so one presenter over
-many pull requests is the same tree with more of them.
+many runs is the same tree with more of them. A sweep is one root whose
+children are its rows, not a root per pull request: a sync worker has no
+stages and emits no `run` event of its own.
 _Avoid_: model, state — *view* is separately what the operator has selected
 and folded, which is not the tree.
 
@@ -225,7 +236,9 @@ _Avoid_: skill, loaded skills.
 **Wait**:
 A stretch in which the host is blocked on something it does not control — an
 agent call, the reviewer, the PR's checks. A wait has a subject and sometimes
-a deadline, and is what the live region animates to prove the run is alive.
+a deadline, and is what the live region animates to prove the run is alive. It
+belongs to the node it opened in rather than to the tree, so a sweep's six
+concurrent waits do not blank each other as they end.
 _Avoid_: poll, spinner, hang.
 
 ### The review loop
@@ -268,14 +281,17 @@ puts on a line.
 **Sweep**:
 One invocation that lists the operator's open pull requests, picks the
 conflicted ones and syncs each. It ends when they are all handled — a sweep is
-a pass over the repository, never a process that stays alive watching it.
+a pass over the repository, never a process that stays alive watching it. On a
+terminal it draws the same screen a run does, one row per pull request it
+considered, and the counts line stays the last thing on stdout.
 _Avoid_: watcher, daemon, monitor, poller — what invokes a sweep on a schedule
 is the operator's, not fabrika's.
 
 **Sync worker**:
 One pull request's share of a sweep: its own worktree, run directory, gate and
 agent session, run alongside a bounded number of others. It is a layer graph,
-not a Claude sub-agent, and it shares nothing with its siblings.
+not a Claude sub-agent, and it shares nothing with its siblings but the
+surface, which it reaches only through its own row.
 _Avoid_: job, task, sub-agent, thread.
 
 **Merge state**:

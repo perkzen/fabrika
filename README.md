@@ -141,9 +141,16 @@ the human who is going to read its diff.
 
 `--dry-run` prints exactly that selection and changes nothing; reach for it
 first, because filtering by author deliberately includes your hand-written
-branches. `--concurrency <n>` (default 2) is how many run at once. One line
-per pull request on your console, each worker's full log in its own
-`log.txt`, and the counts on the last line.
+branches. `--concurrency <n>` (default 2) is how many run at once.
+
+On a terminal a sweep draws the same screen a run does: one row per pull
+request it considered, the skipped ones dimmed with the rule that skipped
+them, several rows running at once, and `space` on any of them unfolds that
+pull request's own stream — the merge, the conflicted files, the agent
+resolving them, the gate after. `o` opens the selected row's worktree, which
+is the one you want on the rows a sweep leaves behind. Piped, or on a
+schedule, it is one line per pull request instead. Either way each worker's
+full log is in its own `log.txt` and the counts are the last line.
 
 ### Working on fabrika itself
 

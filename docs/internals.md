@@ -23,7 +23,7 @@ building a step to read a title off.
 | --- | --- |
 | `src/cli.ts` | `fabrika init` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
-| `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
+| `src/sweep.ts` | The sweep's composition root: one surface, a forge with no worktree, and a layer graph per pull request — each carrying the row its worker writes into |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/errors.ts` | `FabrikaError`, the one error every port speaks, and the mapping from an adapter's own failure onto it |
@@ -36,7 +36,7 @@ building a step to read a title off.
 | `src/domain/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
 | `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
-| `src/adapters/file-journal.ts` | Which surfaces a run reports to, decided once: the screen when an operator is watching, the scrolling console otherwise, and `log.txt` under both. A sweep and `init` ask for `consoleOnly`, which never draws a screen and keeps no archive; a sweep's worker asks for `archiveOnly`, which writes `log.txt` and never touches the terminal |
+| `src/adapters/file-journal.ts` | Which surfaces a run reports to, decided once: the screen when an operator is watching, the scrolling console otherwise, and `log.txt` under both. `init` asks for `consoleOnly`, which never draws a screen and keeps no archive; a sweep asks for `sweep`, which makes the same verdict and hands out a presenter per row; a sweep's worker asks for `archiveOnly`, which writes `log.txt` and, when there is a screen, mirrors it to that row |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
 | `src/pipeline/steps/` | One file per step |
@@ -335,12 +335,32 @@ do is a fact worth reporting rather than a push that did not happen. A sweep
 with nothing to do says so instead — `none conflicted` when none were, and
 `every conflicted one skipped` when they were skipped by the rules above.
 
-The sweep owns the only console — one line per pull request, the counts last
-— and each worker's journal is its `log.txt` alone, appended to the original
-run's log when the scan of `~/.fabrika/runs/<repo>/*/state.json` found one.
+The sweep owns the only surface. Watched, that is a screen: one row per pull
+request it considered — the skipped ones dimmed with the rule that skipped
+them — several rows running at once, and the selected one unfolded onto that
+worker's own stream. Piped, `NO_COLOR`, `TERM=dumb` and CI get the scrollback
+console instead, with one line per pull request and the counts last; the
+counts are the `result` event either way, so the last line on stdout is the
+same text a scheduled invocation has always read. Each worker's journal is its
+`log.txt` — appended to the original run's log when the scan of
+`~/.fabrika/runs/<repo>/*/state.json` found one — plus the row it was handed,
+which mirrors it and never replaces it.
+
+A worker reaches the screen only through that row: `take` attributes an
+addressed event to the node it names, so six workers writing at once land in
+six windows rather than in whichever one started first. The address travels
+with the layer graph, resolved in `src/sweep.ts` where both the pull request
+and its tree are known, and never on a run event — an event goes to that
+worker's `log.txt` too, and a worker's own log naming the worker on every line
+is noise. `o` opens the selected row's tree for the same reason: the trees a
+sweep leaves behind are the escalated and rate-limited ones, and each is
+somewhere else.
+
 The usage limit is the one failure that stops the sweep: workers already in
 flight run to their own outcomes, workers not yet started report
-`usage limit hit — not started`, and the exit code is 3.
+`usage limit hit — not started` and become skipped rows, and the exit code
+is 3. A `--dry-run` draws no screen at all: it returns before the fan-out and
+promises to touch nothing.
 
 ## Review loop details
 

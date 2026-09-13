@@ -34,6 +34,15 @@ export type Summary = {
 /** One event and when it arrived: a window stamps its lines the way scrollback does. */
 export type Entry = { readonly when: number; readonly entry: RunEvent | string };
 
+/** A wait that is still open, as the row animating it reads it. */
+export type Wait = { readonly subject: string; readonly since: number; readonly deadlineMinutes?: number };
+
+/**
+ * The gate command running now. It carries the command as well as the
+ * position, because a running gate's row names what it is on.
+ */
+export type Gate = { readonly name: string; readonly at: number; readonly of: number; readonly command: string };
+
 export type Node = {
   /** Unique and stable for the life of a run; the view's selection and fold are keyed by it. */
   readonly key: string;
@@ -58,6 +67,23 @@ export type Node = {
   readonly summary: Summary;
   readonly stream: ReadonlyArray<Entry>;
   readonly children: ReadonlyArray<Node>;
+  /**
+   * The waits open in this node, oldest first, and the gate it is inside.
+   *
+   * Per node rather than per tree because a sweep has six of each at once and
+   * a single field would have them blanking each other: `wait end` clears the
+   * wait whichever wait ended, so the row still waiting would go quiet while
+   * it was still waiting. A run has one open step and so at most one of each,
+   * and reads exactly as it did.
+   */
+  readonly waits: ReadonlyArray<Wait>;
+  readonly gate?: Gate;
+  /**
+   * Where this row's tree is, absolute. No run event carries it — see
+   * `Tree.worktree` — so the presenter puts it on the node it hands out, which
+   * is what `o` opens and what a sweep has one of per row.
+   */
+  readonly worktree?: string;
 };
 
 export type Tree = {
@@ -77,13 +103,17 @@ export type Tree = {
   readonly worktree?: string;
   /** Held rather than streamed, so the exit rendering can write it last. */
   readonly result?: Extract<RunEvent, { kind: "result" }>;
-  /** The wait the run is inside, if any, for the liveness line. */
-  readonly wait?: { readonly subject: string; readonly since: number; readonly deadlineMinutes?: number };
   /**
-   * The gate step running now. It carries the command as well as the position,
-   * because a running gate's row names what it is on.
+   * Whether this tree's rows have writers of their own — set by `bound`, and
+   * true for a sweep and false for a run.
+   *
+   * It decides where an event with no address goes. A run has one open step
+   * and its events are that step's; a sweep's rows are written to through
+   * presenters of their own, so anything arriving unaddressed is the sweep's
+   * own line and belongs to no row — not even when exactly one worker happens
+   * to still be running, which is the case a "one open step" rule gets wrong.
    */
-  readonly gate?: { readonly name: string; readonly at: number; readonly of: number; readonly command: string };
+  readonly addressed?: boolean;
 };
 
 const noSummary = (): Summary => ({ calls: 0, tools: [], skills: [], gates: [] });
@@ -98,6 +128,7 @@ const node = (key: string, name: string, title: string, at: number, of: number, 
   summary: noSummary(),
   stream: [],
   children: [],
+  waits: [],
 });
 
 export const empty: Tree = { roots: [] };
@@ -109,9 +140,17 @@ export const empty: Tree = { roots: [] };
  */
 export const steps = (tree: Tree): ReadonlyArray<Node> => tree.roots.at(-1)?.children ?? [];
 
-/** One event folded in. Returns a new tree and mutates nothing the caller holds. */
-export const take = (tree: Tree, when: number, entry: RunEvent | string): Tree => {
-  if (typeof entry === "string") return streamed(tree, { when, entry });
+/**
+ * One event folded in. Returns a new tree and mutates nothing the caller holds.
+ *
+ * `address` is the name of the node the event belongs to, for the one caller
+ * that knows: a sweep hands each worker a presenter bound to its row, because
+ * six workers are six running steps and "the open step" would send five of
+ * them to the wrong window. A run addresses nothing and is attributed the way
+ * it always was.
+ */
+export const take = (tree: Tree, when: number, entry: RunEvent | string, address?: string): Tree => {
+  if (typeof entry === "string") return streamed(tree, { when, entry }, address);
   switch (entry.kind) {
     case "run": {
       const index = tree.roots.length;
@@ -137,26 +176,74 @@ export const take = (tree: Tree, when: number, entry: RunEvent | string): Tree =
     case "result":
       return { ...tree, result: entry };
     // Both are streamed as well as held: they are part of what the step did,
-    // and the held copy is only what the liveness row reads.
+    // and the held copy is only what the row's liveness reads.
     case "wait":
-      return {
-        ...streamed(tree, { when, entry }),
-        wait: entry.state === "start" ? { subject: entry.subject, since: when, deadlineMinutes: entry.deadlineMinutes } : undefined,
-      };
+      return waited(streamed(tree, { when, entry }, address), when, entry, address);
     case "gate":
-      return {
-        ...streamed(tree, { when, entry }),
+      return addressed(streamed(tree, { when, entry }, address), address, (target) => ({
+        ...target,
         gate: gateOver(entry) ? undefined : { name: entry.name, at: entry.at, of: entry.of, command: entry.command },
-      };
+      }));
     default:
-      return streamed(tree, { when, entry });
+      return streamed(tree, { when, entry }, address);
   }
 };
 
+/**
+ * One row handed to a writer of its own, and where that writer works.
+ *
+ * The worktree is told rather than emitted, for `Tree.worktree`'s reason one
+ * row down: an event goes to that worker's `log.txt` too, and a path this
+ * machine chose is no business of the record. Binding is also what makes the
+ * tree `addressed` — see the field.
+ *
+ * A name that names no row still binds the tree: the presenter binds a row
+ * before that row's work starts, and getting the name wrong must not silently
+ * turn a sweep back into a run.
+ */
+export const bound = (tree: Tree, name: string, worktree?: string): Tree =>
+  inRoot({ ...tree, addressed: true }, (root) => ({
+    ...root,
+    children: root.children.map((child) => (child.name === name && worktree !== undefined ? { ...child, worktree } : child)),
+  }));
+
+/** Whether anything in the tree is still waiting on something — what a surface animates for. */
+export const waiting = (tree: Tree): boolean => {
+  const root = tree.roots.at(-1);
+  if (!root) return false;
+  return root.waits.length > 0 || root.children.some((child) => child.waits.length > 0);
+};
+
+/**
+ * A wait opened or closed in the node it happened in.
+ *
+ * An `end` clears the first wait with that subject, and falls back to the root
+ * when the node it is addressed to has none — a wait can open before the step
+ * that ends it started, and the sweep's own fan-out wait is exactly that.
+ */
+const waited = (tree: Tree, when: number, entry: Extract<RunEvent, { kind: "wait" }>, address: string | undefined): Tree => {
+  if (entry.state === "start") {
+    const wait: Wait = { subject: entry.subject, since: when, deadlineMinutes: entry.deadlineMinutes };
+    return addressed(tree, address, (target) => ({ ...target, waits: [...target.waits, wait] }));
+  }
+  const held = (node: Node) => node.waits.some((wait) => wait.subject === entry.subject);
+  const without = (node: Node): Node => {
+    const at = node.waits.findIndex((wait) => wait.subject === entry.subject);
+    return at < 0 ? node : { ...node, waits: [...node.waits.slice(0, at), ...node.waits.slice(at + 1)] };
+  };
+  const target = nodeOf(tree, address);
+  return target && held(target)
+    ? addressed(tree, address, without)
+    : inRoot(tree, (root) => (held(root) ? without(root) : root));
+};
+
+/** One event as a caller hands it over: the entry, when it arrived, and the row it belongs to. */
+export type Scripted = Entry & { readonly address?: string };
+
 /** The whole stream folded at once, for a reader that has all of it already. */
-export const outline = (entries: Iterable<Entry>): Tree => {
+export const outline = (entries: Iterable<Scripted>): Tree => {
   let tree = empty;
-  for (const { when, entry } of entries) tree = take(tree, when, entry);
+  for (const { when, entry, address } of entries) tree = take(tree, when, entry, address);
   return tree;
 };
 
@@ -187,25 +274,42 @@ const restated = (child: Node, when: number, entry: Extract<RunEvent, { kind: "s
 };
 
 /**
- * Attribution is by the open step, never by an event's `stage` field: `stage`
- * is the agent's label for one call and several steps make calls under names
- * of their own, while an event between a step's `start` and its `end` belongs
- * to that step by construction. Before the first start and after the last end
- * there is no open step, and the events are the root's.
+ * Attribution is by address when there is one and by the open step otherwise,
+ * never by an event's `stage` field: `stage` is the agent's label for one call
+ * and several steps make calls under names of their own, while an event
+ * between a step's `start` and its `end` belongs to that step by construction.
+ *
+ * With no address the event is the open step's on a run and the root's on a
+ * sweep, where every row has a writer of its own and an unaddressed line is
+ * therefore about the sweep rather than about whichever worker happens still
+ * to be running. Before the first start and after the last end there is no
+ * open step, and those events are the root's either way.
  */
-const streamed = (tree: Tree, entry: Entry): Tree =>
-  inRoot(tree, (root) => {
-    const open = root.children.findIndex((child) => child.state === "running");
-    if (open < 0) return { ...root, stream: [...root.stream, entry] };
-    return {
-      ...root,
-      children: root.children.map((child, index) =>
-        index === open
-          ? { ...child, stream: [...child.stream, entry], summary: fold(child.summary, entry.entry) }
-          : child,
-      ),
-    };
-  });
+const streamed = (tree: Tree, entry: Entry, address?: string): Tree =>
+  addressed(tree, address, (target) => ({
+    ...target,
+    stream: [...target.stream, entry],
+    summary: fold(target.summary, entry.entry),
+  }));
+
+/** The node an event is attributed to, or nothing when the tree has no root yet. */
+const nodeOf = (tree: Tree, address: string | undefined): Node | undefined => {
+  const root = tree.roots.at(-1);
+  if (!root) return undefined;
+  if (address !== undefined) return root.children.find((child) => child.name === address) ?? root;
+  if (tree.addressed) return root;
+  const open = root.children.filter((child) => child.state === "running");
+  return open.length === 1 ? open[0]! : root;
+};
+
+/** One change applied to whichever node the event is attributed to. */
+const addressed = (tree: Tree, address: string | undefined, change: (node: Node) => Node): Tree => {
+  const target = nodeOf(tree, address);
+  if (!target) return tree;
+  return inRoot(tree, (root) =>
+    root === target ? change(root) : { ...root, children: root.children.map((child) => (child === target ? change(child) : child)) },
+  );
+};
 
 /** What one event adds to the step it happened in. Everything else is stream and nothing more. */
 const fold = (summary: Summary, entry: RunEvent | string): Summary => {

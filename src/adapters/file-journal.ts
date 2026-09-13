@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { basename } from "node:path";
 import { openArchive } from "../terminal/archive.ts";
 import { openConsole } from "../terminal/console.ts";
-import { openScreen } from "../terminal/screen.ts";
+import { openScreen, type Screen } from "../terminal/screen.ts";
 import { isInteractive, type Presenter } from "../terminal/surface.ts";
 import { Journal } from "../ports/journal.ts";
 import type { RunEvent } from "../domain/run-event.ts";
@@ -88,21 +88,73 @@ export type ConsoleJournal = {
 };
 
 /**
- * One scrollback console and nothing else — a sweep, which owns the only
- * console over every worker, and `init`, which has no run directory to mirror
- * into.
+ * One scrollback console and nothing else — `init`, which has no run directory
+ * to mirror into.
  *
  * A form of its own rather than an option, for the reason `archiveOnly` is
  * one: the surfaces a journal has are few and named, and a caller that spells
  * them out is a caller that cannot get them by accident. Never a screen,
- * whatever the terminal is: neither of these two draws an outline.
+ * whatever the terminal is: `init` has no outline to draw.
  */
 export const consoleOnly = (options: ConsoleJournal = {}) =>
   journal(() => [openConsole({ stream: options.stream ?? process.stdout, now: options.now, interactive: options.interactive })]);
 
 /**
- * The archive by itself, for a sweep's worker: the sweep owns the only
- * console, and a presenter over a discarding stream would still build a live
- * region, a frame timer and a cursor hide for nobody.
+ * The archive, for a sweep's worker: the sweep owns the only terminal, and a
+ * presenter over a discarding stream would still build a live region, a frame
+ * timer and a cursor hide for nobody.
+ *
+ * `extra` is the row the sweep's screen handed out for this pull request, when
+ * there is a screen. Every event still reaches `log.txt` unchanged — the row
+ * mirrors the archive, it does not replace it — and piped, there is no row and
+ * this is the form it has always been.
  */
-export const archiveOnly = (file: string) => journal(() => [openArchive({ file })]);
+export const archiveOnly = (file: string, extra: ReadonlyArray<Presenter> = []) =>
+  journal(() => [openArchive({ file }), ...extra]);
+
+export type SweepJournal = {
+  /** What the header calls this sweep: the repository its pull requests are on. */
+  readonly label?: string;
+  /** Defaults to `process.stdout`. */
+  readonly stream?: NodeJS.WriteStream;
+  /** Where keys come from. A sweep nobody is watching gets a screen with no keys. */
+  readonly input?: NodeJS.ReadStream;
+  /** What `o` does, given the selected row's worktree. */
+  readonly open?: (worktree: string) => void;
+  readonly now?: () => number;
+  /** States the verdict instead of making it, for a test that wants one or the other. */
+  readonly interactive?: boolean;
+};
+
+/**
+ * The sweep's own journal, and the rows on the surface behind it.
+ *
+ * A sweep is the one command with several things going at once, so its surface
+ * has to be addressable: `row` is the presenter one worker's journal writes
+ * into, and it is what keeps six streams from landing in one window. The
+ * verdict is `layer`'s to make, once, the way `layer` above makes it — a
+ * watched sweep draws the screen, and a pipe, `NO_COLOR`, `TERM=dumb` and CI
+ * get the scrollback console, where a row is silence and every worker's detail
+ * is in its own `log.txt`.
+ */
+export const sweep = (options: SweepJournal = {}) => {
+  // Assigned when the layer is built rather than here: opening a screen enters
+  // the alternate buffer and hides a cursor, and a layer that is never
+  // provided must not have done either. Every worker is created inside the
+  // sweep, which is inside the layer, so by then this is set.
+  let screen: Screen | undefined;
+  const layer = journal(() => {
+    const stream = options.stream ?? process.stdout;
+    const watched = options.interactive ?? isInteractive(stream);
+    const shared = { stream, now: options.now, interactive: options.interactive };
+    if (!watched) return [openConsole(shared)];
+    screen = openScreen({ ...shared, ticket: options.label, input: options.input, open: options.open });
+    return [screen];
+  });
+  return {
+    layer,
+    /** The presenter for one pull request's row, bound to the tree that row's worker works in. */
+    row: (name: string, worktree?: string): Presenter =>
+      screen?.row(name, worktree) ?? { show: () => {}, end: () => {} },
+  };
+};

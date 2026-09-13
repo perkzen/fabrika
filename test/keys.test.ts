@@ -165,3 +165,53 @@ test("page-up stops at the top of the stream, so one page-down always comes back
 
   assert.equal(press("page-up", watching, running, size).scroll, 0, "a window holding less than it can show has nothing to scroll at all");
 });
+
+/**
+ * A sweep has several rows running at once, which a run never has, so
+ * "unfold the running step" has to name one of them. The first in list order
+ * is the rule: it is stable while the others start and finish under it, where
+ * "the most recently started" would move the window on every worker handed
+ * out.
+ */
+const sweeping = script(
+  { kind: "run", completed: [], steps: [{ name: "a", done: false }, { name: "b", done: false }, { name: "c", done: false }] },
+  { kind: "step", name: "a", at: 1, of: 3, state: "start" },
+  { kind: "step", name: "b", at: 2, of: 3, state: "start" },
+  { kind: "step", name: "c", at: 3, of: 3, state: "start" },
+);
+
+test("with several rows running, following unfolds the first of them and stays there", () => {
+  assert.deepEqual(follow(fresh, sweeping), { selected: "0:1", opened: "0:1", chosen: false, scroll: 0, top: 0 });
+
+  const later = outline([
+    ...[
+      { kind: "run", completed: [], steps: [{ name: "a", done: false }, { name: "b", done: false }, { name: "c", done: false }] },
+      { kind: "step", name: "a", at: 1, of: 3, state: "start" },
+      { kind: "step", name: "b", at: 2, of: 3, state: "start" },
+      { kind: "step", name: "c", at: 3, of: 3, state: "start" },
+      { kind: "step", name: "b", at: 2, of: 3, state: "end", seconds: 1, outcome: "done" },
+    ].map((entry, index) => ({ when: noon + index * 1000, entry: entry as RunEvent })),
+  ]);
+  assert.equal(follow(follow(fresh, sweeping), later).opened, "0:1", "a sibling finishing does not move the window");
+
+  const first = outline([
+    ...[
+      { kind: "run", completed: [], steps: [{ name: "a", done: false }, { name: "b", done: false }, { name: "c", done: false }] },
+      { kind: "step", name: "a", at: 1, of: 3, state: "start" },
+      { kind: "step", name: "b", at: 2, of: 3, state: "start" },
+      { kind: "step", name: "a", at: 1, of: 3, state: "end", seconds: 1, outcome: "done" },
+    ].map((entry, index) => ({ when: noon + index * 1000, entry: entry as RunEvent })),
+  ]);
+  assert.equal(follow(follow(fresh, sweeping), first).opened, "0:2", "and when it is the open row that finishes, the next running one takes it");
+});
+
+test("a skipped row is not one the selection can land on", () => {
+  const withSkip = script(
+    { kind: "run", completed: [], steps: [{ name: "a", done: false }, { name: "b", done: false }, { name: "c", done: false }] },
+    { kind: "step", name: "b", at: 2, of: 3, state: "skipped", reason: "usage limit hit — not started" },
+    { kind: "step", name: "a", at: 1, of: 3, state: "start" },
+    { kind: "step", name: "c", at: 3, of: 3, state: "start" },
+  );
+
+  assert.equal(press("down", follow(fresh, withSkip), withSkip, size).selected, "0:3", "the skipped row in the middle is stepped over");
+});

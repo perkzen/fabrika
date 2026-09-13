@@ -1,6 +1,6 @@
 import { display, livenessRow, progressRow } from "./lines.ts";
 import { clearUp, HIDE_CURSOR, isInteractive, SHOW_CURSOR, sizeOf, styler, type Presenter } from "./surface.ts";
-import type { Tree } from "../domain/outline.ts";
+import type { Gate, Wait } from "../domain/outline.ts";
 import { gateOver, plain, scrub, stamp, type RunEvent } from "../domain/run-event.ts";
 
 export type ConsoleOptions = {
@@ -55,7 +55,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
    * step tree: the rows it draws are the screen's, and only those.
    */
   let progress: { at: number; of: number; name: string } | undefined;
-  let live: Pick<Tree, "wait" | "gate"> = {};
+  let live: { wait?: Wait; gate?: Gate } = {};
   let timer: ReturnType<typeof globalThis.setInterval> | undefined;
   let spin = 0;
 

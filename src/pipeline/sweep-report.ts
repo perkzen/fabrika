@@ -8,6 +8,7 @@
  */
 import type { PullRequestDetail } from "../ports/forge.ts";
 import { openedByFabrika } from "../domain/pull-request.ts";
+import type { SyncTarget } from "./sweep-selection.ts";
 
 export type SyncOutcome = {
   readonly pr: PullRequestDetail;
@@ -23,6 +24,24 @@ export type SyncOutcome = {
 const whose = (pr: PullRequestDetail) => (openedByFabrika(pr.body) ? "[fabrika]" : "[yours]");
 
 export const label = (pr: PullRequestDetail) => `#${pr.number} ${whose(pr)} ${pr.title}`;
+
+/**
+ * What a row is called on a screen: short, because every title is padded to
+ * the widest one and capped, and the number is what the operator goes back to
+ * GitHub with. The identifier joins it when the title carries one — a row
+ * reading `#42 pr-42` says the same thing twice.
+ */
+export const rowTitle = (pr: PullRequestDetail, target: SyncTarget) =>
+  target.identifier === `pr-${pr.number}` ? `#${pr.number}` : `#${pr.number} ${target.identifier}`;
+
+/**
+ * What a row says before anything has happened to it: whose pull request it is
+ * and what it is called, with the identifier the title already carries taken
+ * off the front — which the title has no room for — and, for one the
+ * sweep is about to touch, the line the dry run would have written.
+ */
+export const rowAbout = (pr: PullRequestDetail, target: SyncTarget, base: string, selected: boolean) =>
+  `${whose(pr)} ${target.title}${selected ? ` — would sync ${target.branch} into ${base}` : ""}`;
 
 /** An outcome as its console line: the parts that are set, in one dash-joined run. */
 export const reported = (outcome: SyncOutcome) =>
