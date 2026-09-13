@@ -11,7 +11,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 
 | Path | Role |
 | --- | --- |
-| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
+| `src/cli.ts` | `fabrika init` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
 | `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
@@ -19,7 +19,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
-| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
+| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
@@ -156,17 +156,22 @@ names the ones it wants in its `mcp` array. Remote servers must carry a static
 `Authorization` header, because OAuth-backed servers cannot re-authenticate
 unattended.
 
-The ticket body is inlined into the spec prompt for both sources, so the Linear
-server is optional even on Linear runs. It only lets the planner read comments
-and linked issues. To use it, register a read-only key once, user-scoped:
+A ticket is always a markdown file and its body is inlined into the spec
+prompt, so a run needs no Linear at all. The `linear-ro` server is how a run
+reaches Linear when it should: a stage that names it can read the issue, its
+comments and its linked issues, which is the part a file cannot carry. Register
+a read-only key once, user-scoped:
 
 ```bash
 claude mcp add -s user --transport http linear-ro https://mcp.linear.app/mcp \
-  --header "Authorization: Bearer $LINEAR_API_KEY"
+  --header "Authorization: Bearer <a Linear read-only API key>"
 ```
 
-A Linear run reads `LINEAR_API_KEY` from `~/.config/fabrika/.env`. Running from
-a file needs no Linear key at all.
+The key lives in Claude Code's own config from then on; fabrika never reads it,
+loads no `.env`, and so has no Linear secret to leak into a worktree or a
+capture. The default `spec` stage declares `mcp: ["linear-ro"]` — a repo whose
+config drops it gets no Linear tools in that stage, and the spec is written from
+the ticket file alone.
 
 ## Run state
 

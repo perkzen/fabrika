@@ -1,8 +1,10 @@
 import { Data } from "effect";
 
 /**
- * The one record every stage consumes. It can come from a Linear issue or a
- * local spec file; nothing downstream can tell which.
+ * The one record every stage consumes, read off the markdown file the run was
+ * given. Its `url` is the ticket's `linear:` frontmatter resolved to a link —
+ * the issue itself is the agent's to read, through the `linear-ro` MCP server
+ * a stage declares.
  */
 export type TicketType = "feat" | "fix" | "chore";
 
@@ -14,7 +16,6 @@ export type Ticket = {
   readonly type: TicketType;
 };
 
-export class TicketNotFound extends Data.TaggedError("TicketNotFound")<{ readonly identifier: string }> {}
 export class TicketSourceError extends Data.TaggedError("TicketSourceError")<{ readonly message: string }> {}
 
 const FILLER = new Set(["a", "an", "the", "for", "to", "new", "of", "and", "in", "on", "with", "implement", "add"]);

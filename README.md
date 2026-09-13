@@ -16,7 +16,7 @@ No API keys, no containers, no custom auth. Every stage is a headless
 
 ```mermaid
 flowchart LR
-    T["Ticket<br/>Linear issue or spec file"] --> S[spec]
+    T["Ticket<br/>markdown spec file"] --> S[spec]
     S --> P[plan]
     P --> I[implement]
     I --> A[refactor]
@@ -41,7 +41,7 @@ rough edges.
 - The [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI, logged in (`claude auth login`)
 - The [GitHub CLI](https://cli.github.com) (`gh`), authenticated against the target repo
 - Only for `review.provider: "cubic"`: the [cubic](https://cubic.dev) review bot installed on the target repo. A repo without one sets `"none"`, which `init` does on its own, and its runs are decided by CI alone
-- For Linear tickets: a Linear API key in `~/.config/fabrika/.env` as `LINEAR_API_KEY=...`
+- Only to let a stage read Linear: the `linear-ro` MCP server registered once with `claude mcp add` (see [docs/internals.md](docs/internals.md)). fabrika itself holds no Linear key
 
 ## Quick start
 
@@ -86,14 +86,10 @@ Read the gate, correct anything it guessed wrong, set the branch-name pattern
 (`{user}` in it is your `git config user.name`, kebab-cased), and commit the
 file. The gate for a repo belongs in that repo.
 
-Run a ticket from either source:
+Run a ticket:
 
 ```bash
-fabrika run PAR-123
-```
-
-```bash
-fabrika run --file spec.md
+fabrika run --file .fabrika/tickets/login-timeout.md
 ```
 
 The last log line of a clean run is the PR URL. If the run stops, rerun the
@@ -247,9 +243,11 @@ System Settings → Notifications.
 
 ## Tickets
 
-A ticket is a small record: an identifier, a title, a description. It can come
-from a Linear issue or from a local markdown file; the pipeline cannot tell the
-difference.
+A ticket is a small record — an identifier, a title, a description — and it is
+always a local markdown file. Linear reaches a run through the `linear-ro` MCP
+server a stage declares, not through a key fabrika holds: the agent reads the
+issue, its comments and its linked issues itself, and the `linear:` frontmatter
+below is what puts the identifier on the branch and the URL on the PR.
 
 A spec file is markdown with optional frontmatter:
 
@@ -298,7 +296,9 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
 - `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each PR capture, reused by every ticket cut from that commit
 - `~/.fabrika/notifier/Fabrika.app`: the bundle notifications are posted through, built on first use
-- `~/.config/fabrika/.env`: secrets, kept out of every repo
+
+fabrika stores no credentials of its own: `claude`, `gh` and each MCP server
+hold theirs.
 
 For source layout, exit codes, MCP and Linear setup, the smoke test and other
 operator notes, see [docs/internals.md](docs/internals.md).

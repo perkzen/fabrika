@@ -150,8 +150,8 @@ test("a base command that fails leaves nothing in the cache to become a permanen
 });
 
 test("a capture command is not handed this machine's secrets", async () => {
-  // `fabrika run` loads `~/.config/fabrika/.env` into its own environment for
-  // its own Linear and Claude calls, and the capture child inherits it.
+  // The capture child inherits the operator's whole shell, which is where a
+  // key named like one gets in — fabrika loads no `.env` of its own.
   process.env.LINEAR_API_KEY = "lin_api_secret";
   process.env.SOME_SERVICE_TOKEN = "tok_secret";
   process.env.HOME_BREW_PREFIX = "/opt/homebrew";

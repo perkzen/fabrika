@@ -127,7 +127,7 @@ const program = Effect.gen(function* () {
       }),
     );
   } else {
-    yield* Console.log("SKIP linear MCP — register `linear-ro` first: claude mcp add -s user … (README §Quick start)");
+    yield* Console.log("SKIP linear MCP — register `linear-ro` first: claude mcp add -s user … (docs/internals.md §MCP servers and Linear)");
   }
 
   yield* Console.log(`\nraw log: ${rawLog}`);

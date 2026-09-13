@@ -16,11 +16,12 @@ const CAPTURE_BYTES = 5 * 1024 * 1024;
 const ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /**
- * Variables whose *names* say they hold a credential. `fabrika run` loads
- * `~/.config/fabrika/.env` into its own environment for its own Linear and
- * Claude calls, and a child inherits all of it — but a capture is a command
- * that renders a surface and then has its output published on a pull request,
- * so it is the one child that must not be holding a key when it prints.
+ * Variables whose *names* say they hold a credential. fabrika loads no `.env`
+ * of its own any more — the MCP servers hold their own credentials — but a
+ * child still inherits the operator's whole shell, and a capture is the one
+ * command that renders a surface and then has its output published on a pull
+ * request, so it is the one child that must not be holding a key when it
+ * prints.
  */
 const SECRET = /KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|_AUTH|^AUTH/;
 
