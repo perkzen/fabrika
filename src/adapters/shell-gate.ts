@@ -1,7 +1,6 @@
 import { Effect, Layer } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { matchesGlob } from "node:path";
-import type { GateStep } from "../config.ts";
+import { matchesAny, type GateStep } from "../config.ts";
 import { asFabrikaError } from "../errors.ts";
 import { sh } from "../infra/shell.ts";
 import { Gate, type GateFailure } from "../ports/gate.ts";
@@ -38,7 +37,10 @@ export const layer = (steps: ReadonlyArray<GateStep>) =>
             // A skipped step still advances the count: the operator is being
             // told how far through the gate is, not how much of it ran.
             const gate = { kind: "gate", name: step.name, at: index + 1, of, command: step.run } as const;
-            if (step.when && !changed.some((file) => step.when!.some((glob) => matchesGlob(file, glob)))) {
+            // No empty-diff guard here, unlike a stage: a gate step runs
+            // inside a stage that has already produced a diff, so an empty
+            // list is a real answer. See ADR-0003.
+            if (step.when && !matchesAny(changed, step.when)) {
               yield* journal.log({ ...gate, state: "skipped" });
               continue;
             }
