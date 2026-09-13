@@ -24,15 +24,11 @@ export const codeStage = (stage: Stage): Step => ({
   once: true,
   skip: Effect.gen(function* () {
     const type = (yield* RunStore).get().type;
-    // `only` is asked first because it costs no port call, so a stage without
-    // `when` makes exactly the calls an old config's run makes today.
+    // Asked first because it costs no port call: an old config's run makes no new one.
     if (stage.only && type && !stage.only.includes(type)) return `${type} ticket; runs for ${stage.only.join(", ")}`;
     if (!stage.when) return undefined;
     const changed = yield* (yield* Workspace).changedFiles;
-    // A skip needs a diff that exists and misses: `spec` and `plan` are
-    // reached before any tracked file has changed, and a filter with no
-    // evidence must never remove work. The gate's matcher call has no such
-    // guard, deliberately — see ADR-0003.
+    // A skip needs changed files that exist and miss, because `spec` and `plan` are reached before any exist; see ADR-0003.
     return changed.length > 0 && !matchesAny(changed, stage.when)
       ? `no changed file matches ${stage.when.join(", ")}`
       : undefined;

@@ -37,9 +37,7 @@ export const layer = (steps: ReadonlyArray<GateStep>) =>
             // A skipped step still advances the count: the operator is being
             // told how far through the gate is, not how much of it ran.
             const gate = { kind: "gate", name: step.name, at: index + 1, of, command: step.run } as const;
-            // No empty-diff guard here, unlike a stage: a gate step runs
-            // inside a stage that has already produced a diff, so an empty
-            // list is a real answer. See ADR-0003.
+            // No empty-list guard here, unlike a stage: this step runs inside one that already changed files. See ADR-0003.
             if (step.when && !matchesAny(changed, step.when)) {
               yield* journal.log({ ...gate, state: "skipped" });
               continue;

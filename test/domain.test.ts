@@ -182,14 +182,7 @@ test("a rejected proposal writes the template untouched, so init always has a co
 
 test("a glob whose match cost explodes is dropped before it can ever be matched", () => {
   const base = { base: "origin/main", gate: [], provider: "none", notes: [] };
-  // Two ways to make one `matchesGlob` call cost half a minute, both measured
-  // on this repo. Braces expand eagerly, so `{a,b}` twenty times over is a
-  // million alternatives. Wildcards backtrack, so `*?` ten times over takes
-  // 64s against an ordinary 48-character filename — in twenty-five characters,
-  // all of them ones a path is spelled with. `matchesAny` pays whichever it is
-  // per file per glob, on the skip check of every run, and the work is
-  // synchronous, so nothing downstream can interrupt it. Neither may survive
-  // the proposal.
+  // One eager expansion and one backtracking blowup; `isPathGlob` explains what each costs.
   const braces = "{a,b}".repeat(20);
   const wildcards = "**/" + "*?".repeat(10) + "*z";
 
@@ -214,9 +207,7 @@ test("a glob whose match cost explodes is dropped before it can ever be matched"
   );
   assert.equal(asProposal({ ...base, source: Array(50).fill("src/**") })?.source.length, 20, "and the list is bounded");
 
-  // A gate step rejects a malformed `when` outright rather than dropping it,
-  // because a step whose filter was silently widened would run where the
-  // answer said it should not.
+  // Rejected outright rather than dropped: a silently widened filter would run the step.
   for (const bomb of [braces, wildcards, "x".repeat(201)]) {
     assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: [bomb] }] }), null, bomb);
   }
