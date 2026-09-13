@@ -1,6 +1,6 @@
-import { display } from "./lines.ts";
+import { display, livenessRow, progressRow, type Clock } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
-import { FRAMES, type Style } from "./console.ts";
+import type { Style } from "./console.ts";
 import type { Node, StepState, Tree } from "../outline.ts";
 import { elapsed, scrub, stamp } from "../run-event.ts";
 
@@ -22,12 +22,6 @@ export type View = {
 };
 
 export type Size = { readonly columns: number; readonly rows: number };
-
-/** `now` and `spin` are arguments rather than reads, so an elapsed time is a fact a test states. */
-export type Clock = { readonly now: number; readonly spin: number };
-
-/** The same bar the scrollback console's live region draws. */
-const BAR = 12;
 
 /** How a step's state reads at a glance. Already-done borrows done's tick and is dimmed instead. */
 const MARKERS: Record<StepState, string> = {
@@ -171,22 +165,17 @@ const windowRows = (
 };
 
 /**
- * What the run is blocked on, as the window's last row: an open wait's
- * spinner, elapsed time and deadline, or the gate step running now and the
- * command it is on. It is the live region's second line, moved to where the
- * work is.
+ * What the run is blocked on, as the window's last row — the live region's
+ * second line, moved to where the work is.
+ *
+ * The command is the window's own addition: a gate's `start` line is in the
+ * stream right above this row on a screen, where on scrollback it is already
+ * behind the operator.
  */
 const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined => {
-  // A gate is a synchronous shell run and a wait is not, so the two can never
-  // both be open; the row belongs to whichever one is.
-  if (tree.wait) {
-    const against = tree.wait.deadlineMinutes ? ` / ${tree.wait.deadlineMinutes}m` : "";
-    const spinner = FRAMES[clock.spin % FRAMES.length];
-    const elapsedSince = elapsed((clock.now - tree.wait.since) / 1000);
-    return [{ style: "dim", text: `${spinner} waiting for ${tree.wait.subject} — ${elapsedSince}${against}` }];
-  }
-  if (tree.gate) return [{ style: "dim", text: `gate ${tree.gate.at}/${tree.gate.of} ${tree.gate.name}: ${tree.gate.command}` }];
-  return undefined;
+  const row = livenessRow(tree, clock);
+  if (row === undefined) return undefined;
+  return [{ style: "dim", text: tree.gate ? `${row}: ${tree.gate.command}` : row }];
 };
 
 /**
@@ -236,14 +225,12 @@ export const rows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<
   // Nothing is selected in scrollback: the run is over and there is no view.
   (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
 
-/** The run's own line: what it is, how far through it is, and what it is doing. */
+/** The run's own line: what the operator calls it, and the progress row every surface draws. */
 const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> => {
-  const filled = Math.round((Math.max(root.at - 1, 0) / Math.max(root.of, 1)) * BAR);
-  const bar = "█".repeat(filled) + "░".repeat(BAR - filled);
   const running = root.children.find((child) => child.at === root.at);
   return [
     ...(label ? [{ text: `${label} ` }] : []),
-    { text: `[${bar}] ${root.at}/${root.of}${running ? ` ${running.name}` : ""}` },
+    { text: progressRow({ at: root.at, of: root.of, name: running?.name ?? "" }) },
   ];
 };
 

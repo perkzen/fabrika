@@ -1,4 +1,4 @@
-import type { RunEvent } from "./run-event.ts";
+import { gateOver, type RunEvent } from "./run-event.ts";
 
 /**
  * A run as its shape rather than its stream: a root per run, a node per step,
@@ -117,15 +117,11 @@ export const take = (tree: Tree, at: number, entry: RunEvent | string): Tree => 
         ...streamed(tree, { at, entry }),
         wait: entry.state === "start" ? { subject: entry.subject, since: at, deadlineMinutes: entry.deadlineMinutes } : undefined,
       };
-    case "gate": {
-      // Over when it fails or when its last step is behind it — the same rule
-      // the scrollback console's live region follows.
-      const over = entry.state === "fail" || (entry.at === entry.of && entry.state !== "start");
+    case "gate":
       return {
         ...streamed(tree, { at, entry }),
-        gate: over ? undefined : { name: entry.name, at: entry.at, of: entry.of, command: entry.command },
+        gate: gateOver(entry) ? undefined : { name: entry.name, at: entry.at, of: entry.of, command: entry.command },
       };
-    }
     default:
       return streamed(tree, { at, entry });
   }

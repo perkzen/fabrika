@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { display } from "../src/infra/lines.ts";
+import { display, livenessRow, progressRow } from "../src/infra/lines.ts";
 import type { Style } from "../src/infra/console.ts";
 import type { RunEvent } from "../src/run-event.ts";
 
@@ -43,4 +43,42 @@ test("a line is dressed by the colour of its kind", () => {
   const note = spy();
   display("wrote .fabrika/config.json", note.dress);
   assert.deepEqual(note.calls, [], "a bare string is an info note, and an info note is the terminal's own colour");
+});
+
+/** Local noon on a fixed day, so an elapsed time is a fact the test states. */
+const noon = new Date(2026, 0, 1, 12, 0, 0).getTime();
+
+test("the run's progress reads the same on both surfaces, and says nothing about a step that has not started", () => {
+  assert.equal(progressRow({ at: 2, of: 3, name: "implement" }), "[████░░░░░░░░] 2/3 implement");
+  assert.equal(
+    progressRow({ at: 0, of: 3, name: "" }),
+    "[░░░░░░░░░░░░] 0/3",
+    "the run has said what it is made of and started none of it",
+  );
+});
+
+test("what the run is blocked on is one row, and a gate and a wait can never both claim it", () => {
+  const wait = { subject: "cubic review of abc1234", since: noon, deadlineMinutes: 25 };
+  assert.equal(
+    livenessRow({ wait }, { now: noon + 252_000, spin: 0 }),
+    "⠋ waiting for cubic review of abc1234 — 4m 12s / 25m",
+  );
+  assert.equal(
+    livenessRow({ wait }, { now: noon + 252_000, spin: 1 })?.[0],
+    "⠙",
+    "the frame advances, which is what proves the run is alive",
+  );
+  assert.equal(
+    livenessRow({ wait: { subject: "the implement agent", since: noon } }, { now: noon + 9000, spin: 0 }),
+    "⠋ waiting for the implement agent — 9s",
+    "nothing is counted against when nothing was promised",
+  );
+
+  const gate = { name: "compile", at: 1, of: 2, command: "npm run compile" };
+  assert.equal(
+    livenessRow({ gate }, { now: noon, spin: 0 }),
+    "gate 1/2 compile",
+    "the command is the window's own addition, not this row's",
+  );
+  assert.equal(livenessRow({}, { now: noon, spin: 0 }), undefined, "nothing is blocking the run");
 });

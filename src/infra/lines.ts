@@ -1,6 +1,7 @@
 import { renderMarkdown, type Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
-import { plain, scrub, type RunEvent } from "../run-event.ts";
+import type { Tree } from "../outline.ts";
+import { elapsed, plain, scrub, type RunEvent } from "../run-event.ts";
 
 /** Marks the agent's own lines, so its speech is never mistaken for the run's. */
 const GUTTER = "│ ";
@@ -76,4 +77,47 @@ const styleOf = (event: RunEvent): Style | undefined => {
     default:
       return event satisfies never;
   }
+};
+
+/**
+ * The conventional braille cadence; one array literal is cheaper than a
+ * dependency. Private, so the two live surfaces spin alike by construction
+ * rather than by both reaching for the same constant.
+ */
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+/** How wide the run's progress bar is drawn, on either surface. */
+const BAR = 12;
+
+/** `now` and `spin` are arguments rather than reads, so an elapsed time is a fact a test states. */
+export type Clock = { readonly now: number; readonly spin: number };
+
+/**
+ * How far through the run is: the bar, the position, and the step it is on.
+ *
+ * The scrollback console's first live line and the screen's header are the
+ * same row — the console writes it at the bottom of scrollback and the screen
+ * writes it at the top of the viewport, and neither gets its own arithmetic.
+ */
+export const progressRow = (progress: { readonly at: number; readonly of: number; readonly name: string }): string => {
+  const filled = Math.round((Math.max(progress.at - 1, 0) / Math.max(progress.of, 1)) * BAR);
+  const bar = "█".repeat(filled) + "░".repeat(BAR - filled);
+  return `[${bar}] ${progress.at}/${progress.of}${progress.name ? ` ${progress.name}` : ""}`;
+};
+
+/**
+ * What the run is blocked on, or nothing when it is blocked on nothing: an
+ * open wait's spinner, elapsed time and deadline, or the gate step running now.
+ *
+ * A gate is a synchronous shell run and a wait is not, so the two can never
+ * both be open; the row belongs to whichever one is. The screen appends the
+ * gate's command, because a window is where the gate's own line is and the
+ * scrollback already has it above.
+ */
+export const livenessRow = (live: Pick<Tree, "wait" | "gate">, clock: Clock): string | undefined => {
+  if (live.wait) {
+    const against = live.wait.deadlineMinutes ? ` / ${live.wait.deadlineMinutes}m` : "";
+    return `${FRAMES[clock.spin % FRAMES.length]} waiting for ${live.wait.subject} — ${elapsed((clock.now - live.wait.since) / 1000)}${against}`;
+  }
+  if (live.gate) return `gate ${live.gate.at}/${live.gate.of} ${live.gate.name}`;
+  return undefined;
 };

@@ -52,6 +52,14 @@ export type RunEvent =
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
 
+/**
+ * Whether a gate event leaves the run with nothing to say it is on: the gate
+ * failed, or its last command is behind it. Every live surface asks this, so
+ * asking it in one place is what stops the two of them drifting apart.
+ */
+export const gateOver = (entry: Extract<RunEvent, { kind: "gate" }>): boolean =>
+  entry.state === "fail" || (entry.at === entry.of && entry.state !== "start");
+
 /** How long something took, read the way an operator says it: `12s`, `4m 12s`. */
 export const elapsed = (seconds: number): string => {
   const whole = Math.max(Math.floor(seconds), 0);

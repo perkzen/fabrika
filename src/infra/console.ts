@@ -1,6 +1,7 @@
 import { styleText } from "node:util";
-import { display } from "./lines.ts";
-import { elapsed, plain, scrub, stamp, type RunEvent } from "../run-event.ts";
+import { display, livenessRow, progressRow } from "./lines.ts";
+import type { Tree } from "../outline.ts";
+import { gateOver, plain, scrub, stamp, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
 export type Presenter = {
@@ -21,9 +22,6 @@ export type Style = Parameters<typeof styleText>[0];
 
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
-const BAR = 12;
-/** The conventional braille cadence; one array literal is cheaper than a dependency. Shared, so the two live surfaces spin alike. */
-export const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const FRAME_MS = 80;
 /** What the poll loops printed per poll. A pipe needs the proof of life; a file does not. */
 const HEARTBEAT_MS = 60_000;
@@ -55,11 +53,15 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let drawn = 0;
   let hidden = false;
   let ended = false;
+  /**
+   * The three scalars the live region needs, read straight off the events
+   * that carry them. This surface never shows the run's shape, so it holds no
+   * step tree: the rows it draws are the screen's, and only those.
+   */
   let progress: { at: number; of: number; name: string } | undefined;
-  let gate: { at: number; of: number; name: string } | undefined;
-  let wait: { subject: string; since: number; deadlineMinutes?: number } | undefined;
+  let live: Pick<Tree, "wait" | "gate"> = {};
   let timer: ReturnType<typeof globalThis.setInterval> | undefined;
-  let frame = 0;
+  let spin = 0;
 
   const dress = (style: Style | undefined, text: string) =>
     interactive && style ? styleText(style, text, { validateStream: false }) : text;
@@ -76,21 +78,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   const cut = (line: string) => scrub(line).slice(0, width() - 1);
 
   const liveLines = (): ReadonlyArray<string> => {
-    const lines: Array<string> = [];
-    if (progress) {
-      const filled = Math.round((Math.max(progress.at - 1, 0) / Math.max(progress.of, 1)) * BAR);
-      const bar = "█".repeat(filled) + "░".repeat(BAR - filled);
-      lines.push(`[${bar}] ${progress.at}/${progress.of} ${progress.name}`);
-    }
-    // A gate is a synchronous shell run and a wait is not, so the two can
-    // never both be open; the second line belongs to whichever one is.
-    if (wait) {
-      const against = wait.deadlineMinutes ? ` / ${wait.deadlineMinutes}m` : "";
-      lines.push(`${FRAMES[frame % FRAMES.length]} waiting for ${wait.subject} — ${elapsed((now() - wait.since) / 1000)}${against}`);
-    } else if (gate) {
-      lines.push(`gate ${gate.at}/${gate.of} ${gate.name}`);
-    }
-    return lines;
+    const blocked = livenessRow(live, { now: now(), spin });
+    // Either line can stand without the other: a wait can open before the
+    // first step, and most of a run is a progress line with nothing under it.
+    return [...(progress ? [progressRow(progress)] : []), ...(blocked === undefined ? [] : [blocked])];
   };
 
   const clearLive = () => {
@@ -110,23 +101,25 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     drawn = lines.length;
   };
 
-  /** What the live region shows next. A gate leaves it when it fails or when its last step is behind it. */
+  /** What the live region shows next. */
   const track = (event: RunEvent) => {
     if (event.kind === "run") progress = { at: 0, of: event.steps.length, name: "" };
     if (event.kind === "step") progress = { at: event.at, of: event.of, name: event.name };
     if (event.kind === "wait") {
       if (event.state === "start") {
-        wait = { subject: event.subject, since: now(), deadlineMinutes: event.deadlineMinutes };
-        frame = 0;
+        live = { ...live, wait: { subject: event.subject, since: now(), deadlineMinutes: event.deadlineMinutes } };
+        spin = 0;
         arm();
       } else {
-        wait = undefined;
+        live = { ...live, wait: undefined };
         disarm();
       }
     }
     if (event.kind === "gate") {
-      const over = event.state === "fail" || (event.at === event.of && event.state !== "start");
-      gate = over ? undefined : { at: event.at, of: event.of, name: event.name };
+      live = {
+        ...live,
+        gate: gateOver(event) ? undefined : { name: event.name, at: event.at, of: event.of, command: event.command },
+      };
     }
   };
 
@@ -141,7 +134,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     timer = globalThis.setInterval(
       interactive
         ? () => {
-            frame += 1;
+            spin += 1;
             clearLive();
             drawLive();
           }
@@ -149,7 +142,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
             // Through `plain()`, not a template literal that says the same
             // thing: the heartbeat is a repetition of the `start` line, and
             // the piped rendering of a wait gets to have one definition.
-            if (wait) for (const line of plain({ kind: "wait", state: "start", subject: wait.subject })) stream.write(`${stamp(now())} ${line}\n`);
+            if (live.wait) for (const line of plain({ kind: "wait", state: "start", subject: live.wait.subject })) stream.write(`${stamp(now())} ${line}\n`);
           },
       interactive ? FRAME_MS : HEARTBEAT_MS,
     );
