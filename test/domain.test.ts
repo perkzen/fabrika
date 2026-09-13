@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Effect } from "effect";
 import { classify } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
+import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
 import { asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -76,4 +78,22 @@ test("a check rollup is bucketed, and the reviewer's own check is not waited on"
 test("a missing score is never a pass", () => {
   assert.equal(parseScore("<!-- cubic:review-summary:confidence-score:4/5 -->"), 4);
   assert.equal(parseScore("no score here"), null);
+});
+
+test("both providers decode and a third does not, so a typo fails at the start of the run", async () => {
+  const withProvider = (provider: string) =>
+    JSON.stringify({ ...CONFIG_TEMPLATE, review: { ...CONFIG_TEMPLATE.review, provider } });
+
+  for (const provider of ["cubic", "none"]) {
+    const config = await Effect.runPromise(decodeConfig(withProvider(provider)));
+    assert.equal(config.review.provider, provider);
+  }
+  const error = await Effect.runPromise(decodeConfig(withProvider("cubik")).pipe(Effect.flip));
+  assert.match(String(error), /Expected "cubic" \| "none"/, "and says which field and which values");
+  assert.match(String(error), /\["review"\]\["provider"\]/);
+});
+
+test("the config init falls back to is runnable on a repo with no review bot", async () => {
+  const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
 });
