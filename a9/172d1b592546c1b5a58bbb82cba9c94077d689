@@ -1,0 +1,19 @@
+test/console.test.ts
+  s_f7bd20fddd438b::t_38e58fa54153ba 69-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a9172d1b592546c1b5a58bbb82cba9c94077d689",
+  "prompts": {},
+  "sessions": {
+    "s_f7bd20fddd438b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1cdde28-f99f-497a-a25e-bb83e1c647ce",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
