@@ -13,7 +13,7 @@ const bare = (_style: unknown, text: string) => text;
 const visible = (text: string) => text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
 
 const script = (label: string, ...events: ReadonlyArray<readonly [number, RunEvent | string]>): Tree => ({
-  ...outline(events.map(([seconds, entry]) => ({ at: noon + seconds * 1000, entry }))),
+  ...outline(events.map(([seconds, entry]) => ({ when: noon + seconds * 1000, entry }))),
   label,
 });
 

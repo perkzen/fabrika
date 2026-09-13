@@ -30,16 +30,15 @@ export type Summary = {
 };
 
 /** One event and when it arrived: a window stamps its lines the way scrollback does. */
-export type Entry = { readonly at: number; readonly entry: RunEvent | string };
+export type Entry = { readonly when: number; readonly entry: RunEvent | string };
 
 export type Node = {
   /** Unique and stable for the life of a run; the view's selection and fold are keyed by it. */
   readonly key: string;
   readonly name: string;
   /**
-   * The step's **position** in the run, not a timestamp — the same pair the
-   * `step` event carries. `Entry.at` in this file is a timestamp; these are
-   * not. On a root they are the run's own progress: the running step's
+   * The step's **position** in the run — the same pair the `step` event
+   * carries. On a root they are the run's own progress: the running step's
    * position, and how many steps there are.
    */
   readonly at: number;
@@ -86,8 +85,8 @@ const node = (key: string, name: string, at: number, of: number, state: StepStat
 export const empty: Tree = { roots: [] };
 
 /** One event folded in. Returns a new tree and mutates nothing the caller holds. */
-export const take = (tree: Tree, at: number, entry: RunEvent | string): Tree => {
-  if (typeof entry === "string") return streamed(tree, { at, entry });
+export const take = (tree: Tree, when: number, entry: RunEvent | string): Tree => {
+  if (typeof entry === "string") return streamed(tree, { when, entry });
   switch (entry.kind) {
     case "run": {
       const index = tree.roots.length;
@@ -114,23 +113,23 @@ export const take = (tree: Tree, at: number, entry: RunEvent | string): Tree => 
     // and the held copy is only what the liveness row reads.
     case "wait":
       return {
-        ...streamed(tree, { at, entry }),
-        wait: entry.state === "start" ? { subject: entry.subject, since: at, deadlineMinutes: entry.deadlineMinutes } : undefined,
+        ...streamed(tree, { when, entry }),
+        wait: entry.state === "start" ? { subject: entry.subject, since: when, deadlineMinutes: entry.deadlineMinutes } : undefined,
       };
     case "gate":
       return {
-        ...streamed(tree, { at, entry }),
+        ...streamed(tree, { when, entry }),
         gate: gateOver(entry) ? undefined : { name: entry.name, at: entry.at, of: entry.of, command: entry.command },
       };
     default:
-      return streamed(tree, { at, entry });
+      return streamed(tree, { when, entry });
   }
 };
 
 /** The whole stream folded at once, for a reader that has all of it already. */
 export const outline = (entries: Iterable<Entry>): Tree => {
   let tree = empty;
-  for (const { at, entry } of entries) tree = take(tree, at, entry);
+  for (const { when, entry } of entries) tree = take(tree, when, entry);
   return tree;
 };
 

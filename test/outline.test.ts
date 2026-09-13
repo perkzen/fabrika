@@ -8,7 +8,7 @@ const noon = new Date(2026, 0, 1, 12, 0, 0).getTime();
 
 /** A scripted run: seconds from noon, and the event that arrived then. */
 const script = (...events: ReadonlyArray<readonly [number, RunEvent | string]>) =>
-  outline(events.map(([seconds, entry]) => ({ at: noon + seconds * 1000, entry })));
+  outline(events.map(([seconds, entry]) => ({ when: noon + seconds * 1000, entry })));
 
 const RUN: RunEvent = {
   kind: "run",

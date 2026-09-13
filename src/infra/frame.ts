@@ -169,8 +169,8 @@ const windowRows = (
   const rendered: Array<string> = [];
   for (let index = step.stream.length - 1; index >= 0 && rendered.length < wanted; index -= 1) {
     const entry = step.stream[index]!;
-    const at = dress("dim", stamp(entry.at));
-    rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${at} ${line}`, width)));
+    const when = dress("dim", stamp(entry.when));
+    rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${when} ${line}`, width)));
   }
   const end = Math.max(rendered.length - view.scroll, 0);
   const shown = rendered.slice(Math.max(end - rows, 0), end);

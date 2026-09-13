@@ -8,7 +8,7 @@ import type { RunEvent } from "../src/run-event.ts";
 const noon = new Date(2026, 0, 1, 12, 0, 0).getTime();
 
 const script = (...events: ReadonlyArray<RunEvent>): Tree =>
-  outline(events.map((entry, index) => ({ at: noon + index * 1000, entry })));
+  outline(events.map((entry, index) => ({ when: noon + index * 1000, entry })));
 
 const RUN: RunEvent = {
   kind: "run",
