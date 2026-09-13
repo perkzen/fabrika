@@ -1,0 +1,24 @@
+.fabrika/config.json
+  s_7ec386f1f77ab4::t_21e8634ed8c994 78-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ef74fc987322bed239497624013d2404a99a88d7",
+  "prompts": {},
+  "humans": {
+    "h_873c0fdf329c71": {
+      "author": "perkzen <perko.domen@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7ec386f1f77ab4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb7e2fc3-eff9-437e-a52d-f7b27c5c43f2",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
