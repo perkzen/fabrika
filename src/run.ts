@@ -10,6 +10,7 @@ import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import type { Config } from "./config.ts";
+import { Captures } from "./ports/captures.ts";
 import type { Credential } from "./infra/claude.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -63,6 +64,8 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       config.review.provider === "cubic" ? cubicReviewer.layer.pipe(Layer.provide(foundation)) : noReviewer.layer;
     const ports = Layer.mergeAll(
       foundation,
+      // Scaffolding: the real adapter lands with the capture commands.
+      Layer.succeed(Captures)({ take: () => Effect.succeed([]) }),
       reviewer,
       ghForge.layer({ base: gitWorkspace.baseBranch(config.base) }).pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),

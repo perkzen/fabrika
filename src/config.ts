@@ -1,4 +1,5 @@
 import { Data, Effect, FileSystem, Path, Schema } from "effect";
+import { matchesGlob } from "node:path";
 
 export const Stage = Schema.Struct({
   name: Schema.String,
@@ -19,6 +20,25 @@ export const GateStep = Schema.Struct({
 });
 export type GateStep = typeof GateStep.Type;
 
+export const CaptureStep = Schema.Struct({
+  name: Schema.String,
+  run: Schema.String,
+  /** Glob patterns; the capture runs only when a changed file matches one. */
+  when: Schema.optional(Schema.Array(Schema.String)),
+  /** Killed and its half dropped after this long; `DEFAULT_CAPTURE_MINUTES` when absent. */
+  timeoutMinutes: Schema.optional(Schema.Number),
+});
+export type CaptureStep = typeof CaptureStep.Type;
+
+/**
+ * Whether a step with these globs applies to a branch that changed these
+ * files. No globs means every branch. Lives beside the `when` field it
+ * interprets, so the gate and the captures share one matcher rather than two
+ * that can drift.
+ */
+export const applies = (when: ReadonlyArray<string> | undefined, changed: ReadonlyArray<string>): boolean =>
+  !when || changed.some((file) => when.some((glob) => matchesGlob(file, glob)));
+
 export const Config = Schema.Struct({
   base: Schema.String,
   /** Branch pattern; `{user}` (`git config user.name`, kebab-cased), `{type}`, `{ticket}` and `{slug}` are filled per run. */
@@ -30,7 +50,11 @@ export const Config = Schema.Struct({
   stages: Schema.Array(Stage),
   /** Permission rules the Claude subprocess is denied; the runner does its own pushing, PR opening and merging. */
   deny: Schema.Array(Schema.String),
-  pr: Schema.Struct({ draft: Schema.Boolean, emptyCommit: Schema.Boolean }),
+  pr: Schema.Struct({
+    draft: Schema.Boolean,
+    emptyCommit: Schema.Boolean,
+    capture: Schema.optional(Schema.Array(CaptureStep)),
+  }),
   review: Schema.Struct({
     /** `"none"` is a repo with no review bot: its rounds turn on the checks alone. */
     provider: Schema.Literals(["cubic", "none"]),
@@ -86,7 +110,8 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "review", prompt: "review.md", system: "implement.system.md", gate: true },
   ],
   deny: ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr review:*)", "Bash(gh api graphql:*)"],
-  pr: { draft: true, emptyCommit: true },
+  // `capture` is present so `init` keeps the key in this position; `JSON.stringify` drops it.
+  pr: { draft: true, emptyCommit: true, capture: undefined },
   // What `init` writes when its configure call is rejected, and a fallback that escalates by construction is not a fallback.
   review: { provider: "none", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
   checks: { timeoutMinutes: 30 },
