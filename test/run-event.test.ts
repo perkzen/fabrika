@@ -70,3 +70,9 @@ test("a detail note keeps the two-space indent the sub-lines are written with to
     "  reran 2 failed run(s) once in case of flakes",
   ]);
 });
+
+test("elapsed reads in seconds below a minute and in minutes and seconds above it", () => {
+  assert.deepEqual(plain({ kind: "wait", state: "end", subject: "the agent", seconds: 12 }), ["waited 12s for the agent"]);
+  assert.deepEqual(plain({ kind: "wait", state: "end", subject: "the agent", seconds: 252 }), ["waited 4m 12s for the agent"]);
+  assert.deepEqual(plain({ kind: "wait", state: "end", subject: "the agent", seconds: 60 }), ["waited 1m 0s for the agent"]);
+});

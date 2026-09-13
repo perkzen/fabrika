@@ -31,8 +31,21 @@ export type RunEvent =
       readonly seconds?: number;
       readonly exitCode?: number;
     }
+  | {
+      readonly kind: "wait";
+      readonly state: "start" | "end";
+      readonly subject: string;
+      readonly deadlineMinutes?: number;
+      readonly seconds?: number;
+    }
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
+
+/** How long something took, read the way an operator says it: `12s`, `4m 12s`. */
+export const elapsed = (seconds: number): string => {
+  const whole = Math.max(Math.floor(seconds), 0);
+  return whole < 60 ? `${whole}s` : `${Math.floor(whole / 60)}m ${whole % 60}s`;
+};
 
 /**
  * A run event as ANSI-free, unstamped text lines — one element per physical
@@ -70,6 +83,12 @@ export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
         case "skipped":
           return [`gate ${entry.name}: skipped (no matching changes)`];
       }
+    // The start line is what the poll loops wrote once a poll; the end line
+    // is new, and is strictly more than the repetition it replaces.
+    case "wait":
+      return entry.state === "start"
+        ? [`waiting for ${entry.subject}`]
+        : [`waited ${elapsed(entry.seconds ?? 0)} for ${entry.subject}`];
     case "note":
       return (entry.level === "detail" ? `  ${entry.text}` : entry.text).split("\n");
     // Already written out by whoever decided the run was over: the wording of

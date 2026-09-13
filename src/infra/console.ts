@@ -1,5 +1,5 @@
 import { styleText } from "node:util";
-import { plain, type RunEvent } from "../run-event.ts";
+import { elapsed, plain, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
 export type Presenter = {
@@ -18,6 +18,11 @@ type Style = Parameters<typeof styleText>[0];
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const BAR = 12;
+/** The conventional braille cadence; one array literal is cheaper than a dependency. */
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+const FRAME_MS = 80;
+/** What the poll loops printed per poll. A pipe needs the proof of life; a file does not. */
+const HEARTBEAT_MS = 60_000;
 
 const stamp = (at: number) => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
 
@@ -40,6 +45,7 @@ const styleOf = (event: RunEvent): Style | undefined => {
     case "result":
       return event.outcome === "done" ? ["bold", "green"] : ["bold", "red"];
     case "run":
+    case "wait":
       return undefined;
   }
 };
@@ -64,6 +70,9 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let ended = false;
   let progress: { at: number; of: number; name: string } | undefined;
   let gate: { at: number; of: number; name: string } | undefined;
+  let wait: { subject: string; since: number; deadlineMinutes?: number } | undefined;
+  let timer: ReturnType<typeof globalThis.setInterval> | undefined;
+  let frame = 0;
 
   const dress = (style: Style | undefined, text: string) =>
     interactive && style ? styleText(style, text, { validateStream: false }) : text;
@@ -85,7 +94,14 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
       const bar = "█".repeat(filled) + "░".repeat(BAR - filled);
       lines.push(`[${bar}] ${progress.at}/${progress.of} ${progress.name}`);
     }
-    if (gate) lines.push(`gate ${gate.at}/${gate.of} ${gate.name}`);
+    // A gate is a synchronous shell run and a wait is not, so the two can
+    // never both be open; the second line belongs to whichever one is.
+    if (wait) {
+      const against = wait.deadlineMinutes ? ` / ${wait.deadlineMinutes}m` : "";
+      lines.push(`${FRAMES[frame % FRAMES.length]} waiting for ${wait.subject} — ${elapsed((now() - wait.since) / 1000)}${against}`);
+    } else if (gate) {
+      lines.push(`gate ${gate.at}/${gate.of} ${gate.name}`);
+    }
     return lines;
   };
 
@@ -110,10 +126,49 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   const track = (event: RunEvent) => {
     if (event.kind === "run") progress = { at: 0, of: event.steps.length, name: "" };
     if (event.kind === "step") progress = { at: event.at, of: event.of, name: event.name };
+    if (event.kind === "wait") {
+      if (event.state === "start") {
+        wait = { subject: event.subject, since: now(), deadlineMinutes: event.deadlineMinutes };
+        frame = 0;
+        arm();
+      } else {
+        wait = undefined;
+        disarm();
+      }
+    }
     if (event.kind === "gate") {
       const over = event.state === "fail" || (event.at === event.of && event.state !== "start");
       gate = over ? undefined : { at: event.at, of: event.of, name: event.name };
     }
+  };
+
+  /**
+   * The animation tick belongs here and to nothing that emits, which is what
+   * keeps `write` synchronous and a wait two events rather than a stream.
+   * A live timer holds the event loop open, so it is armed only while a wait
+   * is, and `unref` is the belt to `disarm`'s braces.
+   */
+  const arm = () => {
+    disarm();
+    timer = globalThis.setInterval(
+      interactive
+        ? () => {
+            frame += 1;
+            clearLive();
+            drawLive();
+          }
+        : () => {
+            if (wait) stream.write(`${stamp(now())} waiting for ${wait.subject}\n`);
+          },
+      interactive ? FRAME_MS : HEARTBEAT_MS,
+    );
+    timer.unref?.();
+  };
+
+  const disarm = () => {
+    if (timer === undefined) return;
+    globalThis.clearInterval(timer);
+    timer = undefined;
   };
 
   const show = (entry: RunEvent | string) => {
@@ -125,6 +180,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
       .join("");
     if (!interactive) {
       stream.write(block);
+      if (typeof entry !== "string") track(entry);
       return;
     }
     clearLive();
@@ -136,6 +192,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   const end = () => {
     if (ended) return;
     ended = true;
+    disarm();
     if (!interactive) return;
     clearLive();
     if (hidden) {

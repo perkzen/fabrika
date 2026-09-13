@@ -148,3 +148,78 @@ test("gate progress joins the live region and leaves it when the gate is over", 
   presenter.show({ kind: "gate", name: "lint", at: 2, of: 2, command: "eslint", state: "pass", seconds: 1 });
   assert.equal(visible(out.chunks.at(-1)!).split("\n").length, 2, "the last step passed, so the gate line is gone");
 });
+
+/** A clock the test winds by hand, so every elapsed time is a fact rather than a race. */
+const clock = (from = noon()) => {
+  let at = from;
+  return { now: () => at, advance: (seconds: number) => void (at += seconds * 1000) };
+};
+
+test("an open wait animates in the live region and counts against its deadline", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = sink({ isTTY: true, columns: 120 });
+  const time = clock();
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: time.now });
+
+  presenter.show({ kind: "wait", state: "start", subject: "cubic-dev-ai review of abc1234", deadlineMinutes: 25 });
+  time.advance(252);
+  t.mock.timers.tick(80);
+  const first = visible(out.chunks.at(-1)!);
+  assert.ok(first.includes("waiting for cubic-dev-ai review of abc1234 — 4m 12s / 25m"), first);
+
+  t.mock.timers.tick(80);
+  const second = visible(out.chunks.at(-1)!);
+  assert.notEqual(second[0], first[0], "the frame advances, which is what proves the run is alive");
+
+  presenter.end();
+});
+
+test("a piped wait heartbeats once a minute and says how long it waited", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = sink();
+  const time = clock();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: time.now });
+
+  presenter.show({ kind: "wait", state: "start", subject: "checks on abc1234", deadlineMinutes: 20 });
+  t.mock.timers.tick(60_000);
+  t.mock.timers.tick(60_000);
+  time.advance(252);
+  presenter.show({ kind: "wait", state: "end", subject: "checks on abc1234", seconds: 252 });
+  presenter.end();
+
+  assert.deepEqual(
+    out.text().trimEnd().split("\n"),
+    [
+      "12:00:00 waiting for checks on abc1234",
+      "12:00:00 waiting for checks on abc1234",
+      "12:00:00 waiting for checks on abc1234",
+      "12:04:12 waited 4m 12s for checks on abc1234",
+    ],
+    "the start line is byte-identical to the one the poll loop wrote per poll",
+  );
+});
+
+test("end() leaves no timer armed, so a clean run can exit", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
+  presenter.show({ kind: "wait", state: "start", subject: "implement agent" });
+  presenter.end();
+
+  const settled = out.text().length;
+  t.mock.timers.tick(600_000);
+  assert.equal(out.text().length, settled, "a leaked interval holds the event loop open forever");
+});
+
+test("a closed wait takes the live region's second line with it", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = sink({ isTTY: true, columns: 120 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "step", name: "implement", at: 1, of: 1, state: "start" });
+  presenter.show({ kind: "wait", state: "start", subject: "implement agent" });
+  assert.equal(visible(out.chunks.at(-1)!).split("\n").length, 3, "run progress and the wait");
+
+  presenter.show({ kind: "wait", state: "end", subject: "implement agent", seconds: 9 });
+  assert.equal(visible(out.chunks.at(-1)!).split("\n").length, 2, "run progress alone");
+  presenter.end();
+});
