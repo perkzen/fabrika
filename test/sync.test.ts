@@ -27,3 +27,17 @@ test("a caller that names none still lands in the round's own session", async ()
     "the default is the old key, so both existing callers behave exactly as they did",
   );
 });
+
+/** The other place one session holds two calls; the same rule (ADR-0005). */
+test("neither call of a base merge names a model", async () => {
+  const { recording } = await exercise(syncWithBase(), {
+    merge: [conflicted],
+    gate: [{ name: "compile", command: "tsc", output: "boom" }, undefined],
+  });
+  assert.deepEqual(
+    recording.agent.map((call) => call.stage),
+    ["merge", "merge-gate"],
+    "the resolve and the repair after it",
+  );
+  assert.deepEqual(recording.agent.map((call) => call.model), [undefined, undefined]);
+});
