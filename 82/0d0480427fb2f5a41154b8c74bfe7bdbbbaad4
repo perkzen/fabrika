@@ -1,0 +1,34 @@
+test/run-event.test.ts
+  s_3389f098a81506::t_618d365c2ffc3a 79-84
+src/cli.ts
+  s_3389f098a81506::t_33db67736fa08c 17,39-41
+src/configure.ts
+  s_3389f098a81506::t_33db67736fa08c 5
+  s_3389f098a81506::t_9c5ca90e9a6a49 102,114-115
+src/infra/transcript.ts
+  s_3389f098a81506::t_9c5aa9d7a8045f 2,58-93
+src/adapters/claude-agent.ts
+  s_3389f098a81506::t_9c5ca90e9a6a49 62-66,77-88,94
+test/transcript.test.ts
+  s_3389f098a81506::t_618d365c2ffc3a 3,46-76
+src/run-event.ts
+  s_3389f098a81506::t_9c5aa9d7a8045f 42-43,100-103
+src/infra/claude.ts
+  s_3389f098a81506::t_ac66e46a4e2764 24-25,60-62,75,154,196,214,219,248-252,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "820d0480427fb2f5a41154b8c74bfe7bdbbbaad4",
+  "prompts": {},
+  "sessions": {
+    "s_3389f098a81506": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e10089f-53c0-4087-9a50-bf8d21394ca6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
