@@ -87,9 +87,7 @@ export const CONFIG_TEMPLATE: Config = {
   ],
   deny: ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr review:*)", "Bash(gh api graphql:*)"],
   pr: { draft: true, emptyCommit: true },
-  // `"none"` runs on any repo, where `"cubic"` runs only on one that has the
-  // bot; this is also what `init` writes when its configure call is rejected,
-  // and a fallback that escalates by construction is not a fallback.
+  // What `init` writes when its configure call is rejected, and a fallback that escalates by construction is not a fallback.
   review: { provider: "none", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
   checks: { timeoutMinutes: 30 },
   maxIterations: 4,
