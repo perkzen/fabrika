@@ -1,0 +1,19 @@
+docs/adr/0002-no-review-bot-is-an-adapter-not-a-hole-in-the-port.md
+  s_43a3050b85d271::t_b3455b26ef00c7 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1d68a76c170065309e81f62086a7453b2665c834",
+  "prompts": {},
+  "sessions": {
+    "s_43a3050b85d271": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03156f87-4369-45d9-9bc2-a79f470f1d18",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
