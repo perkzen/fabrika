@@ -1,0 +1,21 @@
+src/pipeline/steps/review.ts
+  s_275e3a26e070ce::t_e100fa9630bc0c 88-93,111-114
+test/review.test.ts
+  s_275e3a26e070ce::t_4b29938f69c77e 115-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e569478a4ae5b3c2dbeff070263d846c73b8f069",
+  "prompts": {},
+  "sessions": {
+    "s_275e3a26e070ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bef34747-bedc-4cca-a6ca-9a0f2283cbb8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
