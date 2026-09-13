@@ -74,9 +74,7 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   const footer = size.rows >= FOOTER_AT;
   const spare = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
   const open = root.children.find((child) => child.key === view.opened);
-  // The window shrinks before the outline does, and is not drawn at all when
-  // it cannot have its floor: under five rows the outline is the thing needed.
-  const height = open && spare >= WINDOW + 1 ? Math.max(WINDOW, spare - root.children.length) : 0;
+  const height = windowHeight(tree, view, size);
   // The spinner belongs to the step the run is inside; an unfolded finished
   // step is being read, not watched.
   const live = open?.state === "running" ? liveness(tree, clock) : undefined;
@@ -96,6 +94,22 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
     ...[...body, ...blank(spare)].slice(0, spare),
     ...(footer ? [row([{ style: "dim", text: KEYS }], width, dress)] : []),
   ];
+};
+
+/**
+ * How many rows the open step's window gets — and so how far a page key
+ * scrolls it.
+ *
+ * The window shrinks before the outline does, and is not drawn at all when it
+ * cannot have its floor: with a header, an outline of at least one row and a
+ * window of at least three, a terminal under five rows cannot have all three,
+ * and the outline is the one always needed.
+ */
+export const windowHeight = (tree: Tree, view: View, size: Size): number => {
+  const steps = tree.roots.at(-1)?.children ?? [];
+  if (!steps.some((step) => step.key === view.opened)) return 0;
+  const spare = Math.max(size.rows - 1 - (size.rows >= FOOTER_AT ? 1 : 0), 0);
+  return spare >= WINDOW + 1 ? Math.max(WINDOW, spare - steps.length) : 0;
 };
 
 const blank = (rows: number): ReadonlyArray<string> => Array<string>(Math.max(rows, 0)).fill("");
