@@ -36,7 +36,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
-| `src/infra/editor.ts` | `editorCommand()` — `FABRIKA_EDITOR` and the platform into the argv that opens a directory, or nothing where there is no default worth guessing — and the opener the screen's `o` calls |
+| `src/infra/editor.ts` | `editorOpener()` — `FABRIKA_EDITOR` and the platform into the opener the screen's `o` calls, already bound to the worktree, or nothing where there is no default worth guessing |
 | `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
 | `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |

@@ -12,7 +12,7 @@ import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
 import { isInteractive, openConsole } from "./infra/console.ts";
-import { editorCommand, openEditor } from "./infra/editor.ts";
+import { editorOpener } from "./infra/editor.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
 import { notifierApp } from "./infra/notifier-app.ts";
 import { openNotifier } from "./infra/notifier.ts";
@@ -50,10 +50,6 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     // a machine that sleeps or a notification that never arrives is a
     // nuisance, not a wrong result.
     const darwin = process.platform === "darwin";
-    // Read once, and here: `cli.ts` has already loaded `~/.config/fabrika/.env`
-    // by now, and passing an opener only when there is a command is what keeps
-    // the key and the row that names it from ever disagreeing.
-    const editor = editorCommand(process.env, process.platform);
     // Built before the journal exists, because the journal is one of the
     // surfaces it is built for; what it has to say is held and logged below.
     const app = config.notify && darwin ? yield* notifierApp : undefined;
@@ -73,7 +69,11 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
                 ticket: ticket.identifier,
                 worktree: dir,
                 input: process.stdin,
-                open: editor ? () => openEditor(editor, dir) : undefined,
+                // Nothing when this machine has no editor, which is also how
+                // the keys row knows not to name a key that cannot do
+                // anything. `cli.ts` has already loaded
+                // `~/.config/fabrika/.env`, so `FABRIKA_EDITOR` is here.
+                open: editorOpener(dir, process.env, process.platform),
               })
           : // Named rather than left to the default, so a piped run says where
             // its worktree is too.
