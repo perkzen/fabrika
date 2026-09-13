@@ -97,6 +97,10 @@ export const take = (tree: Tree, _at: number, entry: RunEvent | string): Tree =>
     }
     case "step":
       return entry.state === "start" ? started(tree, entry.at) : tree;
+    // Held rather than streamed: the line the piped contract ends on is the
+    // one the exit scrollback has to write last, after the whole outline.
+    case "result":
+      return { ...tree, result: entry };
     default:
       return tree;
   }

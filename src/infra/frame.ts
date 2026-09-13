@@ -61,6 +61,16 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, _clock:
   return [...lines.slice(0, size.rows), ...Array<string>(Math.max(size.rows - lines.length, 0)).fill("")];
 };
 
+/**
+ * The outline alone, one dressed row per step and nothing else.
+ *
+ * What a screen writes to plain scrollback as it leaves: the run summarised,
+ * with no header and no footer, because those are devices of a live viewport
+ * and this is a line an operator scrolls back to an hour later.
+ */
+export const rows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
+  (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step), Math.max(columns - 1, 0), dress));
+
 /** The run's own line: what it is, how far through it is, and what it is doing. */
 const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> => {
   const filled = Math.round((Math.max(root.at - 1, 0) / Math.max(root.of, 1)) * BAR);
