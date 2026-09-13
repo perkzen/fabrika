@@ -82,6 +82,10 @@ export const openScreen = (options: ScreenOptions): Presenter => {
    * cursor and takes its own SIGINT handler off, all of which belong to the
    * primary buffer it is leaving behind.
    */
+  // The size is read per draw, so a resize needs no handler for the size
+  // itself — only for the redraw that has to happen before the next event.
+  const onResize = () => void (dirty = true);
+
   const onKey = (chunk: string) => {
     for (const key of decode(String(chunk))) {
       // Not `press`'s business: raw mode stops the terminal raising SIGINT, so
@@ -104,6 +108,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
       keyboard.on("data", onKey);
     }
     process.on("SIGINT", end);
+    stream.on("resize", onResize);
     // A frame is a whole viewport, so it is drawn only when there is something
     // to see: the model changed, or a wait is open and its spinner is the
     // proof the run is alive.
@@ -146,6 +151,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
       keyboard.unref?.();
     }
     process.off("SIGINT", end);
+    stream.off("resize", onResize);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
     for (const line of rows(tree, size().columns, dress)) stream.write(line + "\n");
     if (tree.result) stream.write(dress(["bold", tree.result.outcome === "done" ? "green" : "red"], tree.result.text) + "\n");

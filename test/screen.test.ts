@@ -15,7 +15,18 @@ const terminal = (options: { columns?: number; rows?: number } = {}) => {
     columns: options.columns ?? 80,
     rows: options.rows ?? 24,
   });
-  return { stream: stream as unknown as NodeJS.WriteStream, chunks, text: () => chunks.join("") };
+  return {
+    stream: stream as unknown as NodeJS.WriteStream,
+    /** Mutable and announced, the way a terminal resizes. */
+    resize: (columns: number, rows: number) => {
+      stream.columns = columns;
+      stream.rows = rows;
+      stream.emit("resize");
+    },
+    fail: () => stream.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" })),
+    chunks,
+    text: () => chunks.join(""),
+  };
 };
 
 /** A keyboard the same way one stream over: raw mode is recorded rather than taken. */
@@ -208,4 +219,50 @@ test("a TTY stdout with a piped stdin gets the screen and no keys", () => {
   assert.match(out.text(), /\x1b\[\?1049h/, "the interactivity verdict is about the output surface");
   assert.equal(piped.listenerCount("data"), 0, "and a run nobody can touch already has to end the same way");
   presenter.end();
+});
+
+test("a resize redraws at the new size, with no leftovers from the old one", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = terminal({ columns: 60, rows: 10 });
+  const presenter = open(out);
+
+  presenter.show(RUN);
+  t.mock.timers.tick(80);
+  assert.equal(out.chunks.at(-1)!.split("\n").length, 10, "one line per row, which is what the cursor arithmetic counts on");
+
+  out.resize(40, 14);
+  t.mock.timers.tick(80);
+  assert.equal(out.chunks.at(-1)!.split("\n").length, 14, "the next frame is right at the new size");
+  presenter.end();
+});
+
+test("a dead pipe does not kill the run, and end() gives the terminal and the signal back", () => {
+  const before = process.listenerCount("SIGINT");
+  const out = terminal();
+  const presenter = open(out);
+
+  presenter.show(RUN);
+  assert.equal(process.listenerCount("SIGINT"), before + 1, "the inner console's handler was taken off as the screen took its own");
+
+  out.fail();
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  presenter.end();
+
+  assert.equal(process.listenerCount("SIGINT"), before, "and it takes itself off again");
+  assert.match(out.text(), /\x1b\[\?25h/, "the cursor is restored on every exit path");
+});
+
+test("show after end is a no-op, so a late event cannot write over restored scrollback", () => {
+  const out = terminal();
+  const presenter = open(out);
+
+  presenter.show(RUN);
+  presenter.end();
+  const settled = out.text();
+
+  // `journal.log` inside the step driver's onExit runs during interruption,
+  // after the synchronous SIGINT handler has already ended the screen.
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 9, outcome: "failed" });
+  presenter.end();
+  assert.equal(out.text(), settled);
 });
