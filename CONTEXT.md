@@ -13,8 +13,8 @@ of the domain.
 
 **Stage**:
 One entry in the committed config's `stages` — a prompt, the role it runs
-under, the servers it may reach, whether the gate follows it, and which ticket
-types it runs for. It is one conversation by construction.
+under, the model it runs on, the servers it may reach, whether the gate follows
+it, and which ticket types it runs for. It is one conversation by construction.
 _Avoid_: step — a step is the pipeline's unit of work, of which a configured
 stage is one kind; phase.
 
