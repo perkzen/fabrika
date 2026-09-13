@@ -17,12 +17,7 @@ const image = (name: string, content: string): CaptureFile => ({ name, kind: "im
 const text = (name: string, content: string): CaptureFile => ({ name, kind: "text", content });
 const link = (name: string, content: string): CaptureFile => ({ name, kind: "link", content });
 
-const shot = (capture: string, before: Shot["before"], after: Shot["after"]): Shot => ({
-  capture,
-  before,
-  after,
-  cached: false,
-});
+const shot = (capture: string, before: Shot["before"], after: Shot["after"]): Shot => ({ capture, before, after });
 
 const HEAD = "## Before / After\n\nCaptured by the host from `pr.capture`, at the base and on this branch.\n\n";
 

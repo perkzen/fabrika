@@ -18,8 +18,6 @@ export type Shot = {
   readonly capture: string;
   readonly before: ReadonlyArray<CaptureFile> | undefined;
   readonly after: ReadonlyArray<CaptureFile> | undefined;
-  /** Whether the base half came from the cache; for the journal only. */
-  readonly cached: boolean;
 };
 
 export type BeforeAfterOptions = {

@@ -14,7 +14,6 @@ const framed: Shot = {
   capture: "console",
   before: [{ name: "frame.png", kind: "image", content: BEFORE }],
   after: [{ name: "frame.png", kind: "image", content: AFTER }],
-  cached: false,
 };
 
 /** Every `(…)` target in the body that is an absolute path on this machine. */
@@ -68,7 +67,6 @@ const texted: Shot = {
   capture: "console",
   before: [{ name: "out.txt", kind: "text", content: "old" }],
   after: [{ name: "out.txt", kind: "text", content: "new" }],
-  cached: false,
 };
 
 const withCapture = { config: { pr: { draft: true, emptyCommit: true, capture: [console_] } } };

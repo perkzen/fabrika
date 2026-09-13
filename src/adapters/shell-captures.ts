@@ -191,7 +191,7 @@ export const layer = (options: CapturesOptions) =>
             // and it has to follow the commits.
             const after = (yield* command(capture, workspace.dir, into)) ? yield* filesIn(into) : undefined;
             if (!after || after.length === 0) yield* journal.log(`capture ${capture.name}: no output; no section`);
-            shots.push({ capture: capture.name, before, after, cached: hit && misses.every((miss) => miss.name !== capture.name) });
+            shots.push({ capture: capture.name, before, after });
           }
           return shots as ReadonlyArray<Shot>;
         }).pipe(Effect.orElseSucceed(() => [] as ReadonlyArray<Shot>));
