@@ -6,7 +6,7 @@ export const Stage = Schema.Struct({
   prompt: Schema.String,
   system: Schema.optional(Schema.String),
   /** Which model this stage's calls run on; the top-level `model` when absent, and the CLI's own default when that is absent too. */
-  model: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
   mcp: Schema.optional(Schema.Array(Schema.String)),
   gate: Schema.optional(Schema.Boolean),
   /** Ticket types this stage runs for, as the naming call decided; every type when absent. */
@@ -61,7 +61,7 @@ export const Config = Schema.Struct({
    * the CLI's own default when absent. The auth probe (`cli.ts`) is a fixed
    * three-token call made outside the pipeline and takes neither.
    */
-  model: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
   stages: Schema.Array(Stage),
   /** Permission rules the Claude subprocess is denied; the runner does its own pushing, PR opening and merging. */
   deny: Schema.Array(Schema.String),

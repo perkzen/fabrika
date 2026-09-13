@@ -110,7 +110,7 @@ test("keepAwake is optional, so every config written before it still loads", asy
   assert.match(String(error), /\["keepAwake"\]/, "a string fails at the start of the run, not hours in");
 });
 
-test("model is optional at both levels and any string passes", async () => {
+test("model is optional at both levels and any non-empty string passes", async () => {
   const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(without.model, undefined, "a repo that never mentions models reads as one");
   assert.deepEqual(without.stages.map((stage) => stage.model), without.stages.map(() => undefined));
@@ -131,6 +131,21 @@ test("model is optional at both levels and any string passes", async () => {
     decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, stages: [{ name: "spec", prompt: "spec.md", model: 5 }] })).pipe(Effect.flip),
   );
   assert.match(String(staged), /\["stages"\]\[0\]\["model"\]/, "and says which stage, not just which field");
+});
+
+test("a blank model is refused at both levels, rather than quietly voiding the default", async () => {
+  const top = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, model: "" })).pipe(Effect.flip));
+  assert.match(String(top), /\["model"\]/);
+
+  // The one that bites: `??` keeps an empty string, so a blank stage model
+  // beats the top-level one and then passes no `--model` and writes no
+  // `[model]` note — the CLI's default, silently, with the config saying opus.
+  const staged = await Effect.runPromise(
+    decodeConfig(
+      JSON.stringify({ ...CONFIG_TEMPLATE, model: "opus", stages: [{ name: "spec", prompt: "spec.md", model: "" }] }),
+    ).pipe(Effect.flip),
+  );
+  assert.match(String(staged), /\["stages"\]\[0\]\["model"\]/, "and says which stage, so the typo is findable");
 });
 
 test("notify is optional on the same terms", async () => {
