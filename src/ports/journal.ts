@@ -34,8 +34,13 @@ export const waitFor =
       const started = Date.now();
       return journal.log({ kind: "wait", state: "start", subject, deadlineMinutes }).pipe(
         Effect.andThen(effect),
+        // Suspended, because `ensuring` builds its argument up front: reading
+        // the clock in the literal would time nothing at all and every wait
+        // would end `waited 0s`.
         Effect.ensuring(
-          journal.log({ kind: "wait", state: "end", subject, seconds: (Date.now() - started) / 1000 }),
+          Effect.suspend(() =>
+            journal.log({ kind: "wait", state: "end", subject, seconds: (Date.now() - started) / 1000 }),
+          ),
         ),
       );
     });

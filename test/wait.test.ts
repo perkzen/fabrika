@@ -33,6 +33,16 @@ test("a wait opens with its subject and deadline and closes with how long it too
   assert.deepEqual(world.recording.log, ["waiting for checks on abc1234", "waited 0s for checks on abc1234"]);
 });
 
+test("the closing event says how long the effect took, not how long building it took", async () => {
+  const world = harness();
+  const journal = journalOf(world);
+  await Effect.runPromise(Effect.sleep("100 millis").pipe(waitFor(journal, "implement agent")));
+
+  const [, end] = waits(world.recording.events);
+  assert.ok((end?.seconds ?? 0) >= 0.09, `a wait that reports 0s proves nothing is alive (${end?.seconds})`);
+  assert.deepEqual(world.recording.log[1], `waited ${Math.floor(end?.seconds ?? 0)}s for implement agent`);
+});
+
 test("a wait closes even when what it was waiting on fails", async () => {
   const world = harness();
   const journal = journalOf(world);
@@ -47,13 +57,12 @@ test("a wait closes even when what it was waiting on fails", async () => {
 test("each run of the same effect is timed on its own, not from where it was built", async () => {
   const world = harness();
   const journal = journalOf(world);
-  const once = Effect.sleep("30 millis").pipe(waitFor(journal, "implement agent"));
-  await Effect.runPromise(Effect.sleep("50 millis").pipe(Effect.andThen(once)));
+  // The gap dwarfs the work, so a wait timed from construction cannot pass.
+  const once = Effect.sleep("5 millis").pipe(waitFor(journal, "implement agent"));
+  await Effect.runPromise(Effect.sleep("100 millis").pipe(Effect.andThen(once)));
   await Effect.runPromise(once);
 
   const [, first, , second] = waits(world.recording.events);
-  assert.ok(
-    (second?.seconds ?? 0) <= (first?.seconds ?? 0) + 0.02,
-    `the second run timed itself, not the gap since construction (${first?.seconds} then ${second?.seconds})`,
-  );
+  assert.ok((first?.seconds ?? 0) < 0.05, `the first run timed itself (${first?.seconds})`);
+  assert.ok((second?.seconds ?? 0) < 0.05, `and so did the second (${second?.seconds})`);
 });
