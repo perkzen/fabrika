@@ -24,7 +24,7 @@ export const codeStage = (stage: Stage): Step => ({
   once: true,
   skip: Effect.gen(function* () {
     const type = (yield* RunStore).get().type;
-    // Asked first because it costs no port call: an old config's run makes no new one.
+    // `only` goes first: it costs no port call, so an old config's run makes no new one.
     if (stage.only && type && !stage.only.includes(type)) return `${type} ticket; runs for ${stage.only.join(", ")}`;
     if (!stage.when) return undefined;
     const changed = yield* (yield* Workspace).changedFiles;

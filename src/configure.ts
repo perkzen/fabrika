@@ -95,8 +95,7 @@ const MAX_GLOBS = 20;
 
 const sourceGlobs = (raw: unknown): ReadonlyArray<string> => {
   const globs = Array.isArray(raw) ? raw.map((g) => (typeof g === "string" ? g.trim() : g)).filter(isPathGlob) : [];
-  // Rejecting the whole answer over this field would cost the gate, which is
-  // the expensive part of the call; the template's own default stands in.
+  // The template's default stands in, because rejecting over this field would cost the gate.
   return globs.length > 0 ? globs.slice(0, MAX_GLOBS) : DEFAULT_SOURCE;
 };
 
@@ -118,8 +117,7 @@ const asStep = (raw: unknown): GateStep | null => {
   if (s.when !== undefined && !Array.isArray(s.when)) return null;
   // Trimmed like `run` and `source`: padding is formatting, not a malformed glob.
   const when = s.when?.map((g) => (typeof g === "string" ? g.trim() : g));
-  // Dropping a bad glob would widen the filter the answer asked for, so an
-  // unusable one costs the whole answer instead — see `skills/configure/SKILL.md`.
+  // Rejected, not dropped: a dropped glob widens the filter the answer asked for. See SKILL.md.
   if (when && (when.length > MAX_GLOBS || !when.every(isPathGlob))) return null;
   const step = { name: stepName(s.name), run: s.run.trim() };
   return when ? { ...step, when } : step;

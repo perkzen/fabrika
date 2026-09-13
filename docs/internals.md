@@ -191,7 +191,7 @@ changed files at all.
 
 The shipped config puts `when: ["src/**"]` on `refactor` and no `only`: a
 docs-only ticket has no architecture to reshape whatever type it was named, and
-with one session per stage the pass costs a cold start plus a full gate run. A
+one session per stage means a cold start plus a full gate run to find that out. A
 `chore` that rewrites a module gets it. `security` has neither filter — a
 weakness introduced *by* the change is not predictable from anything a filter
 can read.
