@@ -218,7 +218,11 @@ implementation. An escalation leaves its worktree exactly as an escalated run
 does.
 
 Rule 6 and the hard reset are load-bearing for each other: the reset is safe
-only because a branch checked out on this machine never reaches a worker.
+only because a branch checked out on this machine never reaches a worker. Rule
+6 reads `git worktree list` once, before the fan-out, so it fences one sweep
+and not two — `checkout` therefore makes its tree and never reuses one, and a
+second sweep that finds a worktree already there refuses that pull request
+rather than resetting over the first sweep's merge.
 
 The sweep owns the only console — one line per pull request, the counts last
 — and each worker's journal is its `log.txt` alone, appended to the original
@@ -267,10 +271,12 @@ with no network.
 A sweep is exercised through the same harness. `sweep` is handed a scripted
 worker that genuinely *fails* where the case calls for one, so the
 failure-to-outcome conversion under test is the real one; `syncPullRequest`
-is exercised like any other step, and `syncWithBase` has its own file. What is
-not covered is `checkout` against a real repository — every test here runs in
-memory, so the fetch, the hard reset and the push are pinned at the port and
-not against git.
+is exercised like any other step, and `syncWithBase` has its own file. The one
+exception is `checkout`, which `test/checkout.test.ts` drives against two real
+temporary repositories: it is the only test here that spawns git, and it is
+worth the dependency because what it pins — that the hard reset never reaches
+a tree fabrika did not just create — is a question about git rather than about
+the ports. The push is still pinned at the port and not against git.
 
 ## Smoke test
 

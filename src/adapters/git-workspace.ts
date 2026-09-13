@@ -172,8 +172,11 @@ export const layer = (options: WorkspaceOptions) =>
               return yield* new FabrikaError({ message: `${tip} does not exist — nothing to check out` });
             }
             if (yield* fs.exists(dir)) {
+              // Not "remove it and retry": the tree this refuses to touch is
+              // most likely another sync's, mid-merge, and an operator who
+              // reads a suggestion in a log acts on it.
               return yield* new FabrikaError({
-                message: `${dir} already exists — another sync may be working in it; remove it to retry`,
+                message: `${dir} already exists — another sync may still be working in it; leave it until that one is done`,
               });
             }
             yield* fs.makeDirectory(path.dirname(dir), { recursive: true });

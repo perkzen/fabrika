@@ -49,10 +49,11 @@ export interface Workspace {
   /** Creates the tree on `branch` off a freshly fetched base, or reuses one already on it. */
   readonly create: (branch: string) => Effect.Effect<void, FabrikaError>;
   /**
-   * Puts the tree on `branch` *as the remote has it*, discarding any local
+   * Makes the tree on `branch` *as the remote has it*, discarding any local
    * tip. A second operation beside `create` rather than a flag on it: a run
    * resumes through `create`, where unpushed commits are the run's own work.
-   * See ADR-0004.
+   * Makes, never reuses — a directory already there belongs to something
+   * else, and this one resets. See ADR-0004.
    */
   readonly checkout: (branch: string) => Effect.Effect<void, FabrikaError>;
   /** Runs the dependency install; `false` when the tree already had its dependencies. */
