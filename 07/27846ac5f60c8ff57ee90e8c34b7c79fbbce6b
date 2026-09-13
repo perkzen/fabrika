@@ -1,0 +1,23 @@
+test/screen.test.ts
+  s_452e0dc20cfb40::t_315e61ed6b19a0 91-107
+src/run.ts
+  s_452e0dc20cfb40::t_87d5574418bd23 15,19,65-74
+src/adapters/file-journal.ts
+  s_452e0dc20cfb40::t_87d5574418bd23 23-27,29-34,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0727846ac5f60c8ff57ee90e8c34b7c79fbbce6b",
+  "prompts": {},
+  "sessions": {
+    "s_452e0dc20cfb40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4524da7e-3317-48d7-8fb6-368534551506",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
