@@ -447,3 +447,26 @@ test("a worker that crashes outright is still one pull request's failure", async
     "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
   ]);
 });
+
+/**
+ * The spec's hard rule: "A sync writes only session ids, and never touches
+ * `done`, `round`, `completed` or `pushed`." The run reached its verdict and a
+ * sync is not a resumed run — and a worker whose run directory was *found*
+ * writes into the state file of a finished run, so this is the rule keeping it
+ * from undoing one.
+ */
+test("a sync leaves the verdict of the run that opened the pull request alone", async () => {
+  const before = { done: true, round: 3, completed: ["spec", "implement"], pushed: ["abc1234"], prNumber: 42 };
+  const { failed, recording } = await exercise(syncPullRequest(target), {
+    merge: [conflicted],
+    state: before,
+  });
+
+  assert.equal(failed, false);
+  const after = recording.state();
+  assert.equal(after.done, true, "the run reached its verdict and that verdict still holds");
+  assert.equal(after.round, 3);
+  assert.deepEqual(after.completed, ["spec", "implement"]);
+  assert.deepEqual(after.pushed, ["abc1234"], "the sync's own push is the pull request's, not a review round's");
+  assert.equal(after.prNumber, 42);
+});
