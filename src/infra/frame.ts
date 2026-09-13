@@ -52,6 +52,28 @@ const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
 type Segment = { readonly style?: Style; readonly text: string };
 
 /**
+ * The two facts a frame needs that come from the machine rather than from the
+ * run: whose home the worktree's path is abbreviated against, and whether
+ * there is an editor for the keys row to name.
+ */
+type Operator = { readonly home?: string; readonly editor?: boolean };
+
+/**
+ * The path as the operator writes it, and unchanged when there is no home to
+ * write it against.
+ *
+ * Only the home directory itself or something under it: a prefix test alone
+ * turns `/Users/domenX` into `~X`, which is a wrong path in the one row whose
+ * whole job is being the right one.
+ */
+const abbreviate = (path: string, home: string | undefined): string => {
+  const root = home?.replace(/\/+$/, "");
+  if (!root) return path;
+  if (path === root) return "~";
+  return path.startsWith(`${root}/`) ? `~${path.slice(root.length)}` : path;
+};
+
+/**
  * The whole viewport, as exactly `size.rows` lines of at most
  * `size.columns - 1` display columns each.
  *
@@ -60,12 +82,19 @@ type Segment = { readonly style?: Style; readonly text: string };
  * one row — a row wider than the terminal is cut, never wrapped — which is
  * what keeps the screen's cursor arithmetic to a home and a write.
  */
-export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: Clock): ReadonlyArray<string> => {
+export const frame = (
+  tree: Tree,
+  view: View,
+  size: Size,
+  dress: Styler,
+  clock: Clock,
+  operator?: Operator,
+): ReadonlyArray<string> => {
   const width = Math.max(size.columns - 1, 0);
   const root = tree.roots.at(-1);
   if (!root) return blank(size.rows);
 
-  const { window, outline, top, footer } = layout(tree, view, size);
+  const { window, outline, top, footer, worktree } = layout(tree, view, size);
   const spare = window + outline;
   // Only when the budget gave it rows: below the floor there is no window at
   // all, and a liveness row drawn anyway would cost the outline its last step.
@@ -86,6 +115,9 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
 
   return [
     row(header(root, tree.label), width, dress),
+    ...(worktree && tree.worktree !== undefined
+      ? [row([{ style: "dim", text: abbreviate(tree.worktree, operator?.home) }], width, dress)]
+      : []),
     ...[...body, ...blank(spare)].slice(0, spare),
     ...(footer ? [row([{ style: "dim", text: KEYS }], width, dress)] : []),
   ];
@@ -120,6 +152,12 @@ export type Layout = {
   readonly top: number;
   /** Whether the terminal is tall enough to name the keys at the bottom. */
   readonly footer: boolean;
+  /**
+   * Whether the header carries the worktree's path on a second row. Read off
+   * the tree here rather than passed in, so `keys.ts` spends the same budget
+   * without being told about it.
+   */
+  readonly worktree: boolean;
 };
 
 /**
@@ -130,7 +168,8 @@ export type Layout = {
 export const layout = (tree: Tree, view: View, size: Size): Layout => {
   const steps = stepsOf(tree);
   const footer = size.rows >= FOOTER_AT;
-  const body = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
+  const worktree = tree.worktree !== undefined;
+  const body = Math.max(size.rows - 1 - (worktree ? 1 : 0) - (footer ? 1 : 0), 0);
   const window =
     steps.some((step) => step.key === view.opened) && body >= WINDOW + 1 ? Math.max(WINDOW, body - steps.length) : 0;
   const outline = body - window;
@@ -152,7 +191,7 @@ export const layout = (tree: Tree, view: View, size: Size): Layout => {
       ? Math.min(Math.max(view.top, 0), last)
       : Math.min(Math.max(Math.min(view.top, first), lastWanted - shown + 1, 0), last);
 
-  return { window, outline, top, footer };
+  return { window, outline, top, footer, worktree };
 };
 
 const blank = (rows: number): ReadonlyArray<string> => Array<string>(Math.max(rows, 0)).fill("");

@@ -40,6 +40,31 @@ test("a frame is exactly rows lines, each at most columns - 1 wide", () => {
   assert.deepEqual(lines.slice(4), Array<string>(6).fill(""), "the rest of the viewport is blank, not stale");
 });
 
+/** The tree the run is in, as `run.ts` hands it to the presenter: absolute, under the operator's home. */
+const WORKTREE = "/Users/x/.fabrika/worktrees/fabrika/FAB-7";
+
+test("the worktree is the header's second row, abbreviated against the operator's home", () => {
+  const tree: Tree = {
+    ...script("FAB-7", [0, RUN], [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }]),
+    worktree: WORKTREE,
+  };
+  const lines = frame(tree, view, { columns: 80, rows: 12 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+
+  assert.equal(lines.length, 12, "the row it takes comes out of the body, never out of the frame");
+  for (const line of lines) assert.ok(line.length <= 79, `"${line}" is wider than columns - 1`);
+  assert.deepEqual(
+    lines.slice(0, 5),
+    [
+      "FAB-7 [████░░░░░░░░] 2/3 implement",
+      "~/.fabrika/worktrees/fabrika/FAB-7",
+      "· 1/3 preflight",
+      "▸ 2/3 implement",
+      "· 3/3 review",
+    ],
+    "the path is directly under the progress row, and the outline follows it",
+  );
+});
+
 test("a row too wide for the terminal is cut rather than wrapped", () => {
   const tree = script("FAB-6", [0, RUN]);
   const lines = frame(tree, view, { columns: 12, rows: 4 }, bare, { now: noon, spin: 0 });

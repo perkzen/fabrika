@@ -60,6 +60,12 @@ export type Tree = {
    * no business there; the presenter puts it on the tree it starts from.
    */
   readonly label?: string;
+  /**
+   * Where this run's worktree is, absolute. No run event carries it either,
+   * and for `label`'s reason: it is a fact about this machine, and an event
+   * goes to `log.txt` too.
+   */
+  readonly worktree?: string;
   /** Held rather than streamed, so the exit rendering can write it last. */
   readonly result?: Extract<RunEvent, { kind: "result" }>;
   /** The wait the run is inside, if any, for the liveness line. */
