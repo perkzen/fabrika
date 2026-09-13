@@ -197,13 +197,18 @@ const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined 
  * row, which is what a terminal does with SGR state. Window rows are wrapped
  * rather than cut, because a window exists to read agent prose and a cut
  * sentence defeats it.
+ *
+ * Counted in code points rather than UTF-16 units: an agent writes emoji
+ * constantly, and one broken across a row boundary renders as two pieces of
+ * garbage. A double-width character still costs one, the way ADR-0001's
+ * truncation always has.
  */
 const wrap = (line: string, width: number): ReadonlyArray<string> => {
   if (width <= 0) return [""];
   const rows: Array<string> = [];
   let row = "";
   let used = 0;
-  for (const piece of line.match(/\x1b\[[0-9;]*m|[\s\S]/g) ?? []) {
+  for (const piece of line.match(/\x1b\[[0-9;]*m|[\s\S]/gu) ?? []) {
     if (piece.startsWith("\x1b")) {
       row += piece;
       continue;

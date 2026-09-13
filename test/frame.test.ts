@@ -335,3 +335,23 @@ test("an outline longer than the terminal scrolls to keep the selected step on s
   const held = frame(tree, { ...view, selected: "0:6", opened: null, top: 3 }, size, bare, { now: noon, spin: 0 });
   assert.equal(held[1], "· 4/11 step4", "a top the selection already fits in is left where the operator put it");
 });
+
+test("wrapping never splits a character in half, whatever column it lands on", () => {
+  // An agent writes emoji constantly, and one is two UTF-16 units: broken
+  // across a row boundary it renders as two pieces of garbage.
+  for (let pad = 0; pad < 24; pad += 1) {
+    const tree = script(
+      "FAB-6",
+      [0, RUN],
+      [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+      [1, { kind: "agent", stage: "implement", markdown: `${"x".repeat(pad)}😀 the gate is red` }],
+    );
+    const lines = frame(tree, watching, { columns: 20, rows: 10 }, bare, { now: noon, spin: 0 });
+
+    assert.ok(lines.join("").includes("😀"), `at offset ${pad} the character survived whole`);
+    for (const line of lines) {
+      assert.doesNotMatch(line, /[\uD800-\uDBFF]$/, `at offset ${pad}, a row ends on half a character`);
+      assert.doesNotMatch(line, /^[\uDC00-\uDFFF]/, `at offset ${pad}, a row starts on half a character`);
+    }
+  }
+});
