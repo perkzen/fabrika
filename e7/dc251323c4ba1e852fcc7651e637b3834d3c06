@@ -1,0 +1,39 @@
+docs/adr/0005-linear-reaches-a-run-through-mcp-not-a-host-held-key.md
+  s_9ee8ac25bc0f62::t_423a213e6d7b11 1-58
+test/cli.test.ts
+  s_9ee8ac25bc0f62::t_a0d10230c85b4e 23,26,34-35,50-55
+src/ports/ticket-source.ts
+  s_9ee8ac25bc0f62::t_1149ffc3813d97 2,5-7,9-14,17
+scripts/smoke.ts
+  s_9ee8ac25bc0f62::t_c77ddba40bfb19 130
+src/ticket.ts
+  s_9ee8ac25bc0f62::t_1149ffc3813d97 4-7
+test/captures-adapter.test.ts
+  s_9ee8ac25bc0f62::t_aba373b47ddeba 153-154
+README.md
+  s_9ee8ac25bc0f62::t_47c93b117d04cb 19
+  s_9ee8ac25bc0f62::t_4a0c5db823a33f 44,89,92,246-250,299-301
+docs/internals.md
+  s_9ee8ac25bc0f62::t_610326a1f57604 14,22,159-163,167,170-174
+src/cli.ts
+  s_9ee8ac25bc0f62::t_c1868814673e37 4
+  s_9ee8ac25bc0f62::t_b89703f8ebbc39 3,5,104-115,119,121,126
+src/adapters/shell-captures.ts
+  s_9ee8ac25bc0f62::t_baa3cf31b93ecd 19-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e7dc251323c4ba1e852fcc7651e637b3834d3c06",
+  "prompts": {},
+  "sessions": {
+    "s_9ee8ac25bc0f62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e773a28e-c68f-4e1d-a20c-5065a495c8a1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
