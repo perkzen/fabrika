@@ -1,0 +1,23 @@
+src/infra/shell.ts
+  s_5776a105a9d739::t_c9616614440264 19-28,31
+test/editor.test.ts
+  s_5776a105a9d739::t_269ce4aa3acaef 71,82-83
+src/infra/editor.ts
+  s_5776a105a9d739::t_c9616614440264 19-21,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c74f8ad7447a37dda7c41536b8116b5ab84a665f",
+  "prompts": {},
+  "sessions": {
+    "s_5776a105a9d739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573bb086-864c-4e8c-afc2-303511a01b24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
