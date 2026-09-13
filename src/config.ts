@@ -56,7 +56,11 @@ export const Config = Schema.Struct({
   previewPrefix: Schema.optional(Schema.String),
   install: Schema.optional(Schema.String),
   gate: Schema.Array(GateStep),
-  /** The model every agent call takes unless a stage names its own; the CLI's own default when absent. */
+  /**
+   * What every call the pipeline makes runs on unless a stage names its own;
+   * the CLI's own default when absent. The auth probe (`cli.ts`) is a fixed
+   * three-token call made outside the pipeline and takes neither.
+   */
   model: Schema.optional(Schema.String),
   stages: Schema.Array(Stage),
   /** Permission rules the Claude subprocess is denied; the runner does its own pushing, PR opening and merging. */
