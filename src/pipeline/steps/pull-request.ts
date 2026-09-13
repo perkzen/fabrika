@@ -1,7 +1,9 @@
 import { Effect } from "effect";
-import { beforeAfter, type Section } from "../../captures.ts";
-import { applies, type CaptureStep } from "../../config.ts";
+import { asCaptureDecision, beforeAfter, CAPTURE_SCHEMA, type Section } from "../../captures.ts";
+import { applies, type CaptureStep, type Config } from "../../config.ts";
+import { Agent } from "../../ports/agent.ts";
 import { Captures } from "../../ports/captures.ts";
+import { Prompts } from "../../ports/prompts.ts";
 import { Forge } from "../../ports/forge.ts";
 import { Journal } from "../../ports/journal.ts";
 import { RunContext } from "../../ports/run-context.ts";
@@ -20,23 +22,74 @@ const composeBody = (link: string, description: string, section: string | undefi
   [link, "", description, "", ...(section ? [section, ""] : []), "---", TRAILER].join("\n");
 
 /**
+ * The captures a human pinned, filtered to the ones this branch's diff touches.
+ *
+ * The globs are a cached judgement about which files render which surface, and
+ * nothing invalidates that cache — an import added to a rendering module goes
+ * unnoticed and the capture quietly stops firing. That is the cost of pinning,
+ * and it is paid deliberately here: a repo whose render is a simulator boot or
+ * a full build wants the command reviewed rather than re-chosen every run.
+ */
+const pinned = (
+  captures: ReadonlyArray<CaptureStep>,
+): Effect.Effect<ReadonlyArray<CaptureStep>, never, Workspace> =>
+  Effect.gen(function* () {
+    const workspace = yield* Workspace;
+    const changed = yield* workspace.changedFiles.pipe(Effect.orElseSucceed(() => []));
+    return captures.filter((capture) => applies(capture.when, changed));
+  });
+
+/**
+ * One structured call working out this run's capture, or nothing.
+ *
+ * The judgement the globs were standing in for, made where it can actually be
+ * made: against the branch's own diff, by something that can tell a rename
+ * inside a rendering module from a change to what it renders. The answer is a
+ * command the *host* will spawn, so `asCaptureDecision` holds it to the same
+ * rules the committed config is held to before a word of it is believed.
+ *
+ * Its own session key: this is a question about the diff, not a continuation
+ * of the review conversation, and it gets its own transcript.
+ */
+const decided = (): Effect.Effect<ReadonlyArray<CaptureStep>, never, Agent | Journal | Prompts> =>
+  Effect.gen(function* () {
+    const journal = yield* Journal;
+    const prompt = yield* (yield* Prompts).render("capture.md").pipe(Effect.orElseSucceed(() => ""));
+    if (!prompt) return [];
+    const reply = yield* (yield* Agent)
+      .ask({ stage: "capture", prompt, jsonSchema: CAPTURE_SCHEMA })
+      // Every way the call can go wrong ends here, rate limits included: the
+      // branch is already pushed, and a run that stops over its own evidence
+      // has broken the rule that a capture may never fail a run.
+      .pipe(Effect.catch((error) => journal.log(`captures: no decision (${error._tag}); no section`).pipe(Effect.as(null))));
+    if (!reply) return [];
+    const { capture, reason } = asCaptureDecision(reply.structured);
+    yield* journal.log(capture ? `capture ${capture.name}: ${reason}` : `captures: none — ${reason || "no surface changed"}`);
+    return capture ? [capture] : [];
+  });
+
+/**
  * The Before / After section, or `undefined` when there is nothing to show.
  *
  * Every port call here is an `orElseSucceed` back to silence: a capture may
  * never fail a run, and this is where the step gained the calls that could.
  */
 const captureSection = (
-  captures: ReadonlyArray<CaptureStep>,
+  pr: Config["pr"],
   headSha: string,
-): Effect.Effect<Section | undefined, never, Captures | Forge | Journal | Workspace> =>
+): Effect.Effect<Section | undefined, never, Agent | Captures | Forge | Journal | Prompts | Workspace> =>
   Effect.gen(function* () {
-    if (captures.length === 0) return undefined;
-    const workspace = yield* Workspace;
-    const changed = yield* workspace.changedFiles.pipe(Effect.orElseSucceed(() => []));
-    const applicable = captures.filter((capture) => applies(capture.when, changed));
+    // The switch a human flips wins over everything, including a pinned
+    // capture: `false` is a repo that has decided its pull requests carry no
+    // images, and a config that still lists a command is not consent.
+    if (pr.beforeAfter === false) return undefined;
+    const configured = pr.capture ?? [];
+    const captures =
+      configured.length > 0 ? yield* pinned(configured) : pr.beforeAfter === true ? yield* decided() : [];
     // Nothing below this line runs on a branch that changed no captured
     // surface, so a docs-only run costs exactly what it costs today.
-    if (applicable.length === 0) return undefined;
+    if (captures.length === 0) return undefined;
+    const workspace = yield* Workspace;
     const baseSha = yield* workspace.baseSha.pipe(Effect.orElseSucceed(() => ""));
     // A sha, or nothing: `git rev-parse` can warn on stderr and still exit
     // zero, and the adapter interleaves the two. The captures make a directory
@@ -45,7 +98,7 @@ const captureSection = (
       yield* Effect.flatMap(Journal, (journal) => journal.log("captures: no section — the base did not resolve to a commit"));
       return undefined;
     }
-    const shots = yield* (yield* Captures).take(applicable, baseSha);
+    const shots = yield* (yield* Captures).take(captures, baseSha);
     if (shots.length === 0) return undefined;
     // Read only now: `attaches` shells out to `gh --version`, and a run with
     // nothing to show must touch nothing.
@@ -110,7 +163,7 @@ export const openPullRequest: Step = {
 
     const description = (yield* workspace.readArtifact("pr.md")) ?? ticket.description;
     const link = ticket.url ? `Linear: ${ticket.url}` : "";
-    const section = yield* captureSection(config.pr.capture ?? [], head);
+    const section = yield* captureSection(config.pr, head);
 
     const plain = composeBody(link, description, undefined);
     const opening = { branch, title: titleOf(ticket.identifier, ticket.title), draft: config.pr.draft };

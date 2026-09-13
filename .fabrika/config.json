@@ -64,7 +64,8 @@
   ],
   "pr": {
     "draft": true,
-    "emptyCommit": true
+    "emptyCommit": true,
+    "beforeAfter": true
   },
   "review": {
     "provider": "none",

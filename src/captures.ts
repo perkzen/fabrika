@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { Option, Schema } from "effect";
+import { CaptureStep, FORBIDDEN } from "./config.ts";
 import { scrub } from "./run-event.ts";
 
 /** One file a capture wrote, and how the body may carry it. */
@@ -192,4 +195,74 @@ export const beforeAfter = (shots: ReadonlyArray<Shot>, options: BeforeAfterOpti
   }
 
   return chunks.length === 0 ? undefined : { markdown: head + chunks.join("\n\n"), attachments };
+};
+
+
+/**
+ * The directory a capture's base half is cached under, as `<name>-<hash>`.
+ *
+ * The name alone was enough while both halves of the decision were committed:
+ * one name meant one command, for every ticket cut from that base. A run that
+ * decides its own command breaks that — two tickets off one base, the same
+ * obvious name, two different commands, and the second run would pair its own
+ * after against a before the first run rendered. That is exactly the "two
+ * improvisations" the fixed command exists to prevent, and it would ship
+ * silently. So the command is part of the key: a changed command is a cache
+ * miss, not a mismatched pair.
+ */
+export const cacheKey = (name: string, run: string): string =>
+  `${name}-${createHash("sha256").update(run).digest("hex").slice(0, 8)}`;
+
+/** What one structured call answers when a run works out its own Before / After. */
+export const CAPTURE_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    capture: {
+      type: "boolean",
+      description: "True only if this branch changed a surface a person looks at AND one command renders it",
+    },
+    name: { type: "string", description: "Short kebab-case label for the log and the body, e.g. console" },
+    run: { type: "string", description: "One command writing into $FABRIKA_CAPTURE_DIR; must work in a checkout of the base too" },
+    timeoutMinutes: { type: "number", description: "Killed and its half dropped after this long; 2 when absent" },
+    reason: { type: "string", description: "One line: the surface and what renders it, or why there is none" },
+  },
+  required: ["capture", "reason"],
+});
+
+export type CaptureDecision = {
+  readonly capture: CaptureStep | undefined;
+  readonly reason: string;
+};
+
+/** A decision's prose, capped and scrubbed: it is model output and it reaches the journal. */
+const reasonOf = (raw: unknown): string => (typeof raw === "string" ? scrub(raw).split("\n")[0]!.slice(0, 200) : "");
+
+/**
+ * The answer, accepted only where it is safe to act on.
+ *
+ * Decoded through `CaptureStep` rather than field by field, so the name is
+ * held to the same kebab-case pattern the committed config is — the host makes
+ * a directory of that name and empties it recursively, and prints it into a
+ * markdown table. `FORBIDDEN` is applied for the second reason: `deny` gates
+ * the agent's own subprocess, and this string is run by the host with nothing
+ * in front of it.
+ *
+ * `capture: undefined` is the ordinary answer, not a failure — most branches
+ * change nothing anyone looks at.
+ */
+export const asCaptureDecision = (raw: unknown): CaptureDecision => {
+  const r = raw as Record<string, unknown> | undefined;
+  const reason = reasonOf(r?.["reason"]);
+  if (!r || r["capture"] !== true) return { capture: undefined, reason };
+
+  const run = typeof r["run"] === "string" ? r["run"].trim() : "";
+  if (!run || run.length > 300 || FORBIDDEN.test(run)) return { capture: undefined, reason: reason || "the command was rejected" };
+
+  const minutes = r["timeoutMinutes"];
+  const decoded = Schema.decodeUnknownOption(CaptureStep)({
+    name: r["name"],
+    run,
+    ...(typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? { timeoutMinutes: minutes } : {}),
+  });
+  return Option.isSome(decoded) ? { capture: decoded.value, reason } : { capture: undefined, reason: reason || "the answer was rejected" };
 };

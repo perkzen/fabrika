@@ -5,7 +5,15 @@ import type { Config } from "../src/config.ts";
 import { FabrikaError } from "../src/errors.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
-import { Agent, type AgentReply, type AgentRequest } from "../src/ports/agent.ts";
+import {
+  Agent,
+  AgentFailed,
+  AgentRateLimited,
+  AgentUnauthorized,
+  type AgentError,
+  type AgentReply,
+  type AgentRequest,
+} from "../src/ports/agent.ts";
 import { Captures } from "../src/ports/captures.ts";
 import { Forge, type Check, type PullRequestDetail } from "../src/ports/forge.ts";
 import { Gate, type GateFailure } from "../src/ports/gate.ts";
@@ -49,6 +57,8 @@ export type Script = {
   /** `"verbatim"` is a forge that posted the body without rewriting any attachment path into a URL. */
   readonly body?: "verbatim";
   readonly agent?: (request: AgentRequest) => AgentReply;
+  /** An agent call that fails instead of answering; the tag picks which way. */
+  readonly agentFails?: "AgentFailed" | "AgentRateLimited" | "AgentUnauthorized";
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Conflicts still unresolved when `syncWithBase` checks after the agent. */
   readonly unresolved?: ReadonlyArray<string>;
@@ -203,9 +213,13 @@ export const harness = (script: Script = {}) => {
     }),
     Layer.succeed(Agent)({
       ask: (request: AgentRequest) =>
-        Effect.sync(() => {
+        Effect.suspend((): Effect.Effect<AgentReply, AgentError> => {
           recording.agent.push(request);
-          return script.agent?.(request) ?? { text: "", structured: undefined };
+          if (script.agentFails === "AgentRateLimited") return new AgentRateLimited({ credential: "test", sessionId: null });
+          if (script.agentFails === "AgentUnauthorized")
+            return new AgentUnauthorized({ credential: "test", sessionId: null, message: "not logged in" });
+          if (script.agentFails) return new AgentFailed({ exitCode: 1, sessionId: null, message: "the call failed" });
+          return Effect.succeed(script.agent?.(request) ?? { text: "", structured: undefined });
         }),
       ensureTools: () => Effect.void,
     }),

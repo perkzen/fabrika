@@ -148,3 +148,95 @@ test("a base sha that is not one is no base at all", async () => {
     "and the operator is told, as every other missing half on this branch is",
   );
 });
+
+/** An agent that decides a capture: the structured answer `asCaptureDecision` reads. */
+const decides = (answer: Record<string, unknown>) => () => ({ text: "", structured: answer });
+
+const SWITCHED_ON = { config: { pr: { draft: true, emptyCommit: true, beforeAfter: true } } };
+
+test("a pinned capture is the whole decision; the agent is never asked", async () => {
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    config: { pr: { draft: true, emptyCommit: false, beforeAfter: true, capture: [console_] } },
+    captures: [framed],
+    agent: decides({ capture: true, name: "other", run: "echo other", reason: "would have" }),
+  });
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.agent, [], "a human pinned the command, so nothing is re-decided");
+  assert.deepEqual(recording.captures, [{ name: "console", sha: "a1b2c3d4e5f6" }], "and the pinned one is what ran");
+});
+
+test("the switch alone asks once, and the answer is what runs", async () => {
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    ...SWITCHED_ON,
+    captures: [framed],
+    agent: decides({ capture: true, name: "console", run: "node scripts/capture-console.ts", reason: "the run screen changed" }),
+  });
+
+  assert.equal(failed, false);
+  assert.equal(recording.agent.length, 1, "exactly one call, however many captures come back");
+  assert.equal(recording.agent[0]!.stage, "capture", "its own session, not a resume of the review");
+  assert.ok(recording.agent[0]!.jsonSchema, "structured, so the answer is a decision rather than prose");
+  assert.deepEqual(recording.captures, [{ name: "console", sha: "a1b2c3d4e5f6" }]);
+  assert.ok(recording.prs[0]!.body.includes("## Before / After"));
+  assert.ok(recording.log.some((line) => line.includes("the run screen changed")), "the operator is told why");
+});
+
+test("no surface changed is an answer, and nothing is run", async () => {
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    ...SWITCHED_ON,
+    captures: [framed],
+    agent: decides({ capture: false, reason: "types and tests only" }),
+  });
+
+  assert.equal(failed, false);
+  assert.equal(recording.agent.length, 1);
+  assert.deepEqual(recording.captures, [], "no command ran, in either checkout");
+  assert.equal(recording.prs[0]!.body, TODAYS_BODY, "and the body is the one there is today");
+  assert.ok(recording.log.some((line) => line.includes("types and tests only")));
+});
+
+test("a capture may never fail a run, however the call breaks", async () => {
+  for (const agentFails of ["AgentFailed", "AgentRateLimited", "AgentUnauthorized"] as const) {
+    const { failed, recording } = await exercise(openPullRequest.run, { ...SWITCHED_ON, agentFails, captures: [framed] });
+
+    assert.equal(failed, false, `${agentFails} still opens the pull request`);
+    assert.equal(recording.prs.length, 1);
+    assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+    assert.deepEqual(recording.captures, []);
+    assert.ok(recording.log.some((line) => line.includes(agentFails)), "and the journal names which way it broke");
+  }
+});
+
+test("an answer the host will not act on is rejected, not run", async () => {
+  const refused = [
+    { capture: true, name: "console", run: "git push --force origin main", reason: "laundering the deny list" },
+    { capture: true, name: "../../etc", run: "echo hi", reason: "a name that is a path" },
+    { capture: true, name: "console", run: "   ", reason: "no command at all" },
+    { capture: true, reason: "no command at all" },
+  ];
+
+  for (const answer of refused) {
+    const { failed, recording } = await exercise(openPullRequest.run, {
+      ...SWITCHED_ON,
+      captures: [framed],
+      agent: decides(answer),
+    });
+    assert.equal(failed, false);
+    assert.deepEqual(recording.captures, [], `nothing ran for ${JSON.stringify(answer.name ?? null)}`);
+    assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+  }
+});
+
+test("the switch off is off, whatever the config still lists", async () => {
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    config: { pr: { draft: true, emptyCommit: true, beforeAfter: false, capture: [console_] } },
+    captures: [framed],
+    agent: decides({ capture: true, name: "console", run: "echo hi", reason: "would have" }),
+  });
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.agent, [], "nothing is asked");
+  assert.deepEqual(recording.captures, [], "and nothing is run");
+  assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+});

@@ -24,7 +24,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
-| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
+| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `cacheKey()` and `asCaptureDecision()`, the rules a per-run capture answer is held to |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
 | `src/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
 | `src/infra/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
@@ -330,12 +330,40 @@ ADR-0002 records why the port carries inert stubs instead of being split.
 
 ## Before / After on the pull request
 
-A **capture** is a named command in `pr.capture`, shaped like a gate step and
-gated by the same globs against the branch's diff. The host runs it twice — in
-a detached checkout of the base and in the run's own worktree — with
+A **capture** is one named command. The host runs it twice — in a detached
+checkout of the base and in the run's own worktree — with
 `FABRIKA_CAPTURE_DIR` pointing at an empty directory, and reads back whatever
 files it wrote. fabrika never looks inside one, which is why a simulator
 screen, a browser page and a terminal frame need no change here.
+
+Who decides the command is `pr.beforeAfter`:
+
+| `beforeAfter` | `capture` | What happens |
+| --- | --- | --- |
+| `true` | absent | One structured call at the pull request reads the branch and answers whether it changed a surface and what renders it |
+| absent | set | The pinned commands, gated by their own globs against the diff |
+| `true` | set | The pinned commands; a human already decided, so nothing is re-decided |
+| `false` | either | Nothing, whatever the config still lists |
+
+`true` is the template's default and the better one. The globs are a cached
+judgement about which files render which surface and nothing invalidates that
+cache — add an import to a rendering module and the capture quietly stops
+firing on branches that do change the surface. The call reads the diff instead,
+which is where that judgement can actually be made. `pr.capture` stays for the
+repo whose render is a simulator boot or a full build, where the command is
+worth reviewing rather than re-choosing every run.
+
+The answer is a command the *host* spawns, with no permission layer in front
+of it, so `asCaptureDecision` believes it only where it is safe to act on: the
+name is decoded through `CaptureStep` because the host makes a directory of it
+and empties that directory recursively, and the command is held to `FORBIDDEN`
+because `deny` gates the agent's subprocess and not this. A rejected answer is
+no section, never a failed run. ADR-0006 records the split.
+
+The base half is cached under `<name>-<hash of the command>`, not the name
+alone: a run that decides its own command can bring a different one under the
+same obvious name, and pairing this branch's after against that one's before
+compares two commands rather than two revisions.
 
 Kinds are decided by extension: `.png` `.jpg` `.jpeg` `.gif` `.webp` are
 uploaded with the pull request and shown side by side, `.txt` is scrubbed,
@@ -346,11 +374,13 @@ a non-zero exit, a timeout, an overrun cap or an empty directory all end as a
 missing half and today's body. ADR-0003 records why the images are attachments
 rather than anything committed.
 
-This repo's own capture is `scripts/capture-console.ts`, named `console` in
-`pr.capture` and gated to the files that render the console. It replays a fixture
-of run events through the console presenter rather than running a ticket, and
-writes a PNG through whatever `freeze`-class tool is on `PATH`, or a `.txt`
-when there is none.
+This repo's own capture is `scripts/capture-console.ts`, which the call finds
+for itself: `.fabrika/config.json` sets `beforeAfter` and names no command. It
+replays a fixture of run events through the console presenter rather than
+running a ticket, and writes a PNG through whatever `freeze`-class tool is on
+`PATH`, or a `.txt` when there is none. It renders the console, not the
+screen — a branch that only changes the alternate buffer has nothing here to
+show, and a second script would be a second capture.
 
 ## Tests
 

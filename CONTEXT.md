@@ -217,10 +217,11 @@ _Avoid_: result, status, error.
 ### Showing the change
 
 **Capture**:
-A named command in the committed config that renders one user-visible surface
-to files, run by the host in a checkout. fabrika never looks inside what it
-writes, so the same contract serves a simulator screen, a browser page, a
-window and a terminal frame.
+A named command that renders one user-visible surface to files, run by the host
+in a checkout. fabrika never looks inside what it writes, so the same contract
+serves a simulator screen, a browser page, a window and a terminal frame.
+Decided per run by one structured call under `pr.beforeAfter`, or pinned in the
+committed config under `pr.capture`; the host runs it either way.
 _Avoid_: screenshot — an image is one of the three kinds a capture may write;
 snapshot, visual test.
 

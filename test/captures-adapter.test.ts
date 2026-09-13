@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { NodeServices } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import * as shellCaptures from "../src/adapters/shell-captures.ts";
+import { cacheKey } from "../src/captures.ts";
 import type { CaptureStep } from "../src/config.ts";
 import { Captures } from "../src/ports/captures.ts";
 import { harness } from "./harness.ts";
@@ -36,8 +37,12 @@ const take = async (
   const { base = { repoRoot: "/repo", sha: BASE }, install } = options;
   const root = mkdtempSync(join(tmpdir(), "fabrika-captures-"));
   const cacheRoot = join(root, "cache");
+  // Seeded under the same key the adapter reads, which is the name *and* the
+  // command: a test that seeds by name alone would pass against a cache the
+  // adapter could never hit.
   const cacheFor = (capture: string) => {
-    const dir = join(cacheRoot, base.sha, capture);
+    const step = captures.find((c) => c.name === capture);
+    const dir = join(cacheRoot, base.sha, step ? cacheKey(step.name, step.run) : capture);
     mkdirSync(dir, { recursive: true });
     return dir;
   };
@@ -56,7 +61,7 @@ const take = async (
       ),
     ),
   );
-  return { shots, log: world.recording.log, dir, cacheRoot };
+  return { shots, log: world.recording.log, dir, cacheRoot, cacheFor };
 };
 
 /** `printf` over `echo -n`: portable across the `sh` a host happens to have. */
@@ -128,13 +133,14 @@ const here = () => ({ repoRoot: process.cwd(), sha: execFileSync("git", ["rev-pa
 
 test("a base with no cached half is checked out, run, and kept for the next ticket", async () => {
   const base = here();
-  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, { base });
+  const run = writes({ "out.txt": "at the base" });
+  const { shots, log, cacheRoot } = await take([{ name: "console", run }], () => {}, { base });
 
   assert.deepEqual(shots[0]?.before, [{ name: "out.txt", kind: "text", content: "at the base" }], "the base half ran");
   assert.ok(log.some((line) => line.includes(`capture console: base ${base.sha.slice(0, 7)} captured in`)));
   assert.ok(!log.some((line) => line.includes("(from cache)")), "this ticket is the one that paid for it");
   assert.equal(
-    readFileSync(join(cacheRoot, base.sha, "console", "out.txt"), "utf8"),
+    readFileSync(join(cacheRoot, base.sha, cacheKey("console", run), "out.txt"), "utf8"),
     "at the base",
     "and the next ticket cut from this base will find it already there",
   );

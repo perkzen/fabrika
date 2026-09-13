@@ -1,6 +1,6 @@
 import { Duration, Effect, FileSystem, Layer, Option, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../captures.ts";
+import { cacheKey, kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../captures.ts";
 import type { CaptureStep } from "../config.ts";
 import { run, sh, withoutSecrets } from "../infra/shell.ts";
 import { Captures } from "../ports/captures.ts";
@@ -122,10 +122,17 @@ export const layer = (options: CapturesOptions) =>
           return files;
         }).pipe(Effect.orElseSucceed(() => [] as Array<CaptureFile>));
 
-      const cacheDir = (baseSha: string, capture: string) => path.join(options.cacheRoot, baseSha, capture);
+      /**
+        * Keyed by the command as well as the name: a run that decides its own
+        * capture can bring a different command under the same obvious name,
+        * and pairing this branch's after against that one's before is a
+        * comparison of two commands rather than of two revisions.
+        */
+      const cacheDir = (baseSha: string, capture: CaptureStep) =>
+        path.join(options.cacheRoot, baseSha, cacheKey(capture.name, capture.run));
 
       /** Non-empty means the command already ran at this sha; a half-written directory never becomes one. */
-      const cached = (baseSha: string, capture: string) =>
+      const cached = (baseSha: string, capture: CaptureStep) =>
         fs.readDirectory(cacheDir(baseSha, capture)).pipe(
           Effect.map((names) => names.length > 0),
           Effect.orElseSucceed(() => false),
@@ -178,7 +185,7 @@ export const layer = (options: CapturesOptions) =>
           const staging = path.join(store.directory, "captures");
           const misses: Array<CaptureStep> = [];
           for (const capture of captures) {
-            if (yield* cached(baseSha, capture.name)) {
+            if (yield* cached(baseSha, capture)) {
               yield* journal.log(`capture ${capture.name}: base ${baseSha.slice(0, 7)} (from cache)`);
             } else {
               misses.push(capture);
@@ -201,7 +208,7 @@ export const layer = (options: CapturesOptions) =>
                     yield* journal.log(`capture ${capture.name}: base wrote nothing`);
                     continue;
                   }
-                  const cache = yield* emptied(cacheDir(baseSha, capture.name));
+                  const cache = yield* emptied(cacheDir(baseSha, capture));
                   for (const file of files) yield* fs.copyFile(path.join(into, file.name), path.join(cache, file.name));
                   yield* journal.log(`capture ${capture.name}: base ${baseSha.slice(0, 7)} captured in ${seconds(started)}s`);
                 }
@@ -211,8 +218,8 @@ export const layer = (options: CapturesOptions) =>
 
           const shots: Array<Shot> = [];
           for (const capture of captures) {
-            const hit = yield* cached(baseSha, capture.name);
-            const before = hit ? yield* filesIn(capture.name, cacheDir(baseSha, capture.name)) : undefined;
+            const hit = yield* cached(baseSha, capture);
+            const before = hit ? yield* filesIn(capture.name, cacheDir(baseSha, capture)) : undefined;
             const into = yield* emptied(path.join(staging, capture.name, "head"));
             // The branch half is never cached: it is cheap next to the base
             // and it has to follow the commits.
