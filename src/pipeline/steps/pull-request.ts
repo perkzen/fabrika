@@ -49,6 +49,28 @@ const captureSection = (
   });
 
 /**
+ * Puts the plain body back when the forge left a host path in the posted one.
+ *
+ * `gh` matches an attachment to the body by absolute path and silently leaves
+ * the path alone on a mismatch, and nothing a reader is sent to may be a
+ * place only this machine can go. The pull request is already open and its
+ * number already stored, so a failure here is a note rather than a run.
+ */
+const withoutHostPaths = (pr: number, attachments: ReadonlyArray<string>, plain: string) =>
+  Effect.gen(function* () {
+    const forge = yield* Forge;
+    const journal = yield* Journal;
+    const posted = yield* forge.body(pr);
+    if (!attachments.some((path) => posted.includes(path))) return;
+    yield* journal.log("the posted body still points at this host; putting back the one without the captures");
+    yield* forge.editBody(pr, plain);
+  }).pipe(
+    Effect.catchTag("FabrikaError", (error) =>
+      Effect.flatMap(Journal, (journal) => journal.log(`could not check the posted body: ${error.message}`)),
+    ),
+  );
+
+/**
  * Pushes the branch and opens the pull request, once.
  *
  * Draft by default: everything after this is a machine reviewing a machine,
@@ -85,24 +107,30 @@ export const openPullRequest: Step = {
 
     const plain = composeBody(link, description, undefined);
     const opening = { branch, title: `${ticket.identifier}: ${ticket.title}`, draft: config.pr.draft };
-    const pr = yield* forge.open({
-      ...opening,
-      body: composeBody(link, description, section?.markdown),
-      attachments: section?.attachments ?? [],
-    }).pipe(
-      // Push access is already proven by the push above, so a create that
-      // fails while carrying attachments failed on the upload. Only the
-      // second attempt failing escalates, which is today's behaviour.
-      Effect.catchTag("FabrikaError", (error) =>
-        section && section.attachments.length > 0
-          ? journal
-              .log(`the pull request would not take the captures (${error.message}); opening it without them`)
-              .pipe(Effect.andThen(forge.open({ ...opening, body: plain, attachments: [] })))
-          : Effect.fail(error),
-      ),
-    );
+    const uploading = section?.attachments ?? [];
+    const opened = yield* forge
+      .open({ ...opening, body: composeBody(link, description, section?.markdown), attachments: uploading })
+      .pipe(
+        Effect.map((pr) => ({ pr, attachments: uploading })),
+        // Push access is already proven by the push above, so a create that
+        // fails while carrying attachments failed on the upload. Only the
+        // second attempt failing escalates, which is today's behaviour.
+        Effect.catchTag("FabrikaError", (error) =>
+          uploading.length > 0
+            ? journal
+                .log(`the pull request would not take the captures (${error.message}); opening it without them`)
+                .pipe(
+                  Effect.andThen(forge.open({ ...opening, body: plain, attachments: [] })),
+                  Effect.map((pr) => ({ pr, attachments: [] as ReadonlyArray<string> })),
+                )
+            : Effect.fail(error),
+        ),
+      );
+    const pr = opened.pr;
     yield* store.update((state) => void (state.prNumber = pr.number));
     yield* journal.log(`PR ${pr.url}`);
+
+    if (opened.attachments.length > 0) yield* withoutHostPaths(pr.number, opened.attachments, plain);
 
     if (config.pr.emptyCommit) {
       // A preview deployment is skipped when its commit predates the PR.

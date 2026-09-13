@@ -105,3 +105,15 @@ test("an upload that fails opens the pull request without it", async () => {
   assert.equal(dead.failed, true, "a second failure is the failure it is today");
   assert.equal((dead.exit as { _tag: string })._tag, "FabrikaError");
 });
+
+test("a posted body still holding a host path is put back", async () => {
+  const kept = await exercise(openPullRequest.run, { ...withCapture, captures: [framed], body: "verbatim" });
+  assert.deepEqual(kept.recording.edited, [TODAYS_BODY], "the body a reader can follow replaces the one they cannot");
+
+  const rewritten = await exercise(openPullRequest.run, { ...withCapture, captures: [framed] });
+  assert.deepEqual(rewritten.recording.edited, [], "a forge that rewrote the paths is left alone");
+
+  const words = await exercise(openPullRequest.run, { ...withCapture, captures: [texted], body: "verbatim" });
+  assert.ok(words.recording.prs[0]!.body.includes("## Before / After"));
+  assert.deepEqual(words.recording.edited, [], "a text-only section has no host path to look for");
+});

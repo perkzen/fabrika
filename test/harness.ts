@@ -40,6 +40,8 @@ export type Script = {
   readonly attaches?: boolean;
   /** A forge that rejects the upload, or one that will not open a pull request at all. */
   readonly open?: "fails-with-attachments" | "fails";
+  /** `"verbatim"` is a forge that posted the body without rewriting any attachment path into a URL. */
+  readonly body?: "verbatim";
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
@@ -228,7 +230,7 @@ export const harness = (script: Script = {}) => {
       // would trip the step's read-back on every happy path.
       body: () =>
         Effect.succeed(
-          (recording.prs.at(-1)?.attachments ?? []).reduce(
+          (script.body === "verbatim" ? [] : (recording.prs.at(-1)?.attachments ?? [])).reduce(
             (body, path, index) => body.split(path).join(`https://github.com/user-attachments/assets/${index}`),
             recording.prs.at(-1)?.body ?? "",
           ),
