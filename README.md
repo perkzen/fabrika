@@ -61,6 +61,14 @@ fabrika treats the current directory as the target repo. Its own skills ship
 inside the package and load through `--plugin-dir`, so the target repo needs
 nothing installed.
 
+To drive the CLI from a Claude Code session, install the `fabrika` skill and
+invoke it with `/fabrika` — it is user-invocable only, so it loads when you
+ask for it and never on a model's own initiative:
+
+```bash
+npx skills add perkzen/fabrika@fabrika -g
+```
+
 To work on fabrika itself, clone it and run the CLI straight from source
 (Node strips the types, so there is no build step in the loop):
 
