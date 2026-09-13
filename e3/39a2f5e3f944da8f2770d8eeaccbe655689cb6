@@ -1,0 +1,21 @@
+test/pull-request.test.ts
+  s_5dd1191cb85828::t_e54ded6480b5a1 101
+src/pipeline/steps/pull-request.ts
+  s_5dd1191cb85828::t_5c7c118d7ffc94 111,121,125-126,130-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e339a2f5e3f944da8f2770d8eeaccbe655689cb6",
+  "prompts": {},
+  "sessions": {
+    "s_5dd1191cb85828": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2fe348e-7146-469f-b2c6-1189a5d1d9df",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
