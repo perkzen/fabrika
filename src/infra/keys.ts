@@ -35,8 +35,8 @@ const SEQUENCES: ReadonlyArray<readonly [string, Key]> = [
 /**
  * One chunk of raw stdin as the keys in it — a paste or a held key arrives as
  * several. An escape sequence split across two chunks decodes as `follow` plus
- * junk, which is one ignored keystroke and nothing worse: keys are optional
- * and change only what is shown.
+ * junk, which is one ignored keystroke and nothing worse: keys are optional,
+ * and the worst a stray one does is fold a step or open an editor.
  */
 export const decode = (chunk: string): ReadonlyArray<Key> => {
   const keys: Array<Key> = [];
@@ -56,8 +56,8 @@ export const decode = (chunk: string): ReadonlyArray<Key> => {
  * `interrupt` is deliberately not handled here — raw mode stops the terminal
  * raising SIGINT, so the presenter turns it into a signal and lets the runner
  * interrupt the fiber. Exiting here would preempt the finalisers that clean up
- * the MCP temp files. `open` falls through for the same reason: spawning an
- * editor is not a view change, and this returns a view.
+ * the MCP temp files. `open` falls through too, for a reason of its own:
+ * spawning an editor is not a view change, and this returns a view.
  */
 export const press = (key: Key, view: View, tree: Tree, size: Size): View => {
   const steps = outlineSteps(tree);
