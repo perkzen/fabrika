@@ -1,0 +1,19 @@
+src/infra/keys.ts
+  s_9600f3556ffe4d::t_caacfdf8bbf06d 38-39,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e522ed15b7074ad5d1f0db2c01958085d59037ed",
+  "prompts": {},
+  "sessions": {
+    "s_9600f3556ffe4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd581287-59a9-4243-87a4-fba508e10fd4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
