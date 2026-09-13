@@ -1,0 +1,25 @@
+test/harness.ts
+  s_3389f098a81506::t_c8f34ff1993cdc 37-38,158
+test/gate.test.ts
+  s_3389f098a81506::t_b4a7d5c41b2908 1-48
+src/run-event.ts
+  s_3389f098a81506::t_c8f34ff1993cdc 19-28,49-59
+src/adapters/shell-gate.ts
+  s_3389f098a81506::t_c8f34ff1993cdc 36-40,42,45,52,54,57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5a20a885355621b2f29bbe77df414496fc1f3776",
+  "prompts": {},
+  "sessions": {
+    "s_3389f098a81506": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e10089f-53c0-4087-9a50-bf8d21394ca6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
