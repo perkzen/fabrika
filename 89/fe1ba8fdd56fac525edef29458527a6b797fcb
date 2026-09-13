@@ -1,0 +1,41 @@
+scripts/smoke.ts
+  ai_agent 93-95,100,110
+test/review.test.ts
+  ai_agent 170-194
+test/sync.test.ts
+  ai_agent 30-43
+test/claude.test.ts
+  ai_agent 1-3,6,9-62,68,73-76,83-121
+docs/adr/0005-one-session-one-model.md
+  ai_agent 1-34
+docs/internals.md
+  ai_agent 417-425
+CONTEXT.md
+  ai_agent 12-35
+src/infra/claude.ts
+  ai_agent 272-278
+test/domain.test.ts
+  ai_agent 113-150
+src/ports/agent.ts
+  ai_agent 30-31
+src/run.ts
+  ai_agent 106-108
+src/adapters/claude-agent.ts
+  ai_agent 16-21,74
+src/pipeline/steps/stage.ts
+  ai_agent 61
+src/config.ts
+  ai_agent 8-9,76-81
+test/branch.test.ts
+  ai_agent 1-18
+src/sweep.ts
+  ai_agent 95
+test/stage.test.ts
+  ai_agent 70-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "89fe1ba8fdd56fac525edef29458527a6b797fcb",
+  "prompts": {}
+}
