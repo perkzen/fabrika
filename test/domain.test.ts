@@ -142,7 +142,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
     install: "pnpm i --frozen-lockfile",
     gate: [{ name: "compile", run: "tsc" }],
     provider: "cubic",
-    source: ["src/**"],
+    source: ["lib/**"],
     notes: ["read off the repo"],
   });
 
@@ -154,7 +154,19 @@ test("a proposal becomes the config init writes, and only the fields it proposed
   assert.equal(config.review.requireScore, CONFIG_TEMPLATE.review.requireScore);
   assert.equal(config.review.maxRounds, CONFIG_TEMPLATE.review.maxRounds);
   assert.equal(config.review.timeoutMinutes, CONFIG_TEMPLATE.review.timeoutMinutes);
-  assert.deepEqual(config.stages, CONFIG_TEMPLATE.stages, "the stages are shipped, never proposed");
+  // The proposed globs reach exactly one stage. Everything else about `stages`
+  // is shipped, never proposed — which is what keeps `init` from having a
+  // channel through which to put a `when` on `security`.
+  assert.deepEqual(
+    config.stages.find((stage) => stage.name === "refactor")?.when,
+    ["lib/**"],
+    "the one stage init gives a when",
+  );
+  assert.deepEqual(
+    config.stages.filter((stage) => stage.name !== "refactor"),
+    CONFIG_TEMPLATE.stages.filter((stage) => stage.name !== "refactor"),
+    "and every other stage, security included, is the template's",
+  );
   assert.deepEqual(config.deny, CONFIG_TEMPLATE.deny);
 });
 

@@ -129,7 +129,11 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
  * added here rather than in a merge the CLI keeps on the side.
  *
  * `review` is spread, not replaced — the call proposes one of its four fields
- * and the other three are the template's.
+ * and the other three are the template's. `source` reaches `refactor` alone:
+ * the call has no channel through which to put a `when` on `security`, and a
+ * narrow application here is the structural half of that guarantee. Matching
+ * the stage by name is safe because this function owns both sides of it — the
+ * template it reads and the config it writes.
  */
 export const asConfig = (proposal: ConfigProposal | null): Config =>
   proposal
@@ -138,6 +142,9 @@ export const asConfig = (proposal: ConfigProposal | null): Config =>
         base: proposal.base,
         install: proposal.install,
         gate: proposal.gate,
+        stages: CONFIG_TEMPLATE.stages.map((stage) =>
+          stage.name === "refactor" ? { ...stage, when: proposal.source } : stage,
+        ),
         review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
       }
     : CONFIG_TEMPLATE;
