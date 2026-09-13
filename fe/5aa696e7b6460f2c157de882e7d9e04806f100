@@ -1,0 +1,26 @@
+src/config.ts
+  s_2e9b498f273e78::t_202a8221ac8521 2,12-13,50-59
+test/stage.test.ts
+  s_2e9b498f273e78::t_f9a7f1de9f63f0 61-74
+src/pipeline/steps/stage.ts
+  s_2e9b498f273e78::t_576b3d8ac94341 2,27-37
+test/harness.ts
+  s_2e9b498f273e78::t_9caa4fa1af75d3 38-39,63-64,103,182
+  s_2e9b498f273e78::t_731a8cbd632476 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fe5aa696e7b6460f2c157de882e7d9e04806f100",
+  "prompts": {},
+  "sessions": {
+    "s_2e9b498f273e78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e4f8c6-60a8-4fcb-8107-6b34d1224784",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
