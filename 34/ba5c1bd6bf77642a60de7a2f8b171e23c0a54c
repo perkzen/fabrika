@@ -1,0 +1,19 @@
+src/adapters/shell-gate.ts
+  s_2e9b498f273e78::t_6de1d013f95030 3,40-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "34ba5c1bd6bf77642a60de7a2f8b171e23c0a54c",
+  "prompts": {},
+  "sessions": {
+    "s_2e9b498f273e78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e4f8c6-60a8-4fcb-8107-6b34d1224784",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
