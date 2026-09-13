@@ -1,0 +1,23 @@
+test/claude.test.ts
+  s_008b9cd55519e0::t_4383991cdbd2ba 2-3,10-16,18-34,36,38-39,41-42,50,54,76,82,87-94
+docs/internals.md
+  s_008b9cd55519e0::t_7837c24838cfb9 366-370
+scripts/smoke.ts
+  s_008b9cd55519e0::t_48746679ffe3b5 96-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3da4edf205448139f87788c42b49cfbe93890af7",
+  "prompts": {},
+  "sessions": {
+    "s_008b9cd55519e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df40d7a8-06aa-4ece-bc0b-3e515cb00d44",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
