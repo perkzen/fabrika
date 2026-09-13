@@ -78,18 +78,47 @@ const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepS
   Effect.gen(function* () {
     const store = yield* RunStore;
     const journal = yield* Journal;
+    yield* body(steps, store, journal).pipe(
+      // Every `new Escalated` in the repo leaves through here, so this is the
+      // one place the reason has to be written down; it is re-raised so
+      // cli.ts still owns the stderr block and the exit code.
+      Effect.catchTag("Escalated", (error) =>
+        journal
+          .log({ kind: "result", outcome: "escalated", text: `escalated: ${error.reason}` })
+          .pipe(Effect.andThen(Effect.fail(error))),
+      ),
+    );
+  });
+
+const body = (
+  steps: ReadonlyArray<Step>,
+  store: RunStore,
+  journal: Journal,
+): Effect.Effect<void, StepError, StepServices> =>
+  Effect.gen(function* () {
     const done = store.get().completed;
-    if (done.length > 0) yield* journal.log(`resuming after ${done.join(", ")}`);
-    for (const step of steps) {
+    // `done` is decided per index, never by name: a pipeline has two steps
+    // called `review` and only the `once` one is finished by a resume.
+    yield* journal.log({
+      kind: "run",
+      // Copied: `done` is the live array that `state.completed.push` mutates,
+      // and an event has to say what was true when it was emitted.
+      completed: [...done],
+      steps: steps.map((step) => ({ name: step.name, done: Boolean(step.once && done.includes(step.name)) })),
+    });
+    const of = steps.length;
+    for (const [index, step] of steps.entries()) {
+      const at = index + 1;
       if (step.once && store.get().completed.includes(step.name)) {
-        yield* journal.log(`${step.name}: already done`);
+        yield* journal.log({ kind: "step", name: step.name, at, of, state: "already-done" });
         continue;
       }
       const skip = step.skip ? yield* step.skip : undefined;
       if (skip) {
-        yield* journal.log(`${step.name}: skipped (${skip})`);
+        yield* journal.log({ kind: "step", name: step.name, at, of, state: "skipped", reason: skip });
         continue;
       }
+      yield* journal.log({ kind: "step", name: step.name, at, of, state: "start" });
       yield* step.run;
       if (step.once) yield* store.update((state) => void state.completed.push(step.name));
     }

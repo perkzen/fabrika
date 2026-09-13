@@ -2,6 +2,7 @@ import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
 import { CONFIG_TEMPLATE, type GateStep } from "./config.ts";
+import type { RunEvent } from "./run-event.ts";
 
 /** The three repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {
@@ -98,7 +99,7 @@ const PROMPT = fileURLToPath(new URL("../prompts/configure.md", import.meta.url)
  * the call runs the candidates before proposing them, which is the part a
  * template cannot do.
  */
-export const proposeConfig = (repoRoot: string, credential: Credential, onLine: (line: string) => void) =>
+export const proposeConfig = (repoRoot: string, credential: Credential, onEvent: (event: RunEvent) => void) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const prompt = yield* fs.readFileString(PROMPT);
@@ -110,7 +111,8 @@ export const proposeConfig = (repoRoot: string, credential: Credential, onLine: 
       credential,
       jsonSchema: CONFIG_SCHEMA,
       disallowedTools: CONFIG_TEMPLATE.deny,
-      onLine,
+      stage: "configure",
+      onEvent,
     });
     return asProposal(result.structured);
   });

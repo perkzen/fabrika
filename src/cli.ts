@@ -14,12 +14,29 @@ import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
 import { proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
+import { openConsole, type Presenter } from "./infra/console.ts";
+import type { RunEvent } from "./run-event.ts";
 import { exec } from "./infra/shell.ts";
 
 const credentials = [{ name: "default", env: {} }];
 
+/**
+ * `init` has no run directory and no `Journal`, which is the whole reason the
+ * presenter takes a stream: it gets the same colour, the same markdown and
+ * the same height cap as a stage. `ensuring` rather than a plain return —
+ * `init` can fail with `FabrikaError`, and a cursor left hidden past the end
+ * of the process is the one failure that damages the operator's terminal.
+ */
 const init = Command.make("init", {}, () =>
+  Effect.suspend(() => {
+    const presenter = openConsole({ stream: process.stdout });
+    return configure(presenter).pipe(Effect.ensuring(Effect.sync(presenter.end)));
+  }),
+);
+
+const configure = (presenter: Presenter) =>
   Effect.gen(function* () {
+    const say = (entry: RunEvent | string) => Effect.sync(() => presenter.show(entry));
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const target = path.join(process.cwd(), CONFIG_PATH);
@@ -32,12 +49,10 @@ const init = Command.make("init", {}, () =>
     // for code it never wrote. One structured call proposes the three
     // repo-specific fields; the host is still the one that writes the file,
     // so a rejected answer cannot produce a config that will not load.
-    yield* Console.log("reading the repo: base branch, install command, and the checks CI enforces.");
-    yield* Console.log("this runs the candidate commands, so give it a minute.");
-    const rejected = (message: string) => Console.log(`  ${message}`).pipe(Effect.as(null));
-    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, (line) =>
-      console.log(`  ${line.slice(0, 160).replace(/\s+/g, " ")}`),
-    ).pipe(
+    yield* say("reading the repo: base branch, install command, and the checks CI enforces.");
+    yield* say("this runs the candidate commands, so give it a minute.");
+    const rejected = (message: string) => say({ kind: "note", level: "warn", text: message }).pipe(Effect.as(null));
+    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, presenter.show).pipe(
       Effect.catchTag("AgentUnauthorized", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
       Effect.catchTag("AgentRateLimited", () => rejected("usage limit hit")),
       Effect.catchTag("AgentFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
@@ -46,7 +61,7 @@ const init = Command.make("init", {}, () =>
       // what went wrong and writes the neutral one rather than dying.
       Effect.catch((e) => rejected(`could not run the configure call (${String((e as { message?: unknown }).message ?? e).slice(0, 80)})`)),
     );
-    for (const note of proposal?.notes ?? []) yield* Console.log(`  ${note}`);
+    for (const note of proposal?.notes ?? []) yield* say({ kind: "note", level: "detail", text: note });
     const config: Config = proposal
       ? { ...CONFIG_TEMPLATE, base: proposal.base, install: proposal.install, gate: proposal.gate }
       : CONFIG_TEMPLATE;
@@ -58,15 +73,14 @@ const init = Command.make("init", {}, () =>
     // rules — and shrug if there isn't one: the file is valid JSON either way.
     const prettier = path.join(process.cwd(), "node_modules", ".bin", "prettier");
     if (yield* fs.exists(prettier)) yield* exec(process.cwd(), [prettier, "--write", CONFIG_PATH]).pipe(Effect.ignore);
-    yield* Console.log(`wrote ${CONFIG_PATH}`);
+    yield* say(`wrote ${CONFIG_PATH}`);
     if (!proposal) {
-      yield* Console.log("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
+      yield* say("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
     }
-    yield* Console.log("read the gate before you commit the file: it is what every code stage must pass.");
-    yield* Console.log("edit: branch, and the mcp names each stage may use.");
-    yield* Console.log("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");
-  }),
-);
+    yield* say("read the gate before you commit the file: it is what every code stage must pass.");
+    yield* say("edit: branch, and the mcp names each stage may use.");
+    yield* say("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");
+  });
 
 /**
  * Read rather than hard-coded: the two drifted once already, and `npm version`

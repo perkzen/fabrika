@@ -3,7 +3,7 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
 import { Forge, type Check, type CheckState, type NewPullRequest } from "../ports/forge.ts";
-import { Journal } from "../ports/journal.ts";
+import { Journal, waitFor } from "../ports/journal.ts";
 import { Reviewer } from "../ports/reviewer.ts";
 import { Workspace } from "../ports/workspace.ts";
 
@@ -108,6 +108,9 @@ export const layer = (options: ForgeOptions) =>
             }),
           ),
 
+        // One wait for the whole poll loop. The per-poll `(2 pending)`
+        // parenthetical goes with it: it was poll state, and the presenter
+        // has no way to know it.
         settledChecks: (pr: number, sha: string, timeoutMinutes: number) =>
           Effect.gen(function* () {
             const started = Date.now();
@@ -118,13 +121,9 @@ export const layer = (options: ForgeOptions) =>
               const graceOver = Date.now() - started > Duration.toMillis(EMPTY_ROLLUP_GRACE);
               if (settled && (current.checks.length > 0 || graceOver)) return current.checks;
               if (Date.now() >= deadline) return undefined;
-              const pending = current.checks.filter((check) => check.state === "pending").length;
-              yield* journal.log(
-                `waiting for checks on ${sha.slice(0, 7)} (${current.sha === sha ? `${pending} pending` : "head not updated yet"})`,
-              );
               yield* Effect.sleep(POLL);
             }
-          }),
+          }).pipe(waitFor(journal, `checks on ${sha.slice(0, 7)}`, timeoutMinutes)),
 
         failureLog: (check: Check) =>
           check.job

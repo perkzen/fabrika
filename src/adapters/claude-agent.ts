@@ -3,7 +3,7 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import { runClaudeWithFallback, type Credential } from "../infra/claude.ts";
 import { mcpConfigFile, resolveServers } from "../infra/mcp.ts";
 import { Agent, AgentFailed, type AgentError, type AgentReply, type AgentRequest } from "../ports/agent.ts";
-import { Journal } from "../ports/journal.ts";
+import { Journal, waitFor } from "../ports/journal.ts";
 import { RunStore } from "../ports/run-store.ts";
 
 export type AgentOptions = {
@@ -59,6 +59,9 @@ export const layer = (options: AgentOptions) =>
             const servers = request.mcp?.length ? yield* resolveServers(options.repoRoot, request.mcp) : undefined;
             const mcp = servers ? yield* mcpConfigFile(servers) : undefined;
             const key = request.session ?? request.stage;
+            // The whole call is one wait: the stage is the only thing that
+            // tells one agent call from the next, and the minutes in between
+            // are exactly what the live region exists to fill.
             const result = yield* runClaudeWithFallback({
               cwd: request.cwd ?? options.defaultCwd,
               prompt: request.prompt,
@@ -69,14 +72,15 @@ export const layer = (options: AgentOptions) =>
               disallowedTools: options.deny,
               jsonSchema: request.jsonSchema,
               rawLog: path.join(store.directory, `${request.stage}-${++call}.jsonl`),
-              onLine: (line) => journal.write(`  ${line.slice(0, 400).replace(/\n/g, " ")}`),
-            });
+              stage: request.stage,
+              onEvent: journal.write,
+            }).pipe(waitFor(journal, `${request.stage} agent`));
             // Recorded before anything is done with the answer: a run that
             // dies here has to resume into this conversation, not a new one.
             yield* store.update((state) => {
               if (result.sessionId) state.sessions[key] = result.sessionId;
             });
-            if (result.costUsd !== null) yield* journal.log(`  (${request.stage}: $${result.costUsd.toFixed(2)})`);
+            if (result.costUsd !== null) yield* journal.log({ kind: "cost", stage: request.stage, usd: result.costUsd });
             return { text: result.text, structured: result.structured } satisfies AgentReply;
           }),
         ).pipe(

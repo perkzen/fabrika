@@ -2,7 +2,7 @@ import { Duration, Effect, Layer } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { asFabrikaError } from "../errors.ts";
 import { run } from "../infra/shell.ts";
-import { Journal } from "../ports/journal.ts";
+import { Journal, waitFor } from "../ports/journal.ts";
 import { Reviewer, type Review, type ReviewThread } from "../ports/reviewer.ts";
 import { Workspace } from "../ports/workspace.ts";
 
@@ -128,6 +128,9 @@ export const layer = Layer.effect(Reviewer)(
       decisionSchema: DECISION_SCHEMA,
       prompts: { threads: "cubic.md", system: "cubic.system.md" },
 
+      // One wait for the whole poll loop, not a line per poll: the
+      // repetition an operator needs is the presenter's job now, which is
+      // what lets a terminal animate it and a pipe heartbeat it.
       await: (pr: number, commits: ReadonlyArray<string>, timeoutMinutes: number) =>
         Effect.gen(function* () {
           const deadline = Date.now() + timeoutMinutes * 60_000;
@@ -141,10 +144,9 @@ export const layer = Layer.effect(Reviewer)(
               } satisfies Review;
             }
             if (Date.now() >= deadline) return undefined;
-            yield* journal.log(`waiting for ${BOT} review of ${commits.map((sha) => sha.slice(0, 7)).join("/")}`);
             yield* Effect.sleep(POLL);
           }
-        }),
+        }).pipe(waitFor(journal, `${BOT} review of ${commits.map((sha) => sha.slice(0, 7)).join("/")}`, timeoutMinutes)),
 
       reply: (threadId: string, body: string) =>
         mutation(

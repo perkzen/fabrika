@@ -21,6 +21,8 @@ import type { PlatformError } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { AgentFailed, AgentRateLimited, AgentUnauthorized } from "../ports/agent.ts";
 import { PLUGIN_DIR } from "../paths.ts";
+import type { RunEvent } from "../run-event.ts";
+import { describeContent, type ContentBlock } from "./transcript.ts";
 
 export type Credential = {
   readonly name: string;
@@ -55,7 +57,9 @@ export type ClaudeOptions = {
   readonly jsonSchema?: string;
   /** Every raw stream-json line is appended here, for post-mortems. */
   readonly rawLog?: string;
-  readonly onLine?: (line: string) => void;
+  /** Which unit of work these events belong to; it rides on every agent and tool event. */
+  readonly stage?: string;
+  readonly onEvent?: (event: RunEvent) => void;
 };
 
 type StreamEvent = {
@@ -68,7 +72,7 @@ type StreamEvent = {
   result?: string;
   structured_output?: unknown;
   total_cost_usd?: number;
-  message?: { content?: Array<{ type?: string; text?: string }> };
+  message?: { content?: Array<ContentBlock> };
 };
 
 const RATE_LIMITED = new Set(["rate_limit", "account_on_hold", "billing_error"]);
@@ -147,7 +151,7 @@ export const runClaude = (
         const trimmed = line.trim();
         if (!trimmed) return;
         if (opts.rawLog) yield* fs.writeFileString(opts.rawLog, trimmed + "\n", { flag: "a" });
-        interpret(trimmed, state, opts.onLine);
+        interpret(trimmed, state, opts);
       });
 
     const { exitCode, stderr } = yield* Effect.scoped(
@@ -189,7 +193,7 @@ export const runClaude = (
     };
   });
 
-function interpret(line: string, state: RunState, onLine?: (line: string) => void) {
+function interpret(line: string, state: RunState, opts: ClaudeOptions) {
   let event: StreamEvent;
   try {
     event = JSON.parse(line) as StreamEvent;
@@ -207,16 +211,12 @@ function interpret(line: string, state: RunState, onLine?: (line: string) => voi
   if (event.type === "system" && event.subtype === "api_retry") {
     if (event.error && RATE_LIMITED.has(event.error)) state.sawRateLimit = true;
     if (event.error && AUTH_FAILED.has(event.error)) state.authFailed = true;
-    onLine?.(`[retry] ${event.error ?? "unknown"}`);
+    opts.onEvent?.({ kind: "note", level: "warn", text: `[retry] ${event.error ?? "unknown"}` });
     return;
   }
 
   if (event.type === "assistant") {
-    const text = (event.message?.content ?? [])
-      .filter((block) => block.type === "text")
-      .map((block) => block.text ?? "")
-      .join("");
-    if (text.trim()) onLine?.(text.trim());
+    for (const next of describeContent(event.message?.content ?? [], opts.stage ?? "agent", opts.cwd)) opts.onEvent?.(next);
     return;
   }
 
@@ -245,13 +245,20 @@ export const runClaudeWithFallback = (
     if (!credential) return Effect.die(new Error("No credentials configured"));
     const next = (error: AgentRateLimited | AgentUnauthorized) => {
       if (index + 1 >= opts.credentials.length) return Effect.fail(error);
-      opts.onLine?.(`[credential] ${credential.name} exhausted (${error._tag}), trying the next one`);
+      opts.onEvent?.({
+        kind: "note",
+        level: "warn",
+        text: `[credential] ${credential.name} exhausted (${error._tag}), trying the next one`,
+      });
       return attempt(index + 1, error.sessionId ?? resume);
     };
-    opts.onLine?.(`[credential] ${credential.name}`);
+    opts.onEvent?.({ kind: "note", level: "detail", text: `[credential] ${credential.name}` });
     return runClaude({ ...opts, credential, resume }).pipe(
       Effect.catchTags({ AgentRateLimited: next, AgentUnauthorized: next }),
     );
   };
-  return attempt(0, opts.resume ?? null);
+  // Suspended: `attempt` names the credential as it is called, and a caller
+  // that brackets this in a wait builds the call before the wait opens. A
+  // function returning an effect does not get to speak when it is called.
+  return Effect.suspend(() => attempt(0, opts.resume ?? null));
 };

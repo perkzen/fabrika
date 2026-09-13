@@ -33,24 +33,28 @@ export const layer = (steps: ReadonlyArray<GateStep>) =>
 
         check: Effect.gen(function* () {
           const changed = yield* workspace.changedFiles;
-          for (const step of steps) {
+          const of = steps.length;
+          for (const [index, step] of steps.entries()) {
+            // A skipped step still advances the count: the operator is being
+            // told how far through the gate is, not how much of it ran.
+            const gate = { kind: "gate", name: step.name, at: index + 1, of, command: step.run } as const;
             if (step.when && !changed.some((file) => step.when!.some((glob) => matchesGlob(file, glob)))) {
-              yield* journal.log(`gate ${step.name}: skipped (no matching changes)`);
+              yield* journal.log({ ...gate, state: "skipped" });
               continue;
             }
-            yield* journal.log(`gate ${step.name}: ${step.run}`);
+            yield* journal.log({ ...gate, state: "start" });
             const started = Date.now();
             const { code, out } = yield* Effect.provideService(
               sh(workspace.dir, step.run),
               ChildProcessSpawner.ChildProcessSpawner,
               spawner,
             ).pipe(Effect.mapError(asFabrikaError(`gate ${step.name}`)));
-            const seconds = ((Date.now() - started) / 1000).toFixed(0);
+            const seconds = Number(((Date.now() - started) / 1000).toFixed(0));
             if (code !== 0) {
-              yield* journal.log(`gate ${step.name}: FAILED (exit ${code}, ${seconds}s)`);
+              yield* journal.log({ ...gate, state: "fail", seconds, exitCode: code });
               return { name: step.name, command: step.run, output: out.slice(-TAIL) } satisfies GateFailure;
             }
-            yield* journal.log(`gate ${step.name}: ok (${seconds}s)`);
+            yield* journal.log({ ...gate, state: "pass", seconds });
           }
           return undefined;
         }),
