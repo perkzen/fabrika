@@ -76,6 +76,26 @@ test("only the home directory and what is under it is written as ~", () => {
   assert.equal(at(WORKTREE), WORKTREE, "no home to write it against, so it is written whole");
 });
 
+test("the worktree row is viewport furniture, dropped at the height the keys row is", () => {
+  const started: ReadonlyArray<readonly [number, RunEvent | string]> = [
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+  ];
+  const tree: Tree = { ...script("FAB-7", ...started), worktree: WORKTREE };
+  const cramped = frame(tree, view, { columns: 80, rows: 11 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+
+  assert.equal(cramped.length, 11);
+  assert.deepEqual(
+    cramped.slice(0, 4),
+    ["FAB-7 [████░░░░░░░░] 2/3 implement", "· 1/3 preflight", "▸ 2/3 implement", "· 3/3 review"],
+    "under twelve rows the path goes the way the keys do, and the outline keeps every step",
+  );
+  assert.equal(cramped.at(-1), "", "the rows it gave up are the body's, not another row of furniture");
+
+  const noTree = frame(script("FAB-7", ...started), view, { columns: 80, rows: 12 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+  assert.equal(noTree[1], "· 1/3 preflight", "a run with no worktree has no second header row at any height");
+});
+
 test("a row too wide for the terminal is cut rather than wrapped", () => {
   const tree = script("FAB-6", [0, RUN]);
   const lines = frame(tree, view, { columns: 12, rows: 4 }, bare, { now: noon, spin: 0 });
