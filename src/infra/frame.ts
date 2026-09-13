@@ -175,18 +175,44 @@ const windowRows = (
   live: ReadonlyArray<Segment> | undefined,
 ): ReadonlyArray<string> => {
   const rows = live === undefined ? height : height - 1;
-  const wanted = rows + view.scroll;
+  const rendered = tail(step, rows + view.scroll, width, dress);
+  // A scroll past the top shows the top, never blankness: the stream can
+  // shrink under a scroll that was good for it, and a resize can too.
+  const end = rendered.length - Math.min(view.scroll, Math.max(rendered.length - rows, 0));
+  const shown = rendered.slice(Math.max(end - rows, 0), end);
+  // Top-aligned when the stream is shorter than the window, the way a terminal
+  // fills a buffer it has not used up; the liveness row is always the last.
+  return [...shown, ...blank(rows - shown.length), ...(live === undefined ? [] : [row(live, width, dress)])];
+};
+
+/** A step's stream as rows, newest last, walked back from the tail no further than `wanted` of them. */
+const tail = (step: Node, wanted: number, width: number, dress: Styler): ReadonlyArray<string> => {
   const rendered: Array<string> = [];
   for (let index = step.stream.length - 1; index >= 0 && rendered.length < wanted; index -= 1) {
     const entry = step.stream[index]!;
     const when = dress("dim", stamp(entry.when));
     rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${when} ${line}`, width)));
   }
-  const end = Math.max(rendered.length - view.scroll, 0);
-  const shown = rendered.slice(Math.max(end - rows, 0), end);
-  // Top-aligned when the stream is shorter than the window, the way a terminal
-  // fills a buffer it has not used up; the liveness row is always the last.
-  return [...shown, ...blank(rows - shown.length), ...(live === undefined ? [] : [row(live, width, dress)])];
+  return rendered;
+};
+
+/** Styling changes a row's bytes, never how many rows there are, so counting can skip it. */
+const BARE: Styler = (_style, text) => text;
+
+/**
+ * The scroll the open window can actually have, for a key handler that has
+ * just asked for one: never further up than the stream goes, so a page key
+ * cannot walk the window off into blankness and charge as many presses to
+ * come back. Walked no further than the asked-for position needs.
+ */
+export const scrolled = (tree: Tree, view: View, size: Size, scroll: number): number => {
+  const { window } = layout(tree, view, size);
+  const step = (tree.roots.at(-1)?.children ?? []).find((child) => child.key === view.opened);
+  if (!step || window <= 0) return 0;
+  const rows = window - (step.state === "running" && livenessRow(tree, { now: 0, spin: 0 }) !== undefined ? 1 : 0);
+  if (rows <= 0) return 0;
+  const height = tail(step, rows + Math.max(scroll, 0), Math.max(size.columns - 1, 0), BARE).length;
+  return Math.min(Math.max(scroll, 0), Math.max(height - rows, 0));
 };
 
 /**

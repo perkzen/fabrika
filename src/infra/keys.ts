@@ -1,4 +1,4 @@
-import { layout, type Size, type View } from "./frame.ts";
+import { layout, scrolled, type Size, type View } from "./frame.ts";
 import type { Node, Tree } from "../outline.ts";
 
 /**
@@ -68,7 +68,7 @@ export const press = (key: Key, view: View, tree: Tree, size: Size): View => {
     case "toggle":
       return { ...view, chosen: true, opened: view.opened === view.selected ? null : view.selected, scroll: 0 };
     case "page-up":
-      return { ...view, scroll: view.scroll + page(tree, view, size) };
+      return { ...view, scroll: scrolled(tree, view, size, view.scroll + page(tree, view, size)) };
     case "page-down":
       return { ...view, scroll: Math.max(view.scroll - page(tree, view, size), 0) };
     case "follow":

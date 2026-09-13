@@ -23,6 +23,14 @@ const fresh: View = { selected: "", opened: null, chosen: false, scroll: 0, top:
 const running = script(RUN, { kind: "step", name: "implement", at: 2, of: 3, state: "start" });
 const watching = follow(fresh, running);
 
+/** The same run once the step has said more than its window can hold, which is what makes a page key mean anything. */
+const talking = script(
+  RUN,
+  { kind: "step", name: "implement", at: 2, of: 3, state: "start" },
+  ...Array.from({ length: 30 }, (_, index): RunEvent => ({ kind: "note", level: "info", text: `line ${index}` })),
+);
+const reading = follow(fresh, talking);
+
 test("doing nothing follows the running step, selection and fold alike", () => {
   assert.deepEqual(watching, { selected: "0:2", opened: "0:2", chosen: false, scroll: 0, top: 0 });
 });
@@ -60,12 +68,12 @@ test("page-up stops the tail-follow, and page-down back to zero resumes it", () 
   assert.deepEqual(decode("\x1b[5~"), ["page-up"]);
   assert.deepEqual(decode("\x1b[6~"), ["page-down"]);
 
-  const back = press("page-up", watching, running, size);
+  const back = press("page-up", reading, talking, size);
   assert.ok(back.scroll > 0, "following is scroll === 0, not a second flag that can disagree with it");
 
-  const forward = press("page-down", back, running, size);
+  const forward = press("page-down", back, talking, size);
   assert.equal(forward.scroll, 0);
-  assert.equal(press("page-down", forward, running, size).scroll, 0, "and never past the tail");
+  assert.equal(press("page-down", forward, talking, size).scroll, 0, "and never past the tail");
 });
 
 test("Esc goes back to following the running step", () => {
@@ -108,4 +116,14 @@ test("moving the selection past the bottom of the outline scrolls it", () => {
 
   assert.equal(moving.selected, "0:11");
   assert.equal(moving.top, 4, "the key handler owns top, so the outline does not jump a row at a time under the reader");
+});
+
+test("page-up stops at the top of the stream, so one page-down always comes back to the tail", () => {
+  const once = press("page-up", reading, talking, size);
+  const twice = press("page-up", once, talking, size);
+  assert.ok(once.scroll > 0, "there is more above the window than it can show");
+  assert.equal(twice.scroll, once.scroll, "and nothing above the first line, so the view stays where the reader put it");
+  assert.equal(press("page-down", twice, talking, size).scroll, 0, "coming back is one press, not as many as were spent");
+
+  assert.equal(press("page-up", watching, running, size).scroll, 0, "a window holding less than it can show has nothing to scroll at all");
 });
