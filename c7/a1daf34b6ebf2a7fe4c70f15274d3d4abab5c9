@@ -1,0 +1,82 @@
+src/pipeline/steps/preflight.ts
+  s_23c0881e851125::t_aa919aea07f998 19
+  s_23c0881e851125::t_95c69081339cb0 18
+src/run-event.ts
+  s_23c0881e851125::t_2f0ac9ed78c7d6 13-25,31-32
+test/screen.test.ts
+  s_23c0881e851125::t_da88496757f65b 94-96
+docs/internals.md
+  s_23c0881e851125::t_24036d515d93a4 78-85
+  s_1cde4c928ae324::t_e0f7916603b290 344-345
+  s_23c0881e851125::t_386f7fa340e489 68-77
+src/infra/frame.ts
+  s_23c0881e851125::t_aa919aea07f998 224,236-239,244,452-454,459
+  s_23c0881e851125::t_842e890893f52a 27-30,33,42-43,46-50,53,65-74,81,112,116,124,221-223,225,228-233,243,245,339,343-346,348-354,356,358-361,366-377,380-381,386-389,391-394,396-398,415-437,462-468,470-471,476-480
+  s_23c0881e851125::t_19b726fb4bc866 378-379,382,410
+  s_23c0881e851125::t_2650d328690386 400-409,411-414
+src/pipeline/steps/review.ts
+  s_23c0881e851125::t_aa919aea07f998 34
+  s_23c0881e851125::t_95c69081339cb0 33
+test/pipeline.test.ts
+  s_23c0881e851125::t_0fa92e682378fe 162-179
+src/pipeline/steps/workspace.ts
+  s_23c0881e851125::t_95c69081339cb0 11-12
+test/console.test.ts
+  s_23c0881e851125::t_0fa92e682378fe 426-432
+src/infra/keys.ts
+  s_23c0881e851125::t_7b41b80c101100 95-103,105-111
+test/stage.test.ts
+  s_23c0881e851125::t_0fa92e682378fe 61-69
+src/infra/console.ts
+  s_23c0881e851125::t_aa2b233035313b 107
+test/keys.test.ts
+  s_23c0881e851125::t_41e94f504f0e76 22-28,56-77,133-144
+src/pipeline/step.ts
+  s_23c0881e851125::t_2f0ac9ed78c7d6 43-49,134-139,146,151,154
+  s_23c0881e851125::t_95c69081339cb0 162-164,186
+test/outline.test.ts
+  s_23c0881e851125::t_0fa92e682378fe 145-171
+scripts/capture-console.ts
+  s_23c0881e851125::t_24036d515d93a4 21
+CONTEXT.md
+  s_23c0881e851125::t_386f7fa340e489 91-95,98-103
+src/pipeline/steps/branch.ts
+  s_23c0881e851125::t_aa919aea07f998 24
+  s_23c0881e851125::t_95c69081339cb0 23
+src/pipeline/steps/pull-request.ts
+  s_23c0881e851125::t_95c69081339cb0 89-90
+test/frame.test.ts
+  s_23c0881e851125::t_aa919aea07f998 344-345,521
+  s_23c0881e851125::t_da88496757f65b 35-38,47,70,83,99,109,112,114,116,153-158,162-163,176-177,179,198,206-209,214-218,223-226,254-255,259-260,275,300,311-312,316,331-333,346-348,351,366-367,370-371,374,416-422,444,456-457,462-463,477-478
+  s_23c0881e851125::t_4d5b1f63d9d2ed 547,573
+  s_23c0881e851125::t_386f7fa340e489 264
+  s_23c0881e851125::t_0fa92e682378fe 516-520,522-546,548-572,574-576
+src/pipeline/steps/stage.ts
+  s_23c0881e851125::t_aa2b233035313b 14-28,40-41
+src/outline.ts
+  s_23c0881e851125::t_aa2b233035313b 41-49,85,88,114-115,118-121,128,157,163,166,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c7a1daf34b6ebf2a7fe4c70f15274d3d4abab5c9",
+  "prompts": {},
+  "sessions": {
+    "s_1cde4c928ae324": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87070f0f-b70e-49b9-9432-c7d2a1b9cf99",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    },
+    "s_23c0881e851125": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8fb004e6-4413-4a16-88fc-aa8b872f0097",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
