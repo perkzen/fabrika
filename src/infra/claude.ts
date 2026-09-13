@@ -133,6 +133,10 @@ export const runClaude = (
       cwd: opts.cwd,
       env,
       extendEnv: false,
+      // Stated rather than inherited: a key the operator presses at the screen
+      // must never reach the agent's input, and a release candidate's default
+      // can move.
+      stdin: "ignore",
     });
 
     const state: RunState = {

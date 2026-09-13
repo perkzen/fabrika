@@ -37,6 +37,10 @@ export const exec = (
           cwd,
           env: { GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", ...env },
           extendEnv,
+          // Stated rather than inherited: a key the operator presses at the
+          // screen must never reach a gate command, and a release candidate's
+          // default can move.
+          stdin: "ignore",
         }),
       );
       const out = yield* proc.all.pipe(Stream.decodeText(), Stream.mkString);
