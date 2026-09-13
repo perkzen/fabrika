@@ -1,0 +1,23 @@
+src/ports/workspace.ts
+  s_01bbe265fa57c4::t_6357d9b4a3779e 52,55-56
+docs/internals.md
+  s_01bbe265fa57c4::t_6357d9b4a3779e 221-225,274-279
+src/adapters/git-workspace.ts
+  s_01bbe265fa57c4::t_6357d9b4a3779e 175-177,179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1e006267a5ea249e0bf9c6f8816933de51e6dc5a",
+  "prompts": {},
+  "sessions": {
+    "s_01bbe265fa57c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e55a2a9f-493a-4526-b1a6-0c1bfd6377cb",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
