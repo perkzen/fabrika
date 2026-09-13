@@ -107,9 +107,10 @@ The host still writes the file. `asProposal` in `src/configure.ts` rejects an
 answer whose parts are unusable, and rejects any gate step containing
 `git push`, `gh pr merge`, a publish or an `rm -r`: the config denies those
 tools to every stage, and a gate command is the one place that rule could be
-laundered back in. A rejected or failed call — including `claude` missing from
-PATH — leaves `gate` empty and says so. An empty gate is honest; a wrong one
-is not.
+laundered back in. A gate step whose `when` is not a plain path glob is
+rejected the same way, and in practice is the likelier of the two. A rejected
+or failed call — including `claude` missing from PATH — leaves `gate` empty and
+says so. An empty gate is honest; a wrong one is not.
 
 ## Branch naming
 
@@ -175,8 +176,9 @@ field name, the same glob semantics and the same matcher as a gate step's
 `when`, so the two cannot drift into separate dialects. The scope is
 `changedFiles` — `base...HEAD`, the whole branch — and not the files since the
 last stage: `refactor` is judging what this branch does, not what the stage
-before it did. The skip reason names the globs that missed, because a stage's
-are in a config file the operator is not looking at:
+before it did. The skip reason names the globs that missed, because a stage's globs
+are in a config file the operator is not looking at, where a gate step's sit on
+the line beside it:
 
 ```
 refactor: skipped (no changed file matches src/**)
@@ -291,8 +293,8 @@ trusting anything else.
 A `.fabrika/config.json` written by an older `init` has a three-stage list.
 Run `fabrika init` in an empty directory and copy the `stages` array out of the
 file it writes — `src/config.ts` holds the same template as a TypeScript object
-now, which is not valid JSON. That is also where `only` and `when` show up, if the
-upgrade is what brings you here — and `refactor`'s line changed: it used to
+now, which is not valid JSON. That is also where `only` and `when` show up, if
+the upgrade is what brings you here — and `refactor`'s line changed: it used to
 carry `only: ["feat"]` and now carries `when: ["src/**"]`. Both fields are
 optional, so a config written before `when` existed keeps decoding and produces
 the same pipeline it always did.

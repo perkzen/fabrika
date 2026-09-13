@@ -100,7 +100,7 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "spec", prompt: "spec.md", system: "plan.system.md", mcp: ["linear-ro"] },
     { name: "plan", prompt: "plan.md", system: "plan.system.md" },
     { name: "implement", prompt: "implement.md", system: "implement.system.md", gate: true },
-    // The pass is skipped when the change is not source — a docs-only ticket
+    // The stage is skipped when the change is not source — a docs-only ticket
     // has no architecture to reshape, whatever type it was named. `init`
     // replaces these globs with where the repo's source actually lives;
     // security stays unfiltered for everything.

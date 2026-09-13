@@ -15,13 +15,15 @@ export type ConfigProposal = {
   readonly notes: ReadonlyArray<string>;
 };
 
+const MAX_WILDCARDS = 8;
+
 /**
- * Told to the call for both glob fields, because a rejected `when` costs the
- * whole answer and `src/**\/*.{ts,tsx}` is the near-miss a model reaches for.
- * It is the prose half of `isPathGlob`; keep the two in step.
+ * The prose half of `isPathGlob`, told to the call for both glob fields
+ * because a rejected `when` costs the whole answer and `src/**\/*.{ts,tsx}` is
+ * the near-miss a model reaches for.
  */
 const GLOB_SHAPE =
-  "Plain path globs only: letters, digits and `_ . @ / - * ?`, at most eight `*` or `?` between them. No braces and no extglob — write `src/**/*.ts` and `src/**/*.tsx` as two entries, never `src/**/*.{ts,tsx}`.";
+  `Plain path globs only: letters, digits and \`_ . @ / - * ?\`, at most ${MAX_WILDCARDS} \`*\` or \`?\` between them. No braces and no extglob — write \`src/**/*.ts\` and \`src/**/*.tsx\` as two entries, never \`src/**/*.{ts,tsx}\`.`;
 
 export const CONFIG_SCHEMA = JSON.stringify({
   type: "object",
@@ -72,25 +74,16 @@ export const CONFIG_SCHEMA = JSON.stringify({
  */
 const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
 
-/**
- * A glob names no command, so it gets no `FORBIDDEN` check. What it needs
- * bounded is not its syntax but the work one `matchesGlob` call can be made to
- * do, because `matchesAny` pays that per file per glob on a skip check every
- * run, synchronously, where no timeout downstream can take it back. Two
- * separate ways to spend half a minute on a single file, both measured:
- *
- * - Braces expand eagerly, so `{a,b}` twenty times over is a million
- *   alternatives. The shape below has no brace in it, nor any extglob.
- * - Wildcards backtrack, so `**` followed by `*?` ten times over takes 64s
- *   against an ordinary 48-character filename — and every character of that is
- *   one the shape allows. Only a count stops it: eight metacharacters is 0.2s
- *   against a name twice as long as any here, nine is 7.5s, and the globs this
- *   field is for spend two to four.
- */
-// `@` is here for `packages/@org/*/src/**` and is inert on its own: extglob
+// Bounds the work one `matchesGlob` call can be made to do: `matchesAny` pays
+// it per file per glob on a skip check every run, synchronously, so no timeout
+// downstream can take it back. The shape keeps braces and extglob out, which
+// expand eagerly; the count stops backtracking, which the shape alone does not
+// — `**` then `*?` ten times over is 64s against an ordinary filename, and
+// every character of it is one a path is spelled with. Measured: eight
+// wildcards 0.2s, nine 7.5s, and a real source glob spends two to four.
+// `@` is allowed for `packages/@org/*/src/**` and is inert alone — extglob
 // needs `@(`, and `(` is not in the class.
 const PATH_GLOB = /^[A-Za-z0-9_.@\/*?-]+$/;
-const MAX_WILDCARDS = 8;
 const isPathGlob = (raw: unknown): raw is string =>
   typeof raw === "string" &&
   raw.length <= 200 &&
