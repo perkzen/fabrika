@@ -296,6 +296,21 @@ test("the footer names the keys, and is the row dropped first when rows are scar
   assert.equal(cramped.at(-1), "", "under twelve rows it is the row worth losing first");
 });
 
+test("the keys row names o open exactly when there is an editor to open with", () => {
+  const tree = script("FAB-7", [0, RUN]);
+  const size = { columns: 80, rows: 12 };
+  const named = (operator?: { editor: boolean }) => frame(tree, view, size, bare, { now: noon, spin: 0 }, operator).at(-1);
+
+  assert.equal(
+    named({ editor: true }),
+    "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  o open  Ctrl-C interrupt",
+    "still inside an eighty-column terminal, with Ctrl-C last as the most drastic key",
+  );
+  const silent = "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  Ctrl-C interrupt";
+  assert.equal(named({ editor: false }), silent, "a machine with no editor command is never shown a key that does nothing");
+  assert.equal(named(), silent);
+});
+
 test("an open wait's spinner, elapsed and deadline are the window's last row", () => {
   const tree = script(
     "FAB-6",

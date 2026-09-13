@@ -42,8 +42,15 @@ const TOOLS = 3;
 const FOOTER_AT = 12;
 /** A window of one or two rows tells nobody anything; below the floor it is not drawn at all. */
 const WINDOW = 3;
-/** The keys, named once, because keys nobody can discover are keys nobody uses. */
-const KEYS = "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  Ctrl-C interrupt";
+/**
+ * The keys, named once, because keys nobody can discover are keys nobody uses
+ * — and `o` only when there is an editor behind it, because a key that cannot
+ * do anything is worse than no key. Seventy-seven columns at its longest, so
+ * an eighty-column terminal still shows all of it; `Ctrl-C` stays last as the
+ * most drastic.
+ */
+const keys = (editor: boolean): string =>
+  `↑↓ select  space fold  PgUp/PgDn scroll  Esc follow${editor ? "  o open" : ""}  Ctrl-C interrupt`;
 
 /** How a gate verdict reads in a summary — the same three words the gate's own line uses. */
 const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
@@ -119,7 +126,7 @@ export const frame = (
       ? [row([{ style: "dim", text: abbreviate(tree.worktree, operator?.home) }], width, dress)]
       : []),
     ...[...body, ...blank(spare)].slice(0, spare),
-    ...(footer ? [row([{ style: "dim", text: KEYS }], width, dress)] : []),
+    ...(footer ? [row([{ style: "dim", text: keys(operator?.editor === true) }], width, dress)] : []),
   ];
 };
 

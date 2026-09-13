@@ -64,7 +64,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   // Once per run rather than per draw: it cannot change while one is going,
   // and a frame is drawn twelve times a second. Read here because `frame` is
   // pure and has no machine in it.
-  const operator = { home: homedir() };
+  // The opener's presence is the single fact deciding both whether `o` does
+  // anything and whether the keys row names it, so the two cannot disagree.
+  const operator = { home: homedir(), editor: options.open !== undefined };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
   let mounted = false;
   let ended = false;
