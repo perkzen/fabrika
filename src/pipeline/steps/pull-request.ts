@@ -39,7 +39,10 @@ const captureSection = (
     // surface, so a docs-only run costs exactly what it costs today.
     if (applicable.length === 0) return undefined;
     const baseSha = yield* workspace.baseSha.pipe(Effect.orElseSucceed(() => ""));
-    if (!baseSha) return undefined;
+    // A sha, or nothing: `git rev-parse` can warn on stderr and still exit
+    // zero, and the adapter interleaves the two. The captures make a directory
+    // of this string and empty it recursively, and print it into the body.
+    if (!/^[0-9a-f]{7,64}$/.test(baseSha)) return undefined;
     const shots = yield* (yield* Captures).take(applicable, baseSha);
     if (shots.length === 0) return undefined;
     // Read only now: `attaches` shells out to `gh --version`, and a run with

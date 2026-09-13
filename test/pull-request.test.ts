@@ -128,3 +128,19 @@ test("a resumed run that already opened the pull request asks nothing", async ()
   assert.deepEqual(recording.prs, [], "no second pull request");
   assert.deepEqual(recording.captures, [], "and no second capture, so the run costs nothing it already paid");
 });
+
+test("a base sha that is not one is no base at all", async () => {
+  // `git rev-parse` warns on stderr and still exits zero when a branch and a
+  // tag share a name, and the adapter interleaves stderr into the output. The
+  // string becomes a directory the host empties recursively and the `Before
+  // (`…`)` header a reviewer reads, so it is checked before it is either.
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    config: { pr: { draft: true, emptyCommit: false, capture: [console_] } },
+    captures: [framed],
+    baseSha: "warning: refname 'origin/main' is ambiguous.\na1b2c3d4e5f6",
+  });
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.captures, [], "no command ran against a base nobody can name");
+  assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+});

@@ -36,6 +36,8 @@ export type Script = {
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
   /** What `Captures.take` answers; the fake still records what it was asked for. */
   readonly captures?: ReadonlyArray<Shot>;
+  /** What `git rev-parse <base>` printed, warnings and all. */
+  readonly baseSha?: string;
   /** False for a `gh` too old to upload an image. */
   readonly attaches?: boolean;
   /** A forge that rejects the upload, or one that will not open a pull request at all. */
@@ -203,7 +205,7 @@ export const harness = (script: Script = {}) => {
       commitAll: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead(), true)),
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
       head: Effect.sync(() => head),
-      baseSha: Effect.succeed(BASE_SHA),
+      baseSha: Effect.succeed(script.baseSha ?? BASE_SHA),
       commitCount: Effect.succeed(script.commits ?? 1),
       changedFiles: Effect.succeed(["src/a.ts"]),
       filesSince: () => Effect.succeed(script.touched ?? []),
