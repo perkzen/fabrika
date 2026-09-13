@@ -1,0 +1,21 @@
+README.md
+  s_4246d0f2d87b1d::t_7e4d21d806e090 100-123
+docs/internals.md
+  s_4246d0f2d87b1d::t_7e4d21d806e090 14,16,19-20,58,186,191-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a29aca082a2b1b891f16ddf5b586356e92806ca4",
+  "prompts": {},
+  "sessions": {
+    "s_4246d0f2d87b1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c857d290-f91a-4d61-9c82-c217de57a947",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
