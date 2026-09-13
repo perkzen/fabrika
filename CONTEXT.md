@@ -94,3 +94,19 @@ One signal the forge reports on the pushed commit — a CI job or a commit
 status. The reviewer's own check is not one: `owns` takes it out before the
 loop can wait on the signal the loop is producing.
 _Avoid_: status, CI run, test.
+
+### Showing the change
+
+**Capture**:
+A named command in the committed config that renders one user-visible surface
+to files, run by the host in a checkout. fabrika never looks inside what it
+writes, so the same contract serves a simulator screen, a browser page, a
+window and a terminal frame.
+_Avoid_: screenshot — an image is one of the three kinds a capture may write;
+snapshot, visual test.
+
+**Before / After**:
+The pull-request body section that carries each capture twice — the same
+surface rendered at the base and on the branch, side by side — for the half of
+a change a diff cannot show.
+_Avoid_: visual diff, preview, comparison.
