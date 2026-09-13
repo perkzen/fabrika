@@ -85,8 +85,7 @@ export const reviewRounds: Step = {
         failed = yield* failingChecks(pushedHead);
       }
 
-      // A round with no reviewer must not imply a verdict in the log either:
-      // it names what decided it instead of reporting a score of "none".
+      // With no reviewer there is no score to report, so the line names what decided the round.
       const verdict = reviewer.scores
         ? `score ${review.score ?? "none"}/5, ${threads.length} open thread(s), `
         : "no reviewer, ";
@@ -100,8 +99,7 @@ export const reviewRounds: Step = {
         yield* journal.log({
           kind: "result",
           outcome: "done",
-          // Both wordings end with the URL: the last line of stdout is what a
-          // caller pipes this to reads.
+          // Both wordings end with the URL: the last line of stdout is the piped contract.
           text: reviewer.scores
             ? `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`
             : `done: no review bot, checks green — ready for human review: ${url}`,
@@ -109,9 +107,7 @@ export const reviewRounds: Step = {
         return;
       }
       if (reviewer.scores && threads.length === 0 && failed.length === 0) {
-        // Nothing the agent can act on, and the next round would find the same
-        // review. A reviewer that seeks no verdict cannot reach here — with no
-        // score to fall short of, the done branch above has already taken it.
+        // Nothing the agent can act on, and the next round would find the same review; with no score to fall short of, `scores: false` cannot get here.
         return yield* escalate(
           `${reviewer.name} score ${review.score ?? "missing"}/5 with no open threads or failing checks to act on`,
         );

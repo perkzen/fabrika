@@ -16,8 +16,7 @@ import { Reviewer } from "../ports/reviewer.ts";
 export const noReviewer: Reviewer = {
   name: "none",
   scores: false,
-  // No review bot means no check on the PR belongs to a reviewer, so every
-  // check the forge classifies is the repo's CI — which is what the loop waits on.
+  // With no review bot, no check on the PR is the reviewer's own: every one of them is the repo's CI.
   owns: () => false,
   await: (_pr, commits) => Effect.succeed({ commit: commits.at(-1) ?? "", score: null, threads: [] }),
   reply: () => Effect.void,

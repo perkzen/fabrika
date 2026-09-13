@@ -95,11 +95,7 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
     gate.push({ ...step, name });
   }
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string") : [];
-  // Normalised like `stepName`, and for the same reason: throwing a
-  // correctly-read gate away over this field costs more than guessing it. The
-  // asymmetry runs this way too — `"none"` on a repo that has cubic loses a
-  // signal the human still sees on the PR, where `"cubic"` on a repo that has
-  // no bot is a guaranteed escalation.
+  // Normalised like `stepName`: a wrong `"none"` loses a signal the human still sees on the PR, where a wrong `"cubic"` guarantees an escalation.
   const provider = r.provider === "cubic" ? "cubic" : "none";
   return { base, install: r.install, gate, provider, notes };
 };

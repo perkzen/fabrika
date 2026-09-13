@@ -192,8 +192,7 @@ export const harness = (script: Script = {}) => {
       failureLog: () => Effect.succeed("the failing log"),
       rerun: (check: Check) => Effect.sync(() => void recording.rerun.push(check.job!.id)),
     }),
-    // The shipped adapter, not the fake with a flag flipped: a test that
-    // exercises the real object pins the behaviour rather than the double.
+    // The shipped adapter, not the fake with a flag flipped: it pins the behaviour, not the double.
     script.reviewer === "none"
       ? Layer.succeed(Reviewer)(noReviewer)
       : Layer.succeed(Reviewer)({

@@ -58,8 +58,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       Layer.succeed(RunContext)({ ticket, config }),
       gitWorkspace.layer({ repoRoot, dir, base: config.base }),
     );
-    // The one place a provider is named. A third review bot is a new adapter
-    // and one more arm here; the review loop reads the port, never this field.
+    // The one place a provider is named; the review loop reads the port, never this field.
     const reviewer =
       config.review.provider === "cubic" ? cubicReviewer.layer.pipe(Layer.provide(foundation)) : noReviewer.layer;
     const ports = Layer.mergeAll(

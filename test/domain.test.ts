@@ -122,9 +122,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
   assert.equal(config.install, "pnpm i --frozen-lockfile");
   assert.deepEqual(config.gate, [{ name: "compile", run: "tsc" }]);
   assert.equal(config.review.provider, "cubic");
-  // The proposal names one field of `review`; the merge must not cost the
-  // other three, which no caller of `init` would notice until a run timed out
-  // on the wrong deadline.
+  // The proposal names one field of `review`; the merge must not cost the other three.
   assert.equal(config.review.requireScore, CONFIG_TEMPLATE.review.requireScore);
   assert.equal(config.review.maxRounds, CONFIG_TEMPLATE.review.maxRounds);
   assert.equal(config.review.timeoutMinutes, CONFIG_TEMPLATE.review.timeoutMinutes);
