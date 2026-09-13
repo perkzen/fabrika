@@ -257,5 +257,8 @@ export const runClaudeWithFallback = (
       Effect.catchTags({ AgentRateLimited: next, AgentUnauthorized: next }),
     );
   };
-  return attempt(0, opts.resume ?? null);
+  // Suspended: `attempt` names the credential as it is called, and a caller
+  // that brackets this in a wait builds the call before the wait opens. A
+  // function returning an effect does not get to speak when it is called.
+  return Effect.suspend(() => attempt(0, opts.resume ?? null));
 };
