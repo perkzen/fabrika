@@ -20,14 +20,24 @@ import type { RunEvent } from "../run-event.ts";
  * `extra` is how a run adds one it decided on — the notifier, when the config
  * asks for it. Which surfaces exist is the composition root's call, not this
  * layer's: it only fans out to whatever it was given.
+ *
+ * `open` is which console it is: the scrollback one, or the screen an
+ * interactive run gets. A parameter rather than a different `consoleOptions`
+ * type, so this layer keeps building the shared clock and the archive label
+ * and every existing call site is untouched.
  */
-export const layer = (file: string, consoleOptions?: ConsoleOptions, extra: ReadonlyArray<Presenter> = []) =>
+export const layer = (
+  file: string,
+  consoleOptions?: ConsoleOptions,
+  extra: ReadonlyArray<Presenter> = [],
+  open: (options: ConsoleOptions) => Presenter = openConsole,
+) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
       // The label, not the path: the elision line points at `log.txt`, which is
       // what the operator calls it, not a line of absolute path.
       const options = consoleOptions ?? { stream: process.stdout, archive: basename(file) };
-      const surfaces = [openConsole(options), openArchive({ file, now: options.now }), ...extra];
+      const surfaces = [open(options), openArchive({ file, now: options.now }), ...extra];
       // The layer owns their lifetime: the live region is cleared and the
       // cursor restored before `cli.ts` writes anything to stderr.
       yield* Effect.addFinalizer(() => Effect.sync(() => surfaces.forEach((surface) => surface.end())));

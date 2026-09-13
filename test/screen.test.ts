@@ -88,3 +88,20 @@ test("the screen is entered by the run event and left by end(), which writes the
     "the folded outline, then the result, last",
   );
 });
+
+test("a screen that never mounted leaves no buffer and writes no outline", () => {
+  const out = terminal();
+  const presenter = open(out);
+
+  // The `already done: …` short-circuit: a run that stops before the pipeline
+  // starts emits no `run` event, so there is nothing to enter and nothing to leave.
+  presenter.show("already done: FAB-6 — remove ~/.fabrika/runs/fabrika/FAB-6 to rerun");
+  presenter.end();
+
+  assert.doesNotMatch(out.text(), /\x1b\[\?1049/, "no buffer was entered, so none is left");
+  assert.equal(
+    out.text().replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd(),
+    "12:00:00 already done: FAB-6 — remove ~/.fabrika/runs/fabrika/FAB-6 to rerun",
+    "the inner console's line and nothing after it",
+  );
+});
