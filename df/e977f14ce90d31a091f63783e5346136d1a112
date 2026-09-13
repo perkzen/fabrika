@@ -1,0 +1,29 @@
+src/infra/banner.ts
+  s_8d4f9007540de1::t_c749ca2e7e5eaf 1,3-20,22-45,48,51-52,55
+  s_8d4f9007540de1::t_94f80cceed338d 21,47
+  s_8d4f9007540de1::t_dd6f460cfa0b3d 46,49-50,53-54
+  s_8d4f9007540de1::t_d9916c2b20701c 2
+src/cli.ts
+  s_8d4f9007540de1::t_8149b7eb04cf7f 17,32,117
+docs/internals.md
+  s_8d4f9007540de1::t_d9916c2b20701c 26
+src/infra/console.ts
+  s_8d4f9007540de1::t_c749ca2e7e5eaf 39
+  s_8d4f9007540de1::t_d9916c2b20701c 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "dfe977f14ce90d31a091f63783e5346136d1a112",
+  "prompts": {},
+  "sessions": {
+    "s_8d4f9007540de1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a3bbabe-1c6f-460f-9f6b-45ce7cf549fd",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
