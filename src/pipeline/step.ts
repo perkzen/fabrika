@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import type { FabrikaError } from "../errors.ts";
 import type { AgentError } from "../ports/agent.ts";
 import { Agent } from "../ports/agent.ts";
@@ -121,9 +121,40 @@ const body = (
         continue;
       }
       yield* journal.log({ kind: "step", name: step.name, at, of, state: "start" });
-      yield* step.run;
+      yield* timed(step, at, of, journal);
       if (step.once) yield* store.update((state) => void state.completed.push(step.name));
     }
+  });
+
+/**
+ * One step, run and timed, with its `end` emitted on every exit — success,
+ * failure and interruption alike — so a run that escalates never leaves a
+ * step stuck at running.
+ *
+ * Suspended, because the clock has to be read when the step runs rather than
+ * where the effect was built: a step run twice is timed twice.
+ */
+const timed = (
+  step: Step,
+  at: number,
+  of: number,
+  journal: Journal,
+): Effect.Effect<void, StepError, StepServices> =>
+  Effect.suspend(() => {
+    const started = Date.now();
+    return step.run.pipe(
+      Effect.onExit((exit) =>
+        journal.log({
+          kind: "step",
+          name: step.name,
+          at,
+          of,
+          state: "end",
+          seconds: (Date.now() - started) / 1000,
+          outcome: Exit.isSuccess(exit) ? "done" : "failed",
+        }),
+      ),
+    );
   });
 
 export const pipeline = (steps: ReadonlyArray<Step> = []): PipelineBuilder => ({

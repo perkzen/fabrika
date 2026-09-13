@@ -5,7 +5,7 @@ import { Escalated } from "../src/pipeline/escalated.ts";
 import { pipeline, type Step } from "../src/pipeline/step.ts";
 import { RunStore } from "../src/ports/run-store.ts";
 import type { RunEvent } from "../src/run-event.ts";
-import { exercise } from "./harness.ts";
+import { exercise, type Recording } from "./harness.ts";
 
 const noop = (name: string, extra: Partial<Step> = {}): Step => ({
   name,
@@ -15,6 +15,15 @@ const noop = (name: string, extra: Partial<Step> = {}): Step => ({
   }),
   ...extra,
 });
+
+/** Which steps ended, and how they went. */
+const ends = (recording: Recording) =>
+  recording.events
+    .filter(
+      (entry): entry is Extract<RunEvent, { kind: "step" }> =>
+        typeof entry !== "string" && entry.kind === "step" && entry.state === "end",
+    )
+    .map((entry) => [entry.name, entry.outcome]);
 
 test("runs its steps in order", async () => {
   const { recording } = await exercise(pipeline().step(noop("one")).step(noop("two")).build().run);
@@ -91,4 +100,33 @@ test("a resumed run shows the step list with the finished steps already done", a
 test("a fresh run names its steps but has nothing to resume after", async () => {
   const { recording } = await exercise(pipeline().step(noop("one")).step(noop("two")).build().run);
   assert.equal(recording.log[0], "steps: one, two");
+});
+
+test("every step gets an end line, on the clean path and the escalated one", async () => {
+  const clean = await exercise(pipeline().step(noop("one")).step(noop("two")).build().run);
+  assert.deepEqual(ends(clean.recording), [["one", "done"], ["two", "done"]]);
+  assert.ok(
+    clean.recording.log.some((line) => /^step one: done \(\d+s\)$/.test(line)),
+    "and it reads as a line, in the flat log and in log.txt",
+  );
+
+  const escalating: Step = {
+    name: "review",
+    run: Effect.fail(new Escalated({ reason: "gate still red after 3 iterations", worktree: "/worktree" })),
+  };
+  const escalated = await exercise(pipeline().step(noop("one")).step(escalating).build().run);
+  assert.deepEqual(
+    ends(escalated.recording),
+    [["one", "done"], ["review", "failed"]],
+    "a run that escalates never leaves a step stuck at running",
+  );
+});
+
+test("a skipped or already-done step gets no end, their one line being their end", async () => {
+  const built = pipeline()
+    .step(noop("spec", { once: true }))
+    .step(noop("refactor", { once: true, skip: Effect.succeed("fix ticket") }))
+    .build();
+  const { recording } = await exercise(built.run, { state: { completed: ["spec"] } });
+  assert.deepEqual(ends(recording), [], "neither step ran, so neither has a duration or an outcome");
 });
