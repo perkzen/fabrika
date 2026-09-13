@@ -224,6 +224,19 @@ and not two — `checkout` therefore makes its tree and never reuses one, and a
 second sweep that finds a worktree already there refuses that pull request
 rather than resetting over the first sweep's merge.
 
+The last line is the contract a scheduled invocation is read through, and it
+carries five counts in this order:
+
+```
+sync: 1 synced, 0 already clean, 1 escalated, 0 failed, 5 skipped
+```
+
+`already clean` is its own field rather than folded into `synced`: the pull
+request was conflicted when GitHub was asked, so a merge that found nothing to
+do is a fact worth reporting rather than a push that did not happen. A sweep
+with nothing to do says so instead — `none conflicted` when none were, and
+`every conflicted one skipped` when they were skipped by the rules above.
+
 The sweep owns the only console — one line per pull request, the counts last
 — and each worker's journal is its `log.txt` alone, appended to the original
 run's log when the scan of `~/.fabrika/runs/<repo>/*/state.json` found one.
