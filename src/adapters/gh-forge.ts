@@ -91,6 +91,16 @@ export const mergeStateOf = (mergeable: string, mergeStateStatus?: string): Merg
         ? "behind"
         : "clean";
 
+/**
+ * GitHub's `state` onto the three the port speaks. A decision, not a cast:
+ * `Listed.state` is an unconstrained string, so asserting the union over it
+ * would be the schema guarding nothing. Anything unrecognised is closed —
+ * `select`'s first rule skips it, which costs one pull request rather than
+ * acting on a state this does not understand.
+ */
+const stateOf = (state: string): PullRequestDetail["state"] =>
+  state === "OPEN" ? "open" : state === "MERGED" ? "merged" : "closed";
+
 const detailOf = (pr: Listed): PullRequestDetail => ({
   number: pr.number,
   url: pr.url,
@@ -98,7 +108,7 @@ const detailOf = (pr: Listed): PullRequestDetail => ({
   body: pr.body,
   branch: pr.headRefName,
   base: pr.baseRefName,
-  state: pr.state.toLowerCase() as PullRequestDetail["state"],
+  state: stateOf(pr.state),
   draft: pr.isDraft,
   fork: pr.isCrossRepository,
   merge: mergeStateOf(pr.mergeable, pr.mergeStateStatus),

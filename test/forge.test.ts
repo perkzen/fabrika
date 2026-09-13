@@ -150,3 +150,19 @@ test("output that is not a listing fails the listing, rather than taking the swe
     );
   }
 });
+
+/**
+ * `state` arrives as an unconstrained string, so the mapping onto the three
+ * the port speaks has to be a decision rather than a cast. Fail closed: rule 1
+ * of `select` skips anything that is not open, so a state this does not
+ * recognise costs one pull request, never a wrong push.
+ */
+test("a pull request state GitHub renames is not open", async () => {
+  const stateOf = async (state: string) => (await Effect.runPromise(listing(JSON.stringify([{ ...ROW, state }]))))[0]!.state;
+
+  assert.equal(await stateOf("OPEN"), "open");
+  assert.equal(await stateOf("MERGED"), "merged");
+  assert.equal(await stateOf("CLOSED"), "closed");
+  assert.equal(await stateOf("LOCKED"), "closed", "a state this does not know is not one it may act on");
+  assert.equal(await stateOf(""), "closed");
+});
