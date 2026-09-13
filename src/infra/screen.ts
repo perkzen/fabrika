@@ -61,12 +61,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     options.input?.isTTY && typeof options.input.setRawMode === "function" ? options.input : undefined;
 
   let tree: Tree = { ...empty, label: options.ticket, worktree: options.worktree };
-  // What the frame needs from the machine, read once per run rather than per
-  // draw — neither fact can change while one is going, and a frame is drawn
-  // twelve times a second. Read here because `frame` is pure and has no
-  // machine in it; the opener's presence is the one fact deciding both whether
-  // `o` does anything and whether the keys row names it, so the two cannot
-  // disagree.
+  // Read here because `frame` is pure and has no machine in it, and once per
+  // run rather than per draw: neither fact can change while one is going, and
+  // a frame is drawn twelve times a second.
   const operator = { home: homedir(), editor: options.open !== undefined };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
   let mounted = false;
@@ -176,7 +173,8 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     for (const line of outlineRows(tree, size().columns, dress)) stream.write(line + "\n");
     // Absolute and unabbreviated: this is the line an operator copies into a
     // `cd`, an hour after the screen it was a `~` on has gone.
-    if (tree.worktree) for (const line of display(`worktree: ${tree.worktree}`, dress)) stream.write(line + "\n");
+    if (tree.worktree !== undefined)
+      for (const line of display(`worktree: ${tree.worktree}`, dress)) stream.write(line + "\n");
     // Through `display`, like every other line this repo writes: it is where
     // the result's colour is decided and, more to the point, where the text is
     // scrubbed. An escalation's wording carries `gh` output and agent text,
