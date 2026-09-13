@@ -9,6 +9,30 @@ of the domain.
 
 ## Language
 
+### Driving the agent
+
+**Stage**:
+One entry in the committed config's `stages` — a prompt, the role it runs
+under, the servers it may reach, whether the gate follows it, and which ticket
+types it runs for. It is one conversation by construction.
+_Avoid_: step — a step is the pipeline's unit of work, of which a configured
+stage is one kind; phase.
+
+**Session**:
+The conversation an agent call belongs to, named by a key and resumed by the
+session id recorded under that key. Several calls share one when they are one
+conversation: a review round hands back threads, CI logs and a gate repair as
+three calls and one session.
+_Avoid_: conversation — that is what a session *is*, not what fabrika keys and
+resumes; context, thread — a thread is one of the review bot's findings.
+
+**Stage label**:
+The name an agent call is filed under — it names the call's raw transcript and
+rides on every event the call emits. Usually the stage's name, and
+deliberately not the session's key when one conversation does several jobs.
+_Avoid_: stage — a label may name something no config entry describes (`branch`,
+`ci`, `merge`); transcript name.
+
 ### Reporting a run
 
 **Journal**:
