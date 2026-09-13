@@ -192,3 +192,20 @@ test("a proposed capture is validated like a gate step", () => {
 
   assert.equal(asConfig(asProposal(answer)).pr.capture, undefined, "a repo with nothing to capture gets no key at all");
 });
+
+test("a capture name is a plain label, because the host makes a directory out of it and then empties it", async () => {
+  const withCapture = (name: string) =>
+    JSON.stringify({ ...CONFIG_TEMPLATE, pr: { ...CONFIG_TEMPLATE.pr, capture: [{ name, run: "true" }] } });
+
+  const config = await Effect.runPromise(decodeConfig(withCapture("console-frame-2")));
+  assert.equal(config.pr.capture?.[0]?.name, "console-frame-2", "what `configure` proposes still decodes");
+
+  // `~/.fabrika/captures/<repo>/<sha>/<name>` is removed and remade every run;
+  // a name that climbs out of it takes the recursive delete with it.
+  const error = await Effect.runPromise(decodeConfig(withCapture("../../../..")).pipe(Effect.flip));
+  assert.match(String(error), /\["pr"\]\["capture"\]\[0\]\["name"\]/, "and says which capture is wrong");
+
+  for (const name of ["with space", "Caps", "back`tick", "pipe|d", ""]) {
+    await Effect.runPromise(decodeConfig(withCapture(name)).pipe(Effect.flip));
+  }
+});

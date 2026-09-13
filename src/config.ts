@@ -21,7 +21,14 @@ export const GateStep = Schema.Struct({
 export type GateStep = typeof GateStep.Type;
 
 export const CaptureStep = Schema.Struct({
-  name: Schema.String,
+  /**
+   * The same kebab-case label `configure` proposes, enforced here too: the
+   * host makes a directory of it under the capture cache and empties that
+   * directory before every run, so a name that is a path is a recursive
+   * delete somewhere nobody asked for — and the name is printed into the
+   * pull-request body, where a backtick or a pipe would be markdown.
+   */
+  name: Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
   run: Schema.String,
   /** Glob patterns; the capture runs only when a changed file matches one. */
   when: Schema.optional(Schema.Array(Schema.String)),
