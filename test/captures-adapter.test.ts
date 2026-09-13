@@ -26,6 +26,8 @@ const take = async (
   seed: (cache: (capture: string) => string) => void,
   /** A real repository and a real sha make the base half an actual checkout. */
   base: { repoRoot: string; sha: string } = { repoRoot: "/repo", sha: BASE },
+  /** What the fresh base checkout runs before the captures do. */
+  install?: string,
 ) => {
   const root = mkdtempSync(join(tmpdir(), "fabrika-captures-"));
   const cacheRoot = join(root, "cache");
@@ -44,7 +46,7 @@ const take = async (
     Effect.flatMap(Captures, (port) => port.take(captures, base.sha)).pipe(
       Effect.provide(
         shellCaptures
-          .layer({ cacheRoot, install: undefined })
+          .layer({ cacheRoot, install })
           .pipe(Layer.provide(Layer.merge(world.layer, NodeServices.layer))),
       ),
     ),
@@ -165,4 +167,22 @@ test("a capture command is not handed this machine's secrets", async () => {
     delete process.env.SOME_SERVICE_TOKEN;
     delete process.env.HOME_BREW_PREFIX;
   }
+});
+
+test("a base whose install failed is a missing half rather than a wrong one", async () => {
+  const base = here();
+  const { shots, log, cacheRoot } = await take(
+    [{ name: "console", run: writes({ "out.txt": "at the base" }) }],
+    () => {},
+    base,
+    "exit 7",
+  );
+
+  assert.equal(shots[0]?.before, undefined, "a tree whose dependencies are not there is not a base to capture");
+  assert.equal(
+    existsSync(join(cacheRoot, base.sha, "console")),
+    false,
+    "and a half captured against it is not cached for every later ticket on this base",
+  );
+  assert.ok(log.some((line) => line.includes("install failed (exit 7)")), "the operator is told which half went missing and why");
 });

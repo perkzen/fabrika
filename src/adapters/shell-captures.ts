@@ -155,7 +155,15 @@ export const layer = (options: CapturesOptions) =>
           yield* Effect.addFinalizer(() =>
             git(["worktree", "remove", "--force", dir]).pipe(Effect.ignore, Effect.andThen(git(["worktree", "prune"]).pipe(Effect.ignore))),
           );
-          if (options.install) yield* spawned(sh(dir, options.install));
+          if (options.install) {
+            // `sh` answers a result rather than failing, so a non-zero install
+            // reads as a tree that is ready when it is half-built.
+            const install = yield* spawned(sh(dir, options.install));
+            if (install.code !== 0) {
+              yield* journal.log(`captures: base ${baseSha.slice(0, 7)} install failed (exit ${install.code}); no base half`);
+              return;
+            }
+          }
           yield* use(dir);
         }).pipe(
           Effect.scoped,
