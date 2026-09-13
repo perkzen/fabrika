@@ -259,3 +259,27 @@ test("a repo where every pull request is clean says so and exits 0", async () =>
     "sync: nothing to sync — 7 open pull request(s), none conflicted on origin/main",
   );
 });
+
+test("two pull requests with the same identifier get two different keys", async () => {
+  const handed: Array<SyncTarget> = [];
+  await exercise(
+    sweep(oneAtATime((target) => Effect.sync(() => (handed.push(target), { pushed: "9f1c2ab3d4e5f6" })))),
+    {
+      pullRequests: [
+        pullRequest({ number: 42, title: "FAB-9: Conflicted PRs pile up" }),
+        pullRequest({ number: 41, title: "FAB-9: A second take on it" }),
+        pullRequest({ number: 40, title: "fix: a title with no identifier" }),
+      ],
+    },
+  );
+
+  assert.deepEqual(
+    handed.map(({ key, identifier, title }) => ({ key, identifier, title })),
+    [
+      { key: "FAB-9-42", identifier: "FAB-9", title: "Conflicted PRs pile up" },
+      { key: "FAB-9-41", identifier: "FAB-9", title: "A second take on it" },
+      { key: "pr-40", identifier: "pr-40", title: "fix: a title with no identifier" },
+    ],
+    "the number is in the key so two open pull requests can never resolve to one path",
+  );
+});

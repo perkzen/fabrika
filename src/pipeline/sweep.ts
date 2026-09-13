@@ -20,6 +20,13 @@ export type SyncTarget = {
   readonly number: number;
   readonly url: string;
   readonly branch: string;
+  /** `FAB-5`, or `pr-42` when the title does not parse. */
+  readonly identifier: string;
+  /** What `prompts/merge.md` interpolates: the title without its identifier. */
+  readonly title: string;
+  /** The worktree and run directory's name. */
+  readonly key: string;
+  readonly install?: string;
 };
 
 export type Selection =
@@ -112,7 +119,26 @@ const failure = (pr: PullRequestDetail, placement: Placement, error: StepError):
     : failed;
 };
 
-const targetOf = (pr: PullRequestDetail): SyncTarget => ({ number: pr.number, url: pr.url, branch: pr.branch });
+/** The shape `pull-request.ts` writes: `FAB-5: Conflicted PRs pile up`. */
+const TITLED = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*:\s*(.*)$/;
+
+/**
+ * The number is in the key deliberately: two open pull requests can carry the
+ * same identifier in their titles, and two workers in one tree is the failure
+ * this command is not allowed to have.
+ */
+const targetOf = (pr: PullRequestDetail): SyncTarget => {
+  const titled = TITLED.exec(pr.title);
+  const identifier = titled ? titled[1]! : `pr-${pr.number}`;
+  return {
+    number: pr.number,
+    url: pr.url,
+    branch: pr.branch,
+    identifier,
+    title: titled ? titled[2]! : pr.title,
+    key: titled ? `${identifier}-${pr.number}` : identifier,
+  };
+};
 
 /**
  * Which pull requests a sweep may touch, and why it left the rest alone.
