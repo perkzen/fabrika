@@ -65,24 +65,22 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   const root = tree.roots.at(-1);
   if (!root) return blank(size.rows);
 
-  const footer = size.rows >= FOOTER_AT;
-  const spare = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
+  const { window, outline, top, footer } = layout(tree, view, size);
+  const spare = window + outline;
   const open = root.children.find((child) => child.key === view.opened);
-  const height = windowHeight(tree, view, size);
-  const top = outlineTop(tree, view, size);
   // The spinner belongs to the step the run is inside; an unfolded finished
   // step is being read, not watched.
   const live = open?.state === "running" ? liveness(tree, clock) : undefined;
 
-  const drawn = root.children.slice(top, top + (spare - height));
+  const drawn = root.children.slice(top, top + outline);
   const body: Array<string> = [];
   for (const step of drawn) {
     body.push(row(outlineRow(step, step.key === view.selected), width, dress));
-    if (open && step.key === open.key) body.push(...windowRows(open, height, width, view, dress, live));
+    if (open && step.key === open.key) body.push(...windowRows(open, window, width, view, dress, live));
   }
   // The open step's own row can be scrolled out of the outline; its window is
   // still owed the rows the budget gave it.
-  if (open && height > 0 && !drawn.includes(open)) body.push(...windowRows(open, height, width, view, dress, live));
+  if (open && window > 0 && !drawn.includes(open)) body.push(...windowRows(open, window, width, view, dress, live));
 
   return [
     row(header(root, tree.label), width, dress),
@@ -92,42 +90,59 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
 };
 
 /**
- * How many rows the open step's window gets — and so how far a page key
- * scrolls it.
+ * How the viewport is divided, in one calculation.
  *
- * The window shrinks before the outline does, and is not drawn at all when it
- * cannot have its floor: with a header, an outline of at least one row and a
- * window of at least three, a terminal under five rows cannot have all three,
- * and the outline is the one always needed.
+ * A frame is a header row, a body, and a footer when there is room for one;
+ * the body is the outline, with the open step's window taking rows out of the
+ * middle of it. The window shrinks before the outline does, and is not drawn
+ * at all when it cannot have its floor: with a header, an outline of at least
+ * one row and a window of at least three, a terminal under five rows cannot
+ * have all three, and the outline is the one always needed.
  */
-export const windowHeight = (tree: Tree, view: View, size: Size): number => {
-  const steps = tree.roots.at(-1)?.children ?? [];
-  if (!steps.some((step) => step.key === view.opened)) return 0;
-  const spare = Math.max(size.rows - 1 - (size.rows >= FOOTER_AT ? 1 : 0), 0);
-  return spare >= WINDOW + 1 ? Math.max(WINDOW, spare - steps.length) : 0;
+export type Layout = {
+  /** How many body rows the open step's window takes, and so how far a page key scrolls it. */
+  readonly window: number;
+  /** How many body rows are left for the outline. */
+  readonly outline: number;
+  /**
+   * The first outline row to draw: `view.top`, pulled to wherever it has to be
+   * for the selected step to be on screen, and never past either end.
+   *
+   * The key handler sets `top` as it moves the selection, and this clamps what
+   * it set — so a resize that shrank the terminal cannot leave a stale `top`
+   * hiding the selection. When the selected and the running step are too far
+   * apart to both fit, the selection wins: it is the operator's choice, and the
+   * running step already has the window.
+   */
+  readonly top: number;
+  /** Whether the terminal is tall enough to name the keys at the bottom. */
+  readonly footer: boolean;
 };
 
-/** How many outline rows there is room for, once the header, the footer and the window have taken theirs. */
-export const outlineRows = (tree: Tree, view: View, size: Size): number =>
-  Math.max(size.rows - 1 - (size.rows >= FOOTER_AT ? 1 : 0), 0) - windowHeight(tree, view, size);
-
 /**
- * The first outline row to draw: `view.top`, pulled to wherever it has to be
- * for the selected step to be on screen, and never past either end.
- *
- * The key handler sets `top` as it moves the selection, and this clamps what
- * it set — so a resize that shrank the terminal cannot leave a stale `top`
- * hiding the selection. When the selected and the running step are too far
- * apart to both fit, the selection wins: it is the operator's choice, and the
- * running step already has the window.
+ * The budget, computed once for whoever is about to spend it — the renderer
+ * laying out a frame, and the key handler deciding how far a page scrolls and
+ * where the selection drags the outline to.
  */
-export const outlineTop = (tree: Tree, view: View, size: Size): number => {
+export const layout = (tree: Tree, view: View, size: Size): Layout => {
   const steps = tree.roots.at(-1)?.children ?? [];
-  const rows = Math.max(outlineRows(tree, view, size), 1);
-  const last = Math.max(steps.length - rows, 0);
+  const footer = size.rows >= FOOTER_AT;
+  const body = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
+  const window =
+    steps.some((step) => step.key === view.opened) && body >= WINDOW + 1 ? Math.max(WINDOW, body - steps.length) : 0;
+  const outline = body - window;
+
+  // At least one, so an outline with no room left still has a row to clamp
+  // against rather than dividing the selection into nothing.
+  const shown = Math.max(outline, 1);
+  const last = Math.max(steps.length - shown, 0);
   const at = steps.findIndex((step) => step.key === view.selected);
-  if (at < 0) return Math.min(Math.max(view.top, 0), last);
-  return Math.min(Math.max(Math.min(view.top, at), at - rows + 1, 0), last);
+  const top =
+    at < 0
+      ? Math.min(Math.max(view.top, 0), last)
+      : Math.min(Math.max(Math.min(view.top, at), at - shown + 1, 0), last);
+
+  return { window, outline, top, footer };
 };
 
 const blank = (rows: number): ReadonlyArray<string> => Array<string>(Math.max(rows, 0)).fill("");

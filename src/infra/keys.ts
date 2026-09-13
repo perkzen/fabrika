@@ -1,4 +1,4 @@
-import { outlineTop, windowHeight, type Size, type View } from "./frame.ts";
+import { layout, type Size, type View } from "./frame.ts";
 import type { Node, Tree } from "../outline.ts";
 
 /**
@@ -102,8 +102,8 @@ const moved = (view: View, steps: ReadonlyArray<Node>, by: number, tree: Tree, s
   // than the terminal scrolls with the selection instead of jumping back to
   // wherever the last frame happened to clamp it.
   const moving = { ...view, selected: next.key, chosen: true };
-  return { ...moving, top: outlineTop(tree, moving, size) };
+  return { ...moving, top: layout(tree, moving, size).top };
 };
 
 /** A page is a window, so a page key moves the reader exactly one screenful of what they are reading. */
-const page = (tree: Tree, view: View, size: Size) => Math.max(windowHeight(tree, view, size), 1);
+const page = (tree: Tree, view: View, size: Size) => Math.max(layout(tree, view, size).window, 1);
