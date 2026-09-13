@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { baseBranch } from "../adapters/git-workspace.ts";
 import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
@@ -19,6 +20,10 @@ export type SyncTarget = {
   readonly url: string;
   readonly branch: string;
 };
+
+export type Selection =
+  | { readonly decision: "sync"; readonly pr: PullRequestDetail }
+  | { readonly decision: "skip"; readonly pr: PullRequestDetail; readonly reason: string };
 
 /** Where one worker's tree and log live; the composition root decides both. */
 export type Placement = {
@@ -72,18 +77,60 @@ const counts = (outcomes: ReadonlyArray<SyncOutcome>) => {
 
 const targetOf = (pr: PullRequestDetail): SyncTarget => ({ number: pr.number, url: pr.url, branch: pr.branch });
 
+/**
+ * Which pull requests a sweep may touch, and why it left the rest alone.
+ *
+ * Pure, and first match wins, so the reason an operator reads is deterministic
+ * — a merged pull request reports `mergeable: UNKNOWN` forever, so the state
+ * rule has to fire before the unknown one. It stays unexported: the reason a
+ * pull request was skipped is what the operator reads, so that is what a test
+ * should read too.
+ */
+const select = (
+  prs: ReadonlyArray<PullRequestDetail>,
+  options: {
+    readonly base: string;
+    readonly checkedOut: ReadonlyArray<{ readonly branch: string; readonly path: string }>;
+  },
+): ReadonlyArray<Selection> => {
+  const ours = baseBranch(options.base);
+  return prs.map((pr): Selection => {
+    const skip = (reason: string): Selection => ({ decision: "skip", pr, reason });
+    if (pr.state !== "open") return skip(pr.state === "merged" ? "already merged" : "closed");
+    if (pr.fork) return skip("opened from a fork; nothing here can push to it");
+    if (pr.base !== ours) return skip(`targets ${pr.base}, not ${ours}`);
+    if (pr.merge === "unknown") return skip("merge state unknown — GitHub would not compute it");
+    if (pr.merge !== "conflicted") return skip(`not conflicted (${pr.merge})`);
+    const tree = options.checkedOut.find((entry) => entry.branch === pr.branch);
+    if (tree) return skip(`branch is checked out at ${tree.path}`);
+    return { decision: "sync", pr };
+  });
+};
+
 export const sweep = (
   options: SweepOptions,
 ): Effect.Effect<SweepResult, FabrikaError | StepError, Forge | Journal | Workspace> =>
   Effect.gen(function* () {
     const forge = yield* Forge;
     const journal = yield* Journal;
+    const workspace = yield* Workspace;
 
     const prs = yield* forge.authored;
     yield* journal.log(`sync: ${prs.length} open pull request(s) you authored on ${forge.repo}`);
-    const selected = prs.filter((pr) => pr.merge === "conflicted");
+    const selections = select(prs, { base: options.base, checkedOut: yield* workspace.checkedOutBranches });
+    const selected = selections.flatMap((selection) => (selection.decision === "sync" ? [selection.pr] : []));
 
     const outcomes: Array<SyncOutcome> = [];
+    // In list order, before anything is touched: "nothing to do" and "fabrika
+    // decided not to" are different answers and the operator reads both here.
+    for (const selection of selections) {
+      if (selection.decision !== "skip") continue;
+      const outcome: SyncOutcome = { pr: selection.pr, kind: "skipped", detail: `skipped: ${selection.reason}` };
+      outcomes.push(outcome);
+      yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
+    }
+    yield* journal.log(`sync: ${selected.length} conflicted, ${selections.length - selected.length} skipped`);
+
     // Each worker's line is written when *it* finishes, not when the fan-out
     // does, so a sweep of six reports as it goes.
     yield* Effect.forEach(
