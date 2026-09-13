@@ -1,0 +1,21 @@
+src/adapters/shell-captures.ts
+  s_265a35446d09ee::t_aa4b4f4a706fec 210-212
+docs/internals.md
+  s_265a35446d09ee::t_5d53e020df067a 238-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f6eb19c245d0f70e2e231aff3e70aa23ead93db0",
+  "prompts": {},
+  "sessions": {
+    "s_265a35446d09ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "309a70ff-be4f-4c30-8277-55d58b00aff8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
