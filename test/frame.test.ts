@@ -405,3 +405,22 @@ test("below the window's floor the outline takes every row, so a fold costs no s
   assert.equal(lines.length, 4);
   assert.deepEqual(lines.slice(1), ["· 1/3 preflight", "▸ 2/3 implement", "· 3/3 review"], "no step loses its row to a window that was not drawn");
 });
+
+test("a scrolled outline keeps the running step on screen too, until the selection needs the room", () => {
+  // Story 38 asks for both: the operator has moved the selection back to step
+  // 2 to read it while the run is on step 6.
+  const size = { columns: 60, rows: 6 };
+  const running = (at: number): Tree =>
+    script("FAB-6", [0, LONG], [1, { kind: "step", name: `step${at}`, at, of: 11, state: "start" }]);
+  const chosen = { ...view, selected: "0:2", opened: null, chosen: true, top: 0 };
+
+  const both = frame(running(6), chosen, size, bare, { now: noon, spin: 0 });
+  assert.equal(both[1], "· 2/11 step2", "the outline is pulled down far enough to hold both");
+  assert.equal(both.at(-1), "▸ 6/11 step6", "and the running step is the last row rather than off screen");
+
+  // Five rows cannot hold steps 2 and 10 at once, and the selection is the
+  // operator's choice while the running step already has the window.
+  const apart = frame(running(10), chosen, size, bare, { now: noon, spin: 0 });
+  assert.equal(apart[1], "· 1/11 step1");
+  assert.equal(apart.at(-1), "· 5/11 step5", "too far apart, so the selection wins");
+});

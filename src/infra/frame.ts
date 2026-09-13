@@ -108,13 +108,14 @@ export type Layout = {
   readonly outline: number;
   /**
    * The first outline row to draw: `view.top`, pulled to wherever it has to be
-   * for the selected step to be on screen, and never past either end.
+   * for the selected step and the running step to both be on screen, and never
+   * past either end.
    *
    * The key handler sets `top` as it moves the selection, and this clamps what
    * it set — so a resize that shrank the terminal cannot leave a stale `top`
-   * hiding the selection. When the selected and the running step are too far
-   * apart to both fit, the selection wins: it is the operator's choice, and the
-   * running step already has the window.
+   * hiding the selection. When the two are too far apart to both fit, the
+   * selection wins: it is the operator's choice, and the running step already
+   * has the window.
    */
   readonly top: number;
   /** Whether the terminal is tall enough to name the keys at the bottom. */
@@ -139,10 +140,17 @@ export const layout = (tree: Tree, view: View, size: Size): Layout => {
   const shown = Math.max(outline, 1);
   const last = Math.max(steps.length - shown, 0);
   const at = steps.findIndex((step) => step.key === view.selected);
+  const running = steps.findIndex((step) => step.state === "running");
+  // The running step is held on screen beside the selection whenever the two
+  // are close enough to share the outline; past that it is dropped and the
+  // selection alone decides where the outline sits.
+  const together = at >= 0 && running >= 0 && Math.abs(running - at) < shown;
+  const first = together ? Math.min(at, running) : at;
+  const lastWanted = together ? Math.max(at, running) : at;
   const top =
     at < 0
       ? Math.min(Math.max(view.top, 0), last)
-      : Math.min(Math.max(Math.min(view.top, at), at - shown + 1, 0), last);
+      : Math.min(Math.max(Math.min(view.top, first), lastWanted - shown + 1, 0), last);
 
   return { window, outline, top, footer };
 };
