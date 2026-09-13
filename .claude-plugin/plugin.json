@@ -1,5 +1,5 @@
 {
   "name": "fabrika",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "fabrika's stage skills. Loaded into every `claude -p` run via --plugin-dir, so a stage prompt can name a fabrika:* skill in any target repo."
 }
