@@ -82,3 +82,26 @@ test("an old gh drops the images and keeps the text", async () => {
   assert.ok(words.recording.prs[0]!.body.includes("## Before / After"), "a text capture still gets its section");
   assert.deepEqual(words.recording.prs[0]!.attachments, []);
 });
+
+test("an upload that fails opens the pull request without it", async () => {
+  const retried = await exercise(openPullRequest.run, {
+    ...withCapture,
+    captures: [framed],
+    open: "fails-with-attachments",
+  });
+
+  assert.equal(retried.failed, false, "a rejected upload does not fail the run");
+  assert.equal(retried.recording.prs.length, 2);
+  assert.deepEqual(retried.recording.prs[0]!.attachments, [BEFORE, AFTER], "the first attempt carried them");
+  assert.equal(retried.recording.prs[1]!.body, TODAYS_BODY, "the second is today's body exactly");
+  assert.deepEqual(retried.recording.prs[1]!.attachments, []);
+  assert.ok(
+    retried.recording.log.some((line) => line.includes("attachment rejected")),
+    "the reason is in the journal",
+  );
+  assert.equal(retried.recording.state().prNumber, 7);
+
+  const dead = await exercise(openPullRequest.run, { ...withCapture, captures: [framed], open: "fails" });
+  assert.equal(dead.failed, true, "a second failure is the failure it is today");
+  assert.equal((dead.exit as { _tag: string })._tag, "FabrikaError");
+});

@@ -83,13 +83,24 @@ export const openPullRequest: Step = {
     const link = ticket.url ? `Linear: ${ticket.url}` : "";
     const section = yield* captureSection(config.pr.capture ?? [], head);
 
+    const plain = composeBody(link, description, undefined);
+    const opening = { branch, title: `${ticket.identifier}: ${ticket.title}`, draft: config.pr.draft };
     const pr = yield* forge.open({
-      branch,
-      title: `${ticket.identifier}: ${ticket.title}`,
+      ...opening,
       body: composeBody(link, description, section?.markdown),
-      draft: config.pr.draft,
       attachments: section?.attachments ?? [],
-    });
+    }).pipe(
+      // Push access is already proven by the push above, so a create that
+      // fails while carrying attachments failed on the upload. Only the
+      // second attempt failing escalates, which is today's behaviour.
+      Effect.catchTag("FabrikaError", (error) =>
+        section && section.attachments.length > 0
+          ? journal
+              .log(`the pull request would not take the captures (${error.message}); opening it without them`)
+              .pipe(Effect.andThen(forge.open({ ...opening, body: plain, attachments: [] })))
+          : Effect.fail(error),
+      ),
+    );
     yield* store.update((state) => void (state.prNumber = pr.number));
     yield* journal.log(`PR ${pr.url}`);
 

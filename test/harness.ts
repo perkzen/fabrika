@@ -2,6 +2,7 @@ import { Effect, Layer } from "effect";
 import { noReviewer } from "../src/adapters/no-reviewer.ts";
 import type { Shot } from "../src/captures.ts";
 import type { Config } from "../src/config.ts";
+import { FabrikaError } from "../src/errors.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
 import { Agent, type AgentReply, type AgentRequest } from "../src/ports/agent.ts";
@@ -37,6 +38,8 @@ export type Script = {
   readonly captures?: ReadonlyArray<Shot>;
   /** False for a `gh` too old to upload an image. */
   readonly attaches?: boolean;
+  /** A forge that rejects the upload, or one that will not open a pull request at all. */
+  readonly open?: "fails-with-attachments" | "fails";
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
@@ -61,6 +64,7 @@ export type Recording = {
   readonly replied: Array<{ thread: string; body: string }>;
   readonly resolved: Array<string>;
   readonly rerun: Array<string>;
+  /** Every pull request the forge was asked to open, including an attempt it then rejected. */
   readonly prs: Array<{ title: string; draft: boolean; body: string; attachments: ReadonlyArray<string> }>;
   /** One entry per capture asked for, so "no command ran" is assertable as "was never asked". */
   readonly captures: Array<{ name: string; sha: string }>;
@@ -206,14 +210,17 @@ export const harness = (script: Script = {}) => {
       repo: "perkzen/fabrika",
       urlOf: (pr: number) => `https://github.com/perkzen/fabrika/pull/${pr}`,
       open: (input) =>
-        Effect.sync(() => {
+        Effect.suspend(() => {
           recording.prs.push({
             title: input.title,
             draft: input.draft,
             body: input.body,
             attachments: input.attachments,
           });
-          return { number: 7, url: "https://github.com/perkzen/fabrika/pull/7" };
+          const rejects = script.open === "fails" || (script.open === "fails-with-attachments" && input.attachments.length > 0);
+          return rejects
+            ? Effect.fail(new FabrikaError({ message: "gh pr create: attachment rejected" }))
+            : Effect.succeed({ number: 7, url: "https://github.com/perkzen/fabrika/pull/7" });
         }),
       attaches: Effect.succeed(script.attaches ?? true),
       // What `gh` actually does with an attachment: the host path in the body
