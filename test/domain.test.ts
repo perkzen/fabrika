@@ -114,6 +114,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
     base: "origin/trunk",
     install: "pnpm i --frozen-lockfile",
     gate: [{ name: "compile", run: "tsc" }],
+    capture: [],
     provider: "cubic",
     notes: ["read off the repo"],
   });
@@ -131,7 +132,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
 });
 
 test("a repo that needs no install step gets a config with no install key at all", () => {
-  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", notes: [] });
+  const config = asConfig({ base: "origin/main", install: undefined, gate: [], capture: [], provider: "none", notes: [] });
   assert.equal(config.install, undefined);
   assert.equal(JSON.parse(JSON.stringify(config)).install, undefined, "and `init` writes the file without it");
 });
@@ -165,4 +166,29 @@ test("gh is asked for the right things", () => {
       "--attach", "/a/two.png",
     ],
   );
+});
+
+test("a proposed capture is validated like a gate step", () => {
+  const answer = { base: "origin/main", gate: [], provider: "none", notes: [] };
+
+  assert.equal(asProposal({ ...answer, capture: [{ name: "x", run: "git push origin main" }] }), null, "one bad run rejects the answer");
+
+  const proposal = asProposal({
+    ...answer,
+    capture: [
+      { name: "Console frame", run: "node scripts/capture-console.ts", when: ["src/**"], timeoutMinutes: 4 },
+      { name: "console-frame", run: "node scripts/capture-cli.ts" },
+    ],
+  });
+  assert.deepEqual(proposal?.capture.map((capture) => capture.name), ["console-frame", "console-frame-2"]);
+  assert.deepEqual(proposal?.capture[0]?.when, ["src/**"]);
+  assert.equal(proposal?.capture[0]?.timeoutMinutes, 4);
+  assert.equal(proposal?.capture[1]?.timeoutMinutes, undefined);
+
+  const config = asConfig(proposal);
+  assert.equal(config.pr.draft, CONFIG_TEMPLATE.pr.draft, "the template's pr fields survive a proposed capture");
+  assert.equal(config.pr.emptyCommit, CONFIG_TEMPLATE.pr.emptyCommit);
+  assert.deepEqual(config.pr.capture?.map((capture) => capture.name), ["console-frame", "console-frame-2"]);
+
+  assert.equal(asConfig(asProposal(answer)).pr.capture, undefined, "a repo with nothing to capture gets no key at all");
 });
