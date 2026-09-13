@@ -20,7 +20,6 @@
     "skills",
     "prompts",
     ".claude-plugin",
-    "assets",
     "README.md"
   ],
   "publishConfig": {

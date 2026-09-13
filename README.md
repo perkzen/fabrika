@@ -92,6 +92,23 @@ Run a ticket:
 fabrika run --file .fabrika/tickets/login-timeout.md
 ```
 
+It opens by asking which steps to run — every stage this repo configured,
+plus the pull request and its review loop — with all of them ticked. Press
+enter for the whole run; untick what this ticket does not need. Space toggles,
+enter confirms.
+
+Nothing is asked when nobody is there to answer: a pipe, `NO_COLOR`, CI and
+any shell an agent drives run every step, as they always have. To choose
+without a keyboard, name the steps:
+
+```bash
+fabrika run --file .fabrika/tickets/login-timeout.md --steps implement,security,pull-request
+```
+
+`preflight`, `branch` and `workspace` are not on the list — a run has to have
+somewhere to work — and `pull-request` carries the review loop with it,
+because the loop has no rounds without a PR.
+
 The last log line of a clean run is the PR URL. If the run stops, rerun the
 same command and it picks up where it left off.
 
@@ -214,55 +231,6 @@ the moment the run does, whether that is a clean finish, an escalation or a
 Ctrl-C. Off by default, because `.fabrika/config.json` is committed and this is
 one machine's preference. On anything but macOS it warns once and runs on.
 
-### A notification when the run ends
-
-A run is long enough to walk away from. Set `notify` and macOS gets the
-outcome in Notification Center the moment the run is over:
-
-```json
-{
-  "notify": true
-}
-```
-
-It fires however the run ends — the `done:` line, an escalation, a usage
-limit, a crash, a Ctrl-C — because the surface that posts it closes with the
-run rather than waiting for a verdict the run may never reach. The ones with
-no verdict of their own say only that it stopped; the reason is in the
-terminal and in `log.txt`. A rerun of a ticket that is already finished posts
-nothing. Off by default, macOS only, same as `keepAwake`.
-
-The title carries the outcome — ✅ ready, ⚠️ escalated, 🛑 stopped without a
-verdict — and the notification carries fabrika's own icon.
-
-Getting that icon takes one thing fabrika otherwise never does. A notification
-is posted by an app and wears that app's icon; an AppleScript call is posted
-by Script Editor and there is no flag that changes it. So the first run with
-`notify` on builds a bundle that *is* fabrika: it downloads
-[terminal-notifier 2.0.0](https://github.com/julienXX/terminal-notifier),
-checks it against a pinned SHA-256, renames it and swaps in fabrika's icon,
-and keeps the result in `~/.fabrika/notifier/`. One download per machine —
-later runs reuse it, and the run says so in its log when it builds one.
-
-That release is from 2017, and deliberately so. The current one posts through
-`UNUserNotificationCenter`, and macOS grants no notification permission there
-to an app it has not notarised — its author's own signed build is refused on
-the same machine a rebranded one is. 2.0.0 posts through the deprecated
-`NSUserNotification`, where macOS asks you directly and honours the answer,
-and that is the only route open to a bundle built on the machine it runs on.
-It is borrowed time: the binary is x86_64, so it runs under Rosetta and macOS
-already warns about it. When Rosetta or that API goes, runs stop notifying —
-they do not break.
-
-Nothing about that is allowed to cost a run, and nothing about it is faked
-either. No network, a digest that does not match, a missing PlistBuddy: the
-run says so in its log and does not notify. There is no second way to post —
-the alternative would be an AppleScript call wearing Script Editor's name and
-icon, and a notification that looks like it came from another app is worse
-than the run saying nothing. macOS asks once whether "fabrika" may notify, as
-it does for any app; decline and the feature is off until you change it in
-System Settings → Notifications.
-
 ### Principles
 
 - **Humans own both ends.** People write tickets and people merge PRs. No auto-merge, no writes to the ticket tracker.
@@ -299,16 +267,16 @@ tickets without touching your team's Linear.
 
 ## Stages
 
-The default pipeline. Each stage writes its artifact to `.fabrika/work/` in
-the worktree, and the whole folder is copied next to the run's logs when the
-run finishes.
+The default pipeline, and what the select offers. Each stage writes its
+artifact to `.fabrika/work/` in the worktree, and the whole folder is copied
+next to the run's logs when the run finishes.
 
 | Stage | Skill | Output |
 | --- | --- | --- |
 | spec | `fabrika:to-spec` | `spec.md` with problem, solution, user stories and recorded assumptions |
 | plan | `fabrika:plan` | `plan.md` with ordered vertical slices and decisions from a self-grill |
 | implement | `fabrika:implement`, `fabrika:tdd` | code, one commit per red-to-green cycle |
-| refactor | `fabrika:improve-codebase-architecture` | `refactor.md`, refactor commits scoped to the branch — `feat` tickets only, by default |
+| refactor | `fabrika:improve-codebase-architecture` | `refactor.md`, refactor commits scoped to the branch |
 | security | `fabrika:security` | `security.md`, High and Medium findings fixed |
 | review | `fabrika:code-review` | `review.md` and `pr.md`, which becomes the PR body |
 
@@ -322,11 +290,10 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 
 ## Where things live
 
-- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, `model` (per stage, or one for the whole run), denied tools, review settings, `keepAwake`, `notify`, Before / After
+- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, `model` (per stage, or one for the whole run), denied tools, review settings, `keepAwake`, Before / After
 - `~/.fabrika/worktrees/<repo>/<ticket>/`: the worktree for a run
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
 - `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each capture, keyed by name and command, reused by every ticket cut from that commit
-- `~/.fabrika/notifier/Fabrika.app`: the bundle notifications are posted through, built on first use
 
 fabrika stores no credentials of its own: `claude`, `gh` and each MCP server
 hold theirs. The one thing it reads from the environment is

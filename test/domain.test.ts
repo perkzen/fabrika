@@ -148,15 +148,12 @@ test("a blank model is refused at both levels, rather than quietly voiding the d
   assert.match(String(staged), /\["stages"\]\[0\]\["model"\]/, "and says which stage, so the typo is findable");
 });
 
-test("notify is optional on the same terms", async () => {
-  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
-  assert.equal(without.notify, undefined);
-
-  const on = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: true })));
-  assert.equal(on.notify, true);
-
-  const error = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: 1 })).pipe(Effect.flip));
-  assert.match(String(error), /\["notify"\]/);
+test("a config still carrying the retired notify key loads, and the key is dropped", async () => {
+  // Notifications were taken out until a notification can wear fabrika's
+  // own icon on a current macOS; a committed config that still says
+  // `notify: true` must not stop a run.
+  const loaded = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: true })));
+  assert.equal("notify" in loaded, false);
 });
 
 test("the config init falls back to is runnable on a repo with no review bot", async () => {

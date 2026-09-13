@@ -39,9 +39,9 @@ const journal = (
  * They share one clock, so the file and the console never disagree about when
  * the same event happened.
  *
- * `extra` is how a run adds one it decided on — the notifier, when the config
- * asks for it. Which surfaces exist is the composition root's call, not this
- * layer's: it only fans out to whatever it was given.
+ * `extra` is how a run adds one it decided on. Which surfaces exist is the
+ * composition root's call, not this layer's: it only fans out to whatever it
+ * was given.
  *
  * `open` is which console it is: the scrollback one, or the screen an
  * interactive run gets. A parameter rather than a different `consoleOptions`

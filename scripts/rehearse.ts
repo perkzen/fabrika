@@ -7,8 +7,6 @@ import { fileURLToPath } from "node:url";
 import * as fileJournal from "../src/adapters/file-journal.ts";
 import type { Config } from "../src/config.ts";
 import { isInteractive, openConsole } from "../src/infra/console.ts";
-import { notifierApp } from "../src/infra/notifier-app.ts";
-import { openNotifier } from "../src/infra/notifier.ts";
 import { openScreen } from "../src/infra/screen.ts";
 import { fabrikaPipeline } from "../src/pipeline/fabrika.ts";
 import { Agent, type AgentRequest } from "../src/ports/agent.ts";
@@ -33,8 +31,9 @@ import { harness } from "../test/harness.ts";
  *   pnpm rehearse          # about two minutes, paced like a run
  *   pnpm rehearse --fast   # the same run in a few seconds
  *
- * Every row state the outline has is on screen once: the branch call says
- * the ticket is a fix, so `refactor` — `feat` only — is skipped.
+ * Every stage the shipped config has runs here, in its order: a rehearsal is
+ * the whole run, and which steps a run contains is now the operator's answer
+ * to the select rather than anything a rehearsal can stand in for.
  */
 
 /** One thing the agent does, and how long after the last one. */
@@ -149,12 +148,6 @@ export type RehearsalOptions = {
   readonly speed: number;
   /** Where `log.txt` goes; a temp directory by default. */
   readonly dir?: string;
-  /**
-   * Post the notification a real run posts when it ends, through the same
-   * bundle. macOS only, and off for a test: the bundle is built on first
-   * use and a notification for a test is noise.
-   */
-  readonly notify?: boolean;
 };
 
 const TICKET = { identifier: "FAB-0", title: "A stage says which model runs it", type: "feat" as const };
@@ -192,15 +185,10 @@ export const rehearse = (options: RehearsalOptions) =>
     // scrolling log — so `pnpm rehearse | cat` is what CI would see. `o` opens
     // nothing: it says so on the screen instead, which is what a rehearsal of
     // a key can honestly do.
-    // The same surface a run's `notify` adds, built the same way: a rehearsal
-    // is also how the notification is looked at without a ticket.
-    const app = options.notify ? yield* notifierApp : undefined;
-    const notifier = app?.bin ? [openNotifier({ title: `Fabrika ${TICKET.identifier} (rehearsal)`, bin: app.bin })] : [];
-
     const journal = fileJournal.layer(
       join(dir, "log.txt"),
       { stream: options.stream, archive: "log.txt" },
-      notifier,
+      [],
       isInteractive(options.stream)
         ? (opts) => {
             let show: ((entry: string) => void) | undefined;
@@ -315,18 +303,14 @@ export const rehearse = (options: RehearsalOptions) =>
     const overrides = Layer.mergeAll(agent, gate, reviewer, forge).pipe(Layer.provide(base));
     const ports = Layer.merge(base, overrides);
 
-    yield* Effect.gen(function* () {
-      // What `run.ts` tells the operator about the bundle, where they can see it.
-      if (app?.note) yield* (yield* Journal).log({ kind: "note", level: "detail", text: app.note });
-      yield* fabrikaPipeline(world.config).run;
-    }).pipe(Effect.provide(ports));
+    yield* fabrikaPipeline(world.config).run.pipe(Effect.provide(ports));
     return dir;
   });
 
 const main = fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "");
 if (main) {
   const fast = process.argv.includes("--fast");
-  rehearse({ stream: process.stdout, input: process.stdin, speed: fast ? 0.08 : 1, notify: process.platform === "darwin" }).pipe(
+  rehearse({ stream: process.stdout, input: process.stdin, speed: fast ? 0.08 : 1 }).pipe(
     Effect.tap((dir) => Effect.sync(() => console.log(`rehearsal log: ${join(dir, "log.txt")}`))),
     Effect.provide(NodeServices.layer),
     NodeRuntime.runMain,

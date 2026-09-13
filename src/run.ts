@@ -14,8 +14,6 @@ import type { Credential } from "./infra/claude.ts";
 import { isInteractive, openConsole } from "./infra/console.ts";
 import { editorOpener } from "./infra/editor.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
-import { notifierApp } from "./infra/notifier-app.ts";
-import { openNotifier } from "./infra/notifier.ts";
 import { openScreen } from "./infra/screen.ts";
 import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
@@ -46,14 +44,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
     const runsDir = home(path, "runs", repoRoot, ticket.identifier);
 
-    // macOS only, both of them, and the run says so once rather than failing:
-    // a machine that sleeps or a notification that never arrives is a
-    // nuisance, not a wrong result.
+    // macOS only, and the run says so once rather than failing: a machine
+    // that sleeps is a nuisance, not a wrong result.
     const darwin = process.platform === "darwin";
-    // Built before the journal exists, because the journal is one of the
-    // surfaces it is built for; what it has to say is held and logged below.
-    const app = config.notify && darwin ? yield* notifierApp : undefined;
-    const notifier = app?.bin ? [openNotifier({ title: `Fabrika ${ticket.identifier}`, bin: app.bin })] : [];
 
     const foundation = Layer.mergeAll(
       // A run an operator is watching gets the screen; a pipe, `NO_COLOR`,
@@ -63,7 +56,7 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       fileJournal.layer(
         path.join(runsDir, "log.txt"),
         undefined,
-        notifier,
+        [],
         isInteractive(process.stdout)
           ? (options) =>
               openScreen({
@@ -115,13 +108,11 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         return yield* journal.log(`already done: ${ticket.identifier} — remove ${runsDir} to rerun`);
       }
       // After the short-circuit: only a run that is about to wait on something
-      // has any reason to hold the machine awake, and only one that starts is
-      // worth a notification when it ends.
-      if ((config.keepAwake || config.notify) && !darwin) {
-        yield* journal.log({ kind: "note", level: "warn", text: "keepAwake and notify are macOS-only — ignored here" });
+      // has any reason to hold the machine awake.
+      if (config.keepAwake && !darwin) {
+        yield* journal.log({ kind: "note", level: "warn", text: "keepAwake is macOS-only — ignored here" });
       }
       if (config.keepAwake && darwin) keepAwake(journal.write);
-      if (app?.note) yield* journal.log({ kind: "note", level: "detail", text: app.note });
       yield* fabrikaPipeline(config).run;
     }).pipe(Effect.provide(ports));
   });

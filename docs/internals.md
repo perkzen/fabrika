@@ -37,8 +37,6 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
 | `src/infra/editor.ts` | `editorOpener()` — `FABRIKA_EDITOR` and the platform into the opener the screen's `o` calls, already bound to the worktree, or nothing where there is no default worth guessing |
-| `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
-| `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
 | `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
@@ -99,8 +97,7 @@ pipeline on the test harness's in-memory ports — no `git`, `gh` or `claude`,
 nothing under `~/.fabrika` — with a scripted agent, a gate that goes red
 once, a skipped stage and a reviewer that opens one thread before signing
 off, paced like a run; `pnpm rehearse --fast` is the same run in seconds.
-On macOS it ends with the notification a run ends with, through the same
-bundle. It is `scripts/rehearse.ts`, and it does not ship.
+It is `scripts/rehearse.ts`, and it does not ship.
 
 ## Exit codes
 
@@ -218,15 +215,23 @@ is left in place for a human.
 `.git/info/exclude` (shared by its worktrees), so the stage artifacts never
 land in a commit but survive the worktree.
 
-## Skipping a stage
+## Choosing the steps
 
-A stage with `only` runs for those ticket types and is skipped for the rest —
-the type being the naming call's verdict, not the Linear label, recorded in
-`state.json` so a resumed run skips identically. The shipped config puts
-`only: ["feat"]` on `refactor`: a fix or a chore rarely has architecture worth
-reshaping, and with one session per stage the pass costs a cold start plus a
-full gate run. `security` deliberately has no `only` — a small diff is a small
-security review.
+Which steps a run contains is decided once, before the pipeline is built:
+`--steps spec,plan,implement`, or — on a terminal with nobody piping it — the
+operator's answer to the select that opens the command, with everything
+pre-selected. A pipe, `NO_COLOR`, CI and any shell an agent drives run every
+step, because a run nobody can answer must not stop on a question.
+
+The choices are this repo's stages, in their configured order, plus
+`pull-request` for the draft PR and the review loop together — one choice
+because the loop's rounds are keyed by the PR's number, and because the
+loop's step shares the `review` stage's name.
+
+A deselected step is left out of the pipeline rather than skipped inside it,
+so `steps` on the run event, the outline and the `n/of` counter all describe
+the run that was asked for. `preflight`, `branch` and `workspace` are never
+offered: a run with no worktree has nowhere to do anything.
 
 A stage nobody in the repo ever wants is deleted from `stages` instead.
 

@@ -60,7 +60,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let hidden = false;
   let ended = false;
   /**
-   * Armed by the `run` event, the way `openNotifier` is: a rerun that
+   * Armed by the `run` event: a rerun that
    * short-circuits before the pipeline emits one has no tree worth naming,
    * and neither has the inner console a screen leaves behind on mount.
    */

@@ -35,9 +35,8 @@ export const withoutSecrets = (
 
 /**
  * Fire and forget, and never fatal: the child outlives the `process.exit`
- * `cli.ts` is about to call, and a failure to start it is swallowed — a
- * notification nobody sees, or an editor that never opened, is not a failed
- * run. No shell, ever.
+ * `cli.ts` is about to call, and a failure to start it is swallowed — an
+ * editor that never opened is not a failed run. No shell, ever.
  *
  * The environment is stated rather than inherited, because neither child has
  * any work that needs this process's keys and one of them is an editor the
