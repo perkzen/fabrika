@@ -1,0 +1,21 @@
+src/infra/frame.ts
+  s_c400707ea72aa4::t_f2d8c0cc9cdf3c 210-222,228,334
+test/frame.test.ts
+  s_c400707ea72aa4::t_36bfe31a3ff977 358-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d5f27af674248ede35841c1dad35d54cf2c214f7",
+  "prompts": {},
+  "sessions": {
+    "s_c400707ea72aa4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e507452-924b-4b76-a7b3-6442fb82ee9c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
