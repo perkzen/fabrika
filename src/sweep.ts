@@ -14,7 +14,7 @@ import { openConsole } from "./infra/console.ts";
 import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
 import { Journal } from "./ports/journal.ts";
 import type { RunState } from "./ports/run-store.ts";
-import { home } from "./run.ts";
+import { home } from "./paths.ts";
 
 export type SweepOptions = {
   readonly dryRun: boolean;

@@ -1,5 +1,4 @@
 import { Effect, Layer, Path } from "effect";
-import { homedir } from "node:os";
 import * as claudeAgent from "./adapters/claude-agent.ts";
 import * as cubicReviewer from "./adapters/cubic-reviewer.ts";
 import * as fileJournal from "./adapters/file-journal.ts";
@@ -11,6 +10,7 @@ import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
+import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
 import { RunContext } from "./ports/run-context.ts";
@@ -18,18 +18,6 @@ import { RunStore } from "./ports/run-store.ts";
 import type { Ticket } from "./ticket.ts";
 
 export { Escalated } from "./pipeline/escalated.ts";
-
-/**
- * Where a run keeps what it must not lose: state, logs and raw transcripts
- * outside the target repo, the worktree outside it as well. Both are keyed by
- * repository and key — a ticket identifier for a run, a pull request's key for
- * a sweep's worker — so two of either never share a directory.
- *
- * A plain join over a `Path` the caller already holds, so a sweep can resolve
- * a path inside a callback that must have no requirements of its own.
- */
-export const home = (path: Path.Path, kind: "runs" | "worktrees", repoRoot: string, key: string) =>
-  path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), key);
 
 /**
  * Assembles one run and executes it.

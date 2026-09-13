@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { Effect } from "effect";
+import { NodePath } from "@effect/platform-node";
+import { Effect, Path } from "effect";
 import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
+import { home } from "../src/paths.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -159,4 +163,20 @@ test("the configured base splits into the remote and the branch", () => {
   // first segment is ever the remote.
   assert.equal(remoteOf("upstream/release/2.0"), "upstream");
   assert.equal(baseBranch("upstream/release/2.0"), "release/2.0");
+});
+
+test("a run's directory is keyed by the repository's name and the run's own key", () => {
+  const path = Effect.runSync(Effect.provide(Path.Path, NodePath.layer));
+  assert.equal(
+    home(path, "runs", "/Users/domen/dev/fabrika", "FAB-5-42"),
+    join(homedir(), ".fabrika", "runs", "fabrika", "FAB-5-42"),
+  );
+  assert.equal(
+    home(path, "worktrees", "/Users/domen/dev/fabrika", "FAB-5-42"),
+    join(homedir(), ".fabrika", "worktrees", "fabrika", "FAB-5-42"),
+    "the two kinds differ only in that segment, so a tree and its log are findable from each other",
+  );
+  // The repository's basename, not its path: the scan for a pull request's
+  // existing run directory lists this one directory and nothing above it.
+  assert.equal(home(path, "runs", "/somewhere/else/fabrika", ""), home(path, "runs", "/Users/domen/dev/fabrika", ""));
 });

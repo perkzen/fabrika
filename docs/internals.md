@@ -29,7 +29,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper and MCP resolution — implementation details of the adapters |
-| `src/paths.ts` | The one place that resolves the package root, so the lookup works from `src/` and from `dist/` |
+| `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
 | `test/harness.ts` | Every port in memory, so a step can be exercised with no repository, no GitHub and no agent |
