@@ -1,0 +1,26 @@
+src/adapters/file-run-store.ts
+  s_4246d0f2d87b1d::t_20ad3bbdfc4f01 56-59
+src/cli.ts
+  s_4246d0f2d87b1d::t_717af08149dafd 16,149-181
+src/run.ts
+  s_4246d0f2d87b1d::t_1f41a34bf07fbd 25-29,31-32,48,52
+src/sweep.ts
+  s_4246d0f2d87b1d::t_717af08149dafd 55,61,67
+  s_4246d0f2d87b1d::t_57be6258121c5d 1-54,56-60,62-66,68-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2c0852391cef6eca6612af1d53104054aaf3e5d5",
+  "prompts": {},
+  "sessions": {
+    "s_4246d0f2d87b1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c857d290-f91a-4d61-9c82-c217de57a947",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
