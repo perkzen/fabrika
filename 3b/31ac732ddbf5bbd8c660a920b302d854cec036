@@ -1,0 +1,19 @@
+docs/adr/0004-the-run-is-a-screen-hand-rolled-on-the-alternate-buffer.md
+  s_73e6e226a2975e::t_70bd64379025e8 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3b31ac732ddbf5bbd8c660a920b302d854cec036",
+  "prompts": {},
+  "sessions": {
+    "s_73e6e226a2975e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bdcac4f-5b87-4306-89a9-25b3858ff415",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
