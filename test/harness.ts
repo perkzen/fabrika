@@ -56,6 +56,8 @@ export type Script = {
   readonly runs?: string;
   /** The repository a real adapter runs `git` in. */
   readonly repoRoot?: string;
+  /** A run store that cannot keep the artifacts — a full disk, an unreadable file. */
+  readonly archiveFails?: boolean;
   readonly config?: Partial<Config>;
   readonly ticket?: Partial<Ticket>;
   readonly state?: Partial<RunState>;
@@ -160,7 +162,10 @@ export const harness = (script: Script = {}) => {
     Layer.succeed(RunStore)({
       directory: script.runs ?? "/runs/FAB-1",
       get: () => state,
-      archive: () => Effect.succeed(undefined),
+      archive: () =>
+        script.archiveFails
+          ? Effect.fail(new FabrikaError({ message: "copying /worktree/.fabrika/work: no space left on device" }))
+          : Effect.succeed(undefined),
       update: (change: (state: RunState) => void) => Effect.sync(() => change(state)),
     }),
     Layer.succeed(RunContext)({ ticket, config }),

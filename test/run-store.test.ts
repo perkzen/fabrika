@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -52,6 +52,38 @@ test("a state file from an older fabrika gains the fields it never had", async (
   assert.equal(state.branch, "feat/x", "what the old file did say is kept");
   assert.deepEqual(state.reran, ["run-1"], "what it did not say does not blow up on first use");
   assert.equal(state.done, false);
+});
+
+test("the kept artifacts include the subdirectories an agent wrote, not just the stage files", async () => {
+  // An agent that researches into `work/research/` rather than `work/research.md`
+  // used to end the run on a copy that only handled files.
+  const work = mkdtempSync(join(tmpdir(), "fabrika-work-"));
+  writeFileSync(join(work, "spec.md"), "the spec");
+  mkdirSync(join(work, "research"));
+  writeFileSync(join(work, "research", "pr-body-images.md"), "the notes");
+
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  const kept = await inDirectory(directory, (store) => store.archive(work));
+
+  assert.equal(kept, join(directory, "work"));
+  assert.equal(readFileSync(join(directory, "work", "spec.md"), "utf8"), "the spec");
+  assert.equal(readFileSync(join(directory, "work", "research", "pr-body-images.md"), "utf8"), "the notes");
+});
+
+test("archiving twice keeps the later artifacts rather than the first ones", async () => {
+  const work = mkdtempSync(join(tmpdir(), "fabrika-work-"));
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  writeFileSync(join(work, "review.md"), "round one");
+  await inDirectory(directory, (store) => store.archive(work));
+  writeFileSync(join(work, "review.md"), "round two");
+  await inDirectory(directory, (store) => store.archive(work));
+  assert.equal(readFileSync(join(directory, "work", "review.md"), "utf8"), "round two");
+});
+
+test("there is nothing to keep when the run never wrote a work directory", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  const kept = await inDirectory(directory, (store) => store.archive(join(directory, "no-such-work")));
+  assert.equal(kept, undefined);
 });
 
 test("two states built from the same empty template do not share their arrays", async () => {
