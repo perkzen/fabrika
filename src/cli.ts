@@ -155,7 +155,13 @@ const run = Command.make(
 const sync = Command.make(
   "sync",
   {
-    dryRun: Flag.Boolean("dry-run").pipe(Flag.withDescription("print the selection and change nothing")),
+    // Defaulted, not bare: a `Flag.Boolean` with no default is *required*, so
+    // `fabrika sync` — the form the README documents and a schedule invokes —
+    // died on "Missing required flag: --dry-run".
+    dryRun: Flag.Boolean("dry-run").pipe(
+      Flag.withDescription("print the selection and change nothing"),
+      Flag.withDefault(false),
+    ),
     concurrency: Flag.Int("concurrency").pipe(
       Flag.withDescription("how many pull requests to sync at once"),
       Flag.withDefault(2),
