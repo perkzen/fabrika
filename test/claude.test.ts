@@ -8,12 +8,8 @@ import type { RunEvent } from "../src/run-event.ts";
 
 /**
  * The spawner seam's second adapter: it keeps the command it was handed and
- * answers as a `claude` that said one thing and exited cleanly.
- *
- * This is what makes the seam a seam. A spawner that only refused could show
- * what a call *said* before spawning; this one also shows what it spawned, so
- * the flags fabrika builds — which are otherwise trusted rather than tested —
- * are assertable without a real binary.
+ * answers as a `claude` that said one thing and exited cleanly, so the flags
+ * fabrika builds are assertable without a real binary.
  */
 const spawner = (spawned: Array<ChildProcess.StandardCommand>) =>
   ChildProcessSpawner.make((command) =>
