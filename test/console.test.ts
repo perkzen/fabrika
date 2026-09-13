@@ -34,6 +34,10 @@ const scripted = (presenter: { show: (event: RunEvent) => void }) => {
   presenter.show({ kind: "step", name: "implement", at: 2, of: 2, state: "start" });
   presenter.show({ kind: "gate", name: "compile", at: 1, of: 1, command: "tsc", state: "start" });
   presenter.show({ kind: "gate", name: "compile", at: 1, of: 1, command: "tsc", state: "pass", seconds: 4 });
+  presenter.show({ kind: "agent", stage: "implement", markdown: "on it" });
+  presenter.show({ kind: "tool", stage: "implement", tool: "Read", subject: "src/cli.ts" });
+  presenter.show({ kind: "cost", stage: "implement", usd: 0.42 });
+  presenter.show({ kind: "wait", state: "end", subject: "implement agent", seconds: 9 });
   presenter.show({ kind: "note", level: "warn", text: "the reviewer never answered" });
   presenter.show({ kind: "result", outcome: "done", text: "done: ready for human review" });
 };
@@ -81,6 +85,17 @@ test("an interactive console dresses the same sequence", () => {
   );
   assert.ok(out.text().includes(`\x1b[33mthe reviewer never answered\x1b[39m`), "a warning is yellow");
   assert.ok(out.text().includes(`\x1b[2m12:00:00\x1b[22m`), "the timestamp is dim everywhere");
+});
+
+test("tool activity and cost are dim, being the lines a run emits most of", () => {
+  const out = sink({ isTTY: true, columns: 120 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "tool", stage: "implement", tool: "Read", subject: "src/cli.ts" });
+  presenter.show({ kind: "cost", stage: "implement", usd: 0.42 });
+  presenter.end();
+
+  assert.ok(out.text().includes("\x1b[2m  Read src/cli.ts\x1b[22m"), "tool activity recedes behind the step it belongs to");
+  assert.ok(out.text().includes("\x1b[2m  (implement: $0.42)\x1b[22m"), "so does what it cost");
 });
 
 test("NO_COLOR, TERM=dumb and CI each veto a TTY, and the verdict is one verdict", () => {

@@ -51,10 +51,20 @@ const styleOf = (event: RunEvent): Style | undefined => {
       return event.level === "warn" ? "yellow" : event.level === "detail" ? "dim" : undefined;
     case "result":
       return event.outcome === "done" ? ["bold", "green"] : ["bold", "red"];
+    // The lines a run emits most of, several per agent message: they have to
+    // recede behind the step they belong to, not compete with it.
+    case "tool":
+    case "cost":
+      return "dim";
     case "run":
     case "wait":
     case "agent":
       return undefined;
+    // `plain()` cannot fall behind the union — it returns a non-optional type,
+    // so a missing case is a compile error there. `Style | undefined` makes
+    // the same omission legal here, and this is what takes that back.
+    default:
+      return event satisfies never;
   }
 };
 
