@@ -9,6 +9,29 @@ of the domain.
 
 ## Language
 
+### A run's stages
+
+**Step**:
+One named piece of a run's pipeline — preflight, the branch name, a stage, the
+pull request, the review loop. A step may answer with a reason to skip itself,
+and may record itself so a resume does not repeat it.
+_Avoid_: task, phase, job.
+
+**Stage**:
+The step that is one configured agent call: a prompt, its own session, and,
+when it is gated, the gate rerun until green. Which stages a repo runs, and in
+what order, is `stages` in the config rather than code.
+_Avoid_: pass, phase — and `refactor` the stage is not `refactor.md` the
+artifact it writes.
+
+**Changed files**:
+What this branch changes against its base, `base...HEAD` — the whole branch,
+not the last commit, and never `.fabrika/work/`, which git is told to exclude.
+It is what a `when` glob is matched against, in a gate step and in a stage
+alike.
+_Avoid_: diff, touched files — *files since* a sha is the narrower question
+`filesSince` answers.
+
 ### Reporting a run
 
 **Journal**:
