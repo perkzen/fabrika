@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { styleText } from "node:util";
 import { frame, outlineRows, type View } from "./frame.ts";
 import { display } from "./lines.ts";
@@ -14,6 +15,12 @@ export type ScreenOptions = ConsoleOptions & {
   readonly input?: NodeJS.ReadStream;
   /** How `Ctrl-C` is raised, injected so a test can press it without signalling the test runner. */
   readonly kill?: () => void;
+  /**
+   * What `o` does — already bound to the worktree, and injected so a test
+   * presses it without spawning anything. Its presence is also what decides
+   * whether the keys row names the key at all.
+   */
+  readonly open?: () => void;
 };
 
 const ALTERNATE_ON = "\x1b[?1049h";
@@ -53,7 +60,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   const keyboard =
     options.input?.isTTY && typeof options.input.setRawMode === "function" ? options.input : undefined;
 
-  let tree: Tree = { ...empty, label: options.ticket };
+  let tree: Tree = { ...empty, label: options.ticket, worktree: options.worktree };
+  // Read here because `frame` is pure and has no machine in it, and once per
+  // run rather than per draw: neither fact can change while one is going, and
+  // a frame is drawn twelve times a second.
+  const operator = { home: homedir(), editor: options.open !== undefined };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
   let mounted = false;
   let ended = false;
@@ -76,7 +87,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
    * a row and put every frame after it permanently out.
    */
   const draw = () => {
-    const lines = frame(tree, view, size(), dress, { now: now(), spin });
+    const lines = frame(tree, view, size(), dress, { now: now(), spin }, operator);
     stream.write(HOME + lines.map((line) => line + CLEAR_LINE).join("\n") + CLEAR_BELOW);
     dirty = false;
   };
@@ -90,6 +101,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
       // this does, and `runMain` interrupts the fiber. A `process.exit` here
       // would preempt the finalisers that clean up the MCP temp files.
       if (key === "interrupt") kill();
+      // Not `press`'s business either: it is pure and returns a view, and an
+      // editor is not a view.
+      else if (key === "open") options.open?.();
       else view = press(key, view, tree, size());
     }
     dirty = true;
@@ -157,6 +171,10 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     stream.off("resize", onResize);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
     for (const line of outlineRows(tree, size().columns, dress)) stream.write(line + "\n");
+    // Absolute and unabbreviated: this is the line an operator copies into a
+    // `cd`, an hour after the screen it was a `~` on has gone.
+    if (tree.worktree !== undefined)
+      for (const line of display(`worktree: ${tree.worktree}`, dress)) stream.write(line + "\n");
     // Through `display`, like every other line this repo writes: it is where
     // the result's colour is decided and, more to the point, where the text is
     // scrubbed. An escalation's wording carries `gh` output and agent text,

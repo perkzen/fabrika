@@ -134,7 +134,6 @@ const run = Command.make(
           Console.error(
             [
               `ESCALATED: ${e.reason}`,
-              `  worktree: ${e.worktree}`,
               ...(e.prUrl ? [`  PR: ${e.prUrl}`] : []),
               `  rerun the same command to resume from where it stopped.`,
             ].join("\n"),
