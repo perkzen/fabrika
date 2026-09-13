@@ -75,11 +75,12 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   const spare = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
   const open = root.children.find((child) => child.key === view.opened);
   const height = windowHeight(tree, view, size);
+  const top = outlineTop(tree, view, size);
   // The spinner belongs to the step the run is inside; an unfolded finished
   // step is being read, not watched.
   const live = open?.state === "running" ? liveness(tree, clock) : undefined;
 
-  const drawn = root.children.slice(view.top, view.top + (spare - height));
+  const drawn = root.children.slice(top, top + (spare - height));
   const body: Array<string> = [];
   for (const step of drawn) {
     body.push(row(outlineRow(step, step.key === view.selected), width, dress));
@@ -110,6 +111,29 @@ export const windowHeight = (tree: Tree, view: View, size: Size): number => {
   if (!steps.some((step) => step.key === view.opened)) return 0;
   const spare = Math.max(size.rows - 1 - (size.rows >= FOOTER_AT ? 1 : 0), 0);
   return spare >= WINDOW + 1 ? Math.max(WINDOW, spare - steps.length) : 0;
+};
+
+/** How many outline rows there is room for, once the header, the footer and the window have taken theirs. */
+export const outlineRows = (tree: Tree, view: View, size: Size): number =>
+  Math.max(size.rows - 1 - (size.rows >= FOOTER_AT ? 1 : 0), 0) - windowHeight(tree, view, size);
+
+/**
+ * The first outline row to draw: `view.top`, pulled to wherever it has to be
+ * for the selected step to be on screen, and never past either end.
+ *
+ * The key handler sets `top` as it moves the selection, and this clamps what
+ * it set — so a resize that shrank the terminal cannot leave a stale `top`
+ * hiding the selection. When the selected and the running step are too far
+ * apart to both fit, the selection wins: it is the operator's choice, and the
+ * running step already has the window.
+ */
+export const outlineTop = (tree: Tree, view: View, size: Size): number => {
+  const steps = tree.roots.at(-1)?.children ?? [];
+  const rows = Math.max(outlineRows(tree, view, size), 1);
+  const last = Math.max(steps.length - rows, 0);
+  const at = steps.findIndex((step) => step.key === view.selected);
+  if (at < 0) return Math.min(Math.max(view.top, 0), last);
+  return Math.min(Math.max(Math.min(view.top, at), at - rows + 1, 0), last);
 };
 
 const blank = (rows: number): ReadonlyArray<string> => Array<string>(Math.max(rows, 0)).fill("");

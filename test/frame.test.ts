@@ -200,11 +200,11 @@ test("the window shrinks before the outline does, and never below three rows", (
   const cramped = frame(tree, watching, { columns: 60, rows: 5 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(cramped, [
     "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "· 1/3 preflight",
+    "▸ 2/3 implement",
     "12:00:01   Read src/cli.ts",
     "12:00:02 │ on it",
     "12:00:03   Bash pnpm test",
-  ], "the window keeps its three rows and the outline scrolls, rather than the outline losing them");
+  ], "the window keeps its three rows and the outline scrolls to the selected step, rather than losing them");
 
   const tiny = frame(tree, watching, { columns: 60, rows: 4 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(tiny, [
@@ -299,4 +299,27 @@ test("the selected row is marked, so moving the selection is something the opera
   assert.ok(dressed.some(([style, text]) => text === "· 1/3" && style === "inverse"), "picking a step to read means seeing which one is picked");
   assert.ok(!dressed.some(([style, text]) => text === "▸ 2/3" && style === "inverse"), "and only one is");
   assert.equal(lines[1], "· 1/3 preflight", "the marking is dressing, so the line's text is the one the spec pins");
+});
+
+const LONG: RunEvent = {
+  kind: "run",
+  completed: [],
+  steps: Array.from({ length: 11 }, (_, index) => ({ name: `step${index + 1}`, done: false })),
+};
+
+test("an outline longer than the terminal scrolls to keep the selected step on screen", () => {
+  const tree = script("FAB-6", [0, LONG]);
+  const size = { columns: 60, rows: 8 };
+
+  const bottom = frame(tree, { ...view, selected: "0:11", opened: null, top: 0 }, size, bare, { now: noon, spin: 0 });
+  assert.equal(bottom.length, 8);
+  assert.equal(bottom[1], "· 5/11 step5", "a stale top is pulled down until the selection is on screen");
+  assert.equal(bottom.at(-1), "· 11/11 step11");
+
+  const top = frame(tree, { ...view, selected: "0:1", opened: null, top: 9 }, size, bare, { now: noon, spin: 0 });
+  assert.equal(top[1], "· 1/11 step1", "and pushed back up the same way");
+  assert.equal(top.at(-1), "· 7/11 step7");
+
+  const held = frame(tree, { ...view, selected: "0:6", opened: null, top: 3 }, size, bare, { now: noon, spin: 0 });
+  assert.equal(held[1], "· 4/11 step4", "a top the selection already fits in is left where the operator put it");
 });

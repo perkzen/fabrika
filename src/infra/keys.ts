@@ -1,4 +1,4 @@
-import { windowHeight, type Size, type View } from "./frame.ts";
+import { outlineTop, windowHeight, type Size, type View } from "./frame.ts";
 import type { Node, Tree } from "../outline.ts";
 
 /**
@@ -61,7 +61,7 @@ export const press = (key: Key, view: View, tree: Tree, size: Size): View => {
   switch (key) {
     case "up":
     case "down":
-      return moved(view, steps, key === "up" ? -1 : 1);
+      return moved(view, steps, key === "up" ? -1 : 1, tree, size);
     // Opens the selected step and closes whatever was open, or closes it if it
     // was the one open. At most one is open, so the view can never become the
     // wall again.
@@ -94,10 +94,15 @@ export const follow = (view: View, tree: Tree): View => {
 
 const outlineSteps = (tree: Tree): ReadonlyArray<Node> => tree.roots.at(-1)?.children ?? [];
 
-const moved = (view: View, steps: ReadonlyArray<Node>, by: number): View => {
+const moved = (view: View, steps: ReadonlyArray<Node>, by: number, tree: Tree, size: Size): View => {
   const at = steps.findIndex((step) => step.key === view.selected);
   const next = steps[Math.min(Math.max((at < 0 ? 0 : at) + by, 0), steps.length - 1)];
-  return next ? { ...view, selected: next.key, chosen: true } : view;
+  if (!next) return view;
+  // `top` is kept here rather than derived per frame, so an outline longer
+  // than the terminal scrolls with the selection instead of jumping back to
+  // wherever the last frame happened to clamp it.
+  const moving = { ...view, selected: next.key, chosen: true };
+  return { ...moving, top: outlineTop(tree, moving, size) };
 };
 
 /** A page is a window, so a page key moves the reader exactly one screenful of what they are reading. */

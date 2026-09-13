@@ -94,3 +94,18 @@ test("an interrupt is not the view's business, and an unknown byte changes nothi
   assert.deepEqual(press("interrupt", watching, running, size), watching);
   assert.deepEqual(press("unknown", watching, running, size), watching);
 });
+
+test("moving the selection past the bottom of the outline scrolls it", () => {
+  const long = script({
+    kind: "run",
+    completed: [],
+    steps: Array.from({ length: 11 }, (_, index) => ({ name: `step${index + 1}`, done: false })),
+  });
+  const small = { columns: 60, rows: 8 };
+
+  let moving = { ...fresh, selected: "0:1", top: 0 };
+  for (let press_ = 0; press_ < 10; press_ += 1) moving = press("down", moving, long, small);
+
+  assert.equal(moving.selected, "0:11");
+  assert.equal(moving.top, 4, "the key handler owns top, so the outline does not jump a row at a time under the reader");
+});
