@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Writable } from "node:stream";
 import { test } from "node:test";
 import { openConsole } from "../src/infra/console.ts";
 import type { RunEvent } from "../src/run-event.ts";
@@ -308,4 +309,55 @@ test("with no archive to point at, the elision line says less rather than naming
   presenter.show({ kind: "agent", stage: "configure", markdown: Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") });
   presenter.end();
   assert.ok(out.text().trimEnd().endsWith("… 10 more lines"));
+});
+
+test("a dead pipe does not kill the run", () => {
+  const chunks: Array<string> = [];
+  const stream = new Writable({
+    write(chunk, _encoding, done) {
+      chunks.push(String(chunk));
+      done();
+    },
+  }) as unknown as NodeJS.WriteStream;
+  const presenter = openConsole({ stream, interactive: false, now: noon });
+
+  presenter.show("still here");
+  // Without a listener this throws and takes the process with it; raw
+  // stream.write does not swallow EPIPE the way console.log did.
+  stream.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+  presenter.show("and still here");
+  presenter.end();
+
+  assert.equal(chunks.length, 2);
+});
+
+test("end() is idempotent, so a second close cannot double-restore the terminal", () => {
+  const out = sink({ isTTY: true, columns: 80 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "step", name: "spec", at: 1, of: 1, state: "start" });
+  presenter.end();
+  presenter.end();
+  assert.equal(out.text().split("\x1b[?25h").length - 1, 1);
+});
+
+test("an interrupt restores the terminal, and end() takes the handler back off", () => {
+  const before = process.listenerCount("SIGINT");
+  const out = sink({ isTTY: true, columns: 80 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "step", name: "spec", at: 1, of: 1, state: "start" });
+  assert.equal(process.listenerCount("SIGINT"), before + 1);
+
+  // Not process.emit: runMain owns SIGINT too, and this handler must not
+  // preempt the interruption that runs the layer finalisers.
+  (process.listeners("SIGINT").at(-1) as () => void)();
+  assert.ok(out.text().endsWith("\x1b[?25h"));
+  assert.equal(process.listenerCount("SIGINT"), before, "and it takes itself off again");
+  presenter.end();
+});
+
+test("a plain console installs no signal handler, having no terminal to restore", () => {
+  const before = process.listenerCount("SIGINT");
+  const presenter = openConsole({ stream: sink().stream, interactive: false, now: noon });
+  assert.equal(process.listenerCount("SIGINT"), before);
+  presenter.end();
 });

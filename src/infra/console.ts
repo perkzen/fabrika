@@ -217,12 +217,22 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     ended = true;
     disarm();
     if (!interactive) return;
+    process.off("SIGINT", end);
     clearLive();
     if (hidden) {
       stream.write(SHOW_CURSOR);
       hidden = false;
     }
   };
+
+  // `console.log` swallowed write errors; a raw `stream.write` does not, and
+  // an unhandled `error` event would take the run down under `| head`.
+  stream.on("error", () => {});
+  // Only when there is a terminal to restore, and it calls nothing but the
+  // idempotent `end()`: `runMain` already interrupts the fiber on SIGINT, and
+  // a `process.exit` here would preempt the finalisers that clean up the MCP
+  // temp files. This covers the case where that interruption stalls.
+  if (interactive) process.on("SIGINT", end);
 
   return { show, end };
 };

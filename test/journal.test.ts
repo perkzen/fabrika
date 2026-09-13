@@ -28,3 +28,22 @@ test("the archive keeps an agent message raw while the console walks it", async 
   ], "raw markdown, stamped per physical line, so a pasted run renders on GitHub");
   assert.ok(chunks.join("").includes("• one"), "the console gets the walked form");
 });
+
+test("the journal restores the cursor when its layer's scope closes, exactly once", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "fabrika-journal-")), "log.txt");
+  const chunks: Array<string> = [];
+  const stream = {
+    write: (chunk: string) => void chunks.push(chunk),
+    on: () => stream,
+    isTTY: true,
+    columns: 80,
+  } as unknown as NodeJS.WriteStream;
+
+  await Effect.runPromise(
+    Effect.flatMap(Journal, (journal) => journal.log({ kind: "step", name: "spec", at: 1, of: 2, state: "start" })).pipe(
+      Effect.provide(fileJournal.layer(file, { stream, interactive: true, now: noon })),
+    ),
+  );
+
+  assert.equal(chunks.join("").split("\x1b[?25h").length - 1, 1, "the layer finaliser closes the presenter exactly once");
+});
