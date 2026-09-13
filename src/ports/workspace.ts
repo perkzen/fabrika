@@ -30,8 +30,14 @@ export interface Workspace {
   /** A stage artifact by file name; `undefined` when no stage wrote one. */
   readonly readArtifact: (name: string) => Effect.Effect<string | undefined, FabrikaError>;
 
-  readonly exists: Effect.Effect<boolean>;
-  readonly currentBranch: Effect.Effect<string, FabrikaError>;
+  /**
+   * The branch a tree already on disk is on, or `undefined` when there is no
+   * tree yet — what pins a resumed run to the branch it started on.
+   *
+   * One member rather than an `exists` and a `currentBranch`: the only caller
+   * asks the two together, and a tree that is there is always on a branch.
+   */
+  readonly pinnedBranch: Effect.Effect<string | undefined, FabrikaError>;
   /** `git config user.name` as a branch-safe segment; fails when git has none. */
   readonly user: Effect.Effect<string, FabrikaError>;
   /** `owner/repo` of the base branch's remote. */
@@ -82,7 +88,14 @@ export interface Workspace {
   /** Commits a merge whose conflicts were resolved but not committed; `false` when none was in progress. */
   readonly finishMerge: Effect.Effect<boolean, FabrikaError>;
 
-  readonly push: (branch: string) => Effect.Effect<void, FabrikaError>;
+  /**
+   * Pushes, and answers the commit it pushed.
+   *
+   * The sha comes back rather than being read afterwards because every caller
+   * wants it and the run records it: a separate `head` is one more call and
+   * one more chance for the recorded commit not to be the pushed one.
+   */
+  readonly push: (branch: string) => Effect.Effect<string, FabrikaError>;
 }
 
 export const Workspace = Context.Service<Workspace>("Workspace");

@@ -7,12 +7,19 @@ import { test } from "node:test";
 import { NodeServices } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import * as shellCaptures from "../src/adapters/shell-captures.ts";
-import { cacheKey } from "../src/domain/captures.ts";
+import { cacheKey } from "../src/adapters/shell-captures.ts";
 import type { CaptureStep } from "../src/config.ts";
 import { Captures } from "../src/ports/captures.ts";
 import { harness } from "./harness.ts";
 
 const BASE = "a1b2c3d4e5f6";
+
+test("the cache key is the name and the command, so one name cannot pair two commands", () => {
+  assert.equal(cacheKey("console", "a"), cacheKey("console", "a"), "the same capture is the same key");
+  assert.notEqual(cacheKey("console", "a"), cacheKey("console", "b"), "a changed command is a miss, not a mismatched pair");
+  assert.notEqual(cacheKey("console", "a"), cacheKey("screen", "a"), "and two captures never share a directory");
+  assert.match(cacheKey("console", "a"), /^console-[0-9a-f]{8}$/, "still legible on disk");
+});
 
 /**
  * The adapter over a real filesystem and real subprocesses, as `gate.test.ts`

@@ -7,9 +7,7 @@ import { fileURLToPath } from "node:url";
 import * as fileJournal from "../src/adapters/file-journal.ts";
 import { CONFIG_TEMPLATE, type Config } from "../src/config.ts";
 import { banner, VERSION } from "../src/terminal/banner.ts";
-import { isInteractive, openConsole } from "../src/terminal/console.ts";
 import { selectSteps } from "../src/terminal/select.ts";
-import { openScreen } from "../src/terminal/screen.ts";
 import { fabrikaPipeline } from "../src/pipeline/fabrika.ts";
 import { Agent, type AgentRequest } from "../src/ports/agent.ts";
 import { Forge } from "../src/ports/forge.ts";
@@ -191,29 +189,22 @@ export const rehearse = (options: RehearsalOptions) =>
       ],
     });
 
-    // The same verdict `run.ts` makes: a terminal gets the screen, a pipe the
-    // scrolling log — so `pnpm rehearse | cat` is what CI would see. `o` opens
-    // nothing: it says so on the screen instead, which is what a rehearsal of
-    // a key can honestly do.
-    const journal = fileJournal.layer(
-      join(dir, "log.txt"),
-      { stream: options.stream, archive: "log.txt" },
-      [],
-      isInteractive(options.stream)
-        ? (opts) => {
-            let show: ((entry: string) => void) | undefined;
-            const screen = openScreen({
-              ...opts,
-              ticket: TICKET.identifier,
-              worktree,
-              input: options.input,
-              open: () => show?.(`o: a run would open ${worktree} in the editor; a rehearsal opens nothing`),
-            });
-            show = screen.show;
-            return screen;
-          }
-        : (opts) => openConsole({ ...opts, worktree }),
-    );
+    // The verdict is the journal's, so a rehearsal cannot rehearse a surface
+    // a run would not have had: a terminal gets the screen, a pipe the
+    // scrolling log, and `pnpm rehearse | cat` is what CI would see.
+    //
+    // `o` opens nothing here — it says so through the journal instead, which
+    // is what a rehearsal of a key can honestly do. The journal is reached
+    // through the port below, once the ports exist.
+    let say: ((entry: string) => void) | undefined;
+    const journal = fileJournal.layer({
+      archive: join(dir, "log.txt"),
+      ticket: TICKET.identifier,
+      worktree,
+      stream: options.stream,
+      input: options.input,
+      open: () => say?.(`o: a run would open ${worktree} in the editor; a rehearsal opens nothing`),
+    });
 
     const agent = Layer.effect(Agent)(
       Effect.gen(function* () {
@@ -313,7 +304,11 @@ export const rehearse = (options: RehearsalOptions) =>
     const overrides = Layer.mergeAll(agent, gate, reviewer, forge).pipe(Layer.provide(base));
     const ports = Layer.merge(base, overrides);
 
-    yield* fabrikaPipeline(world.config, options.steps).run.pipe(Effect.provide(ports));
+    yield* Effect.gen(function* () {
+      // What `o` writes with, now that there is a journal to write through.
+      say = (yield* Journal).write;
+      yield* fabrikaPipeline(world.config, options.steps).run;
+    }).pipe(Effect.provide(ports));
     return dir;
   });
 

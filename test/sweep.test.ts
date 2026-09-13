@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { FabrikaError } from "../src/errors.ts";
 import { Escalated } from "../src/pipeline/escalated.ts";
-import { sweep, syncPullRequest, type Placement, type SweepOptions, type SyncTarget } from "../src/pipeline/sweep.ts";
+import { sweep, type Placement, type SweepOptions } from "../src/pipeline/sweep.ts";
+import { select, type SyncTarget } from "../src/pipeline/sweep-selection.ts";
+import { syncPullRequest } from "../src/pipeline/sync-worker.ts";
 import { AgentRateLimited } from "../src/ports/agent.ts";
 import type { PullRequestDetail } from "../src/ports/forge.ts";
 import type { MergeOutcome } from "../src/ports/workspace.ts";
@@ -114,6 +116,34 @@ test("every skipped pull request names the rule that skipped it", async () => {
     "sync: 1 conflicted, 8 skipped",
   ]);
   assert.equal(recording.log.at(-1), "sync: 1 synced, 0 already clean, 0 escalated, 0 failed, 8 skipped");
+});
+
+/**
+ * The lines above prove each rule fires; these prove the *order*, which is
+ * the part no single console line can show — every pull request here trips
+ * two rules at once and may only be reported by the first.
+ */
+test("first match wins, so a pull request that trips two rules is reported by the first", () => {
+  const reasons = (prs: ReadonlyArray<PullRequestDetail>, checkedOut: ReadonlyArray<{ branch: string; path: string }> = []) =>
+    select(prs, { base: "origin/main", checkedOut }).map((s) => (s.decision === "skip" ? s.reason : "sync"));
+
+  // A merged pull request reports `mergeable: UNKNOWN` forever, so the state
+  // rule has to fire before the unknown one or every merge reads as a GitHub
+  // hiccup the operator should look into.
+  assert.deepEqual(reasons([pullRequest({ number: 1, state: "merged", merge: "unknown" })]), ["already merged"]);
+  // A fork can be conflicted and on-base and still be untouchable.
+  assert.deepEqual(reasons([pullRequest({ number: 2, fork: true })]), ["opened from a fork; nothing here can push to it"]);
+  // The base rule before the merge-state rule: "targets develop" is the thing
+  // to go and fix, and "not conflicted" would send nobody anywhere.
+  assert.deepEqual(reasons([pullRequest({ number: 3, base: "develop", merge: "clean" })]), ["targets develop, not main"]);
+  // And the checked-out rule is last, so it only ever fences a pull request
+  // this sweep would otherwise have hard-reset (ADR-0004).
+  assert.deepEqual(reasons([pullRequest({ number: 4, branch: "mine" })], [{ branch: "mine", path: "/dev/fabrika" }]), [
+    "branch is checked out at /dev/fabrika",
+  ]);
+  assert.deepEqual(reasons([pullRequest({ number: 5, branch: "mine", merge: "clean" })], [{ branch: "mine", path: "/dev/fabrika" }]), [
+    "not conflicted (clean)",
+  ]);
 });
 
 test("a dry run reports the selection and calls no worker", async () => {

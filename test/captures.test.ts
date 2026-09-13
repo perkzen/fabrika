@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SECTION_CHARS, asCaptureDecision, beforeAfter, cacheKey, kindOf, linkTarget, textContent, type BeforeAfterOptions, type CaptureFile, type Shot } from "../src/domain/captures.ts";
+import { SECTION_CHARS, asCaptureDecision, beforeAfter, capturePlan, kindOf, linkTarget, textContent, type BeforeAfterOptions, type CaptureFile, type Shot } from "../src/domain/captures.ts";
+import type { CaptureStep, Config } from "../src/config.ts";
 
 const OPTIONS: BeforeAfterOptions = { baseSha: "a1b2c3d4e5", headSha: "e4f5g6h7i8", images: true };
 
@@ -195,11 +196,36 @@ test("a link cannot close its own markdown and open another one", () => {
   assert.equal(linkTarget("https://x.example/a(b"), undefined);
 });
 
-test("the cache key is the name and the command, so one name cannot pair two commands", () => {
-  assert.equal(cacheKey("console", "a"), cacheKey("console", "a"), "the same capture is the same key");
-  assert.notEqual(cacheKey("console", "a"), cacheKey("console", "b"), "a changed command is a miss, not a mismatched pair");
-  assert.notEqual(cacheKey("console", "a"), cacheKey("screen", "a"), "and two captures never share a directory");
-  assert.match(cacheKey("console", "a"), /^console-[0-9a-f]{8}$/, "still legible on disk");
+/** The two fields the table turns on; every other `pr` field is beside the point. */
+const pr = (fields: Partial<Config["pr"]>): Config["pr"] => ({ draft: true, emptyCommit: true, ...fields });
+const console_: CaptureStep = { name: "console", run: "node scripts/capture-console.ts" };
+const scoped: CaptureStep = { ...console_, when: ["src/terminal/**"] };
+
+test("the switch a human flips wins over everything a config still lists", () => {
+  assert.deepEqual(capturePlan(pr({ beforeAfter: false }), ["src/terminal/screen.ts"]), { _tag: "None" });
+  assert.deepEqual(capturePlan(pr({ beforeAfter: false, capture: [console_] }), ["src/a.ts"]), { _tag: "None" });
+});
+
+test("a pinned command is the whole decision, and nothing is asked", () => {
+  assert.deepEqual(capturePlan(pr({ capture: [console_] }), ["src/a.ts"]), { _tag: "Pinned", captures: [console_] });
+  // A human already decided, so the switch being on re-decides nothing.
+  assert.deepEqual(capturePlan(pr({ beforeAfter: true, capture: [console_] }), ["src/a.ts"]), {
+    _tag: "Pinned",
+    captures: [console_],
+  });
+});
+
+test("a pinned command whose globs this branch never touched is no capture at all", () => {
+  assert.deepEqual(capturePlan(pr({ capture: [scoped] }), ["src/terminal/screen.ts"]), { _tag: "Pinned", captures: [scoped] });
+  assert.deepEqual(capturePlan(pr({ capture: [scoped] }), ["docs/internals.md"]), { _tag: "None" });
+  // And with nothing to diff against, a glob matches nothing rather than everything.
+  assert.deepEqual(capturePlan(pr({ capture: [scoped] }), []), { _tag: "None" });
+});
+
+test("the switch alone asks, and a config that says nothing at all captures nothing", () => {
+  assert.deepEqual(capturePlan(pr({ beforeAfter: true }), ["src/a.ts"]), { _tag: "Ask" });
+  assert.deepEqual(capturePlan(pr({ beforeAfter: true, capture: [] }), ["src/a.ts"]), { _tag: "Ask" });
+  assert.deepEqual(capturePlan(pr({}), ["src/a.ts"]), { _tag: "None" });
 });
 
 test("a decision is believed only where the host can act on it", () => {

@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { Duration, Effect, FileSystem, Layer, Option, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { cacheKey, kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../domain/captures.ts";
+import { kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../domain/captures.ts";
 import type { CaptureStep } from "../config.ts";
 import { run, sh, withoutSecrets } from "../infra/shell.ts";
 import { Captures } from "../ports/captures.ts";
@@ -23,6 +24,25 @@ export type CapturesOptions = {
 };
 
 const seconds = (from: number) => Number(((Date.now() - from) / 1000).toFixed(0));
+
+/**
+ * The directory a capture's base half is cached under, as `<name>-<hash>`.
+ *
+ * The name alone was enough while both halves of the decision were committed:
+ * one name meant one command, for every ticket cut from that base. A run that
+ * decides its own command breaks that — two tickets off one base, the same
+ * obvious name, two different commands, and the second run would pair its own
+ * after against a before the first run rendered. That is exactly the "two
+ * improvisations" the fixed command exists to prevent, and it would ship
+ * silently. So the command is part of the key: a changed command is a cache
+ * miss, not a mismatched pair.
+ *
+ * Exported because it is this adapter's own disk layout and its test seeds
+ * the cache with it — a caller of `Captures` never needs to know a directory
+ * is involved at all.
+ */
+export const cacheKey = (name: string, run: string): string =>
+  `${name}-${createHash("sha256").update(run).digest("hex").slice(0, 8)}`;
 
 /**
  * The host running each capture twice: once in a detached checkout of the

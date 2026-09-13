@@ -1,19 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CONFIG_TEMPLATE, type Config } from "../src/config.ts";
-import {
-  abandoned,
-  bulk,
-  canAnswer,
-  chosen,
-  decode,
-  lines,
-  picker,
-  press,
-  settled,
-  type Picker,
-} from "../src/terminal/select.ts";
-import type { Style } from "../src/terminal/console.ts";
+import { abandoned, bulk, chosen, decode, lines, picker, press, settled, type Picker } from "../src/terminal/select.ts";
+import { canAnswer, type Style } from "../src/terminal/surface.ts";
 
 /** The identity styler `frame.test.ts` uses: what a line says is testable, how it is dressed is the terminal's. */
 const plain = (_style: Style | undefined, text: string) => text;

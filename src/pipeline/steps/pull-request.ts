@@ -1,6 +1,6 @@
 import { Effect } from "effect";
-import { asCaptureDecision, beforeAfter, CAPTURE_SCHEMA, type Section } from "../../domain/captures.ts";
-import { applies, type CaptureStep, type Config } from "../../config.ts";
+import { asCaptureDecision, beforeAfter, capturePlan, CAPTURE_SCHEMA, type Section } from "../../domain/captures.ts";
+import type { CaptureStep, Config } from "../../config.ts";
 import { Agent } from "../../ports/agent.ts";
 import { Captures } from "../../ports/captures.ts";
 import { Prompts } from "../../ports/prompts.ts";
@@ -20,24 +20,6 @@ import { syncWithBase } from "../sync.ts";
  */
 const composeBody = (link: string, description: string, section: string | undefined) =>
   [link, "", description, "", ...(section ? [section, ""] : []), "---", TRAILER].join("\n");
-
-/**
- * The captures a human pinned, filtered to the ones this branch's diff touches.
- *
- * The globs are a cached judgement about which files render which surface, and
- * nothing invalidates that cache — an import added to a rendering module goes
- * unnoticed and the capture quietly stops firing. That is the cost of pinning,
- * and it is paid deliberately here: a repo whose render is a simulator boot or
- * a full build wants the command reviewed rather than re-chosen every run.
- */
-const pinned = (
-  captures: ReadonlyArray<CaptureStep>,
-): Effect.Effect<ReadonlyArray<CaptureStep>, never, Workspace> =>
-  Effect.gen(function* () {
-    const workspace = yield* Workspace;
-    const changed = yield* workspace.changedFiles.pipe(Effect.orElseSucceed(() => []));
-    return captures.filter((capture) => applies(capture.when, changed));
-  });
 
 /**
  * One structured call working out this run's capture, or nothing.
@@ -79,17 +61,16 @@ const captureSection = (
   headSha: string,
 ): Effect.Effect<Section | undefined, never, Agent | Captures | Forge | Journal | Prompts | Workspace> =>
   Effect.gen(function* () {
-    // The switch a human flips wins over everything, including a pinned
-    // capture: `false` is a repo that has decided its pull requests carry no
-    // images, and a config that still lists a command is not consent.
-    if (pr.beforeAfter === false) return undefined;
-    const configured = pr.capture ?? [];
-    const captures =
-      configured.length > 0 ? yield* pinned(configured) : pr.beforeAfter === true ? yield* decided() : [];
+    const workspace = yield* Workspace;
+    // One `git diff --name-only` against a base this step has already fetched,
+    // so the whole table below is decided from data rather than in branches.
+    const changed = yield* workspace.changedFiles.pipe(Effect.orElseSucceed(() => []));
+    const plan = capturePlan(pr, changed);
+    if (plan._tag === "None") return undefined;
     // Nothing below this line runs on a branch that changed no captured
     // surface, so a docs-only run costs exactly what it costs today.
+    const captures = plan._tag === "Pinned" ? plan.captures : yield* decided();
     if (captures.length === 0) return undefined;
-    const workspace = yield* Workspace;
     const baseSha = yield* workspace.baseSha.pipe(Effect.orElseSucceed(() => ""));
     // A sha, or nothing: `git rev-parse` can warn on stderr and still exit
     // zero, and the adapter interleaves the two. The captures make a directory
@@ -157,8 +138,7 @@ export const openPullRequest: Step = {
     const branch = store.get().branch!;
     yield* syncWithBase();
     yield* journal.log(`pushing ${commits} commit(s) to ${branch}`);
-    yield* workspace.push(branch);
-    const head = yield* workspace.head;
+    const head = yield* workspace.push(branch);
     yield* store.update((state) => void state.pushed.push(head));
 
     const description = (yield* workspace.readArtifact("pr.md")) ?? ticket.description;
@@ -196,8 +176,7 @@ export const openPullRequest: Step = {
     if (config.pr.emptyCommit) {
       // A preview deployment is skipped when its commit predates the PR.
       yield* workspace.emptyCommit("chore: trigger preview deployment");
-      yield* workspace.push(branch);
-      const retriggered = yield* workspace.head;
+      const retriggered = yield* workspace.push(branch);
       yield* store.update((state) => void state.pushed.push(retriggered));
     }
   }),

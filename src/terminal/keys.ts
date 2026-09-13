@@ -1,4 +1,5 @@
-import { layout, scrolled, type Size, type View } from "./frame.ts";
+import { layout, scrolled, type View } from "./frame.ts";
+import { decoder, type Size } from "./surface.ts";
 import { steps as outlineSteps, type Node, type Tree } from "../domain/outline.ts";
 
 /**
@@ -38,16 +39,7 @@ const SEQUENCES: ReadonlyArray<readonly [string, Key]> = [
  * junk, which is one ignored keystroke and nothing worse: keys are optional,
  * and the worst a stray one does is fold a step or open an editor.
  */
-export const decode = (chunk: string): ReadonlyArray<Key> => {
-  const keys: Array<Key> = [];
-  let at = 0;
-  while (at < chunk.length) {
-    const found = SEQUENCES.find(([bytes]) => chunk.startsWith(bytes, at));
-    keys.push(found ? found[1] : "unknown");
-    at += found ? found[0].length : 1;
-  }
-  return keys;
-};
+export const decode = decoder(SEQUENCES, "unknown" as Key);
 
 /**
  * One keystroke applied to the view. Pure: it returns a new view and reads

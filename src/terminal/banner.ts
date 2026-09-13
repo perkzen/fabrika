@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { styleText } from "node:util";
-import { isInteractive, type Style } from "./console.ts";
+import { isInteractive, sizeOf, styler, type Style } from "./surface.ts";
 
 /**
  * The version on the nameplate, read rather than hard-coded: the two drifted
@@ -54,7 +53,7 @@ export type BannerOptions = {
  */
 export const banner = ({ stream, version, interactive }: BannerOptions): void => {
   if (!(interactive ?? isInteractive(stream))) return;
-  const columns = typeof stream.columns === "number" && stream.columns > 1 ? stream.columns : 80;
+  const { columns } = sizeOf(stream);
   const credit = `by perkzen · v${version}`;
   // White, so the nameplate is the plainest thing on the screen and the
   // colour is spent on what the run is doing: the select's chip under it,
@@ -66,6 +65,7 @@ export const banner = ({ stream, version, interactive }: BannerOptions): void =>
       : [...ART.map((row) => [wordmark, row] as const), ["dim", credit.padStart(WIDTH)] as const];
   // Cut before styling, as the console does: a line truncated mid-escape is
   // a corrupt line, and a blank one either side keeps the art off the prompt.
-  const lines = block.map(([style, text]) => styleText(style, text.slice(0, columns - 1), { validateStream: false }) + "\n").join("");
+  const dress = styler(true);
+  const lines = block.map(([style, text]) => dress(style, text.slice(0, columns - 1)) + "\n").join("");
   stream.write(`\n${lines}\n`);
 };

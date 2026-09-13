@@ -10,9 +10,9 @@ import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
-import { openConsole } from "./terminal/console.ts";
-import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
-import { Journal } from "./ports/journal.ts";
+import { sweep, type Placement } from "./pipeline/sweep.ts";
+import { type SyncTarget } from "./pipeline/sweep-selection.ts";
+import { syncPullRequest } from "./pipeline/sync-worker.ts";
 import { home } from "./paths.ts";
 
 export type SweepOptions = {
@@ -50,11 +50,10 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(spawner),
     );
 
-    const presenter = openConsole({ stream: process.stdout });
-    const oneConsole = Layer.succeed(Journal)({
-      write: presenter.show,
-      log: (entry) => Effect.sync(() => presenter.show(entry)),
-    });
+    // One console for the whole sweep, ended by its own finaliser: a worker's
+    // journal is its `log.txt` alone, so six of them cannot fight over the
+    // terminal.
+    const oneConsole = fileJournal.consoleOnly();
 
     const discovery = Layer.mergeAll(
       oneConsole,
@@ -106,5 +105,5 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       dryRun: options.dryRun,
       place,
       worker,
-    }).pipe(Effect.provide(discovery), Effect.ensuring(Effect.sync(presenter.end)));
+    }).pipe(Effect.provide(discovery));
   });

@@ -18,6 +18,15 @@ follows it. It is one conversation by construction.
 _Avoid_: step — a step is the pipeline's unit of work, of which a configured
 stage is one kind; phase.
 
+**Choice**:
+One thing a run can be asked to leave out, as the operator is offered it: a
+configured stage or the pull request and its review loop together, each with
+the name the run calls it, the title a reader calls it and the few words its
+row shows. A fact about the config, so the question can be asked before a run
+is assembled.
+_Avoid_: option, row — a row is how a choice is drawn; step — a choice names
+one, and a step that is never offered has none.
+
 **Chosen steps**:
 Which of a run's steps this invocation runs, decided before the run is
 assembled — `--steps`, or the operator's answer to the select the command
@@ -72,6 +81,16 @@ what that surface shows. One per surface; the console's is the only one that
 animates.
 _Avoid_: renderer, reporter, writer — *render* stays the verb (render
 markdown, render a line), so the noun has to be something else.
+
+**Surface**:
+One place a run is reported to — a terminal a presenter draws on, or the file
+the archive appends to — and, for the ones that are a terminal, everything
+they are drawn with: the interactivity verdict, the styles a line is dressed
+in, the size it is cut to, the cursor sequences and the loop that reads raw
+stdin into keys. It sits under the presenters rather than inside any one of
+them, so a screen, a console, a select and a banner share one of each.
+_Avoid_: stream, output — a stream is one field of a surface, and a surface is
+also what a run knows *about* the terminal it is on, which a stream is not.
 
 **Archive**:
 The run's own uncapped copy of itself, `log.txt` — every event, plain and
@@ -282,6 +301,15 @@ Decided per run by one structured call under `pr.beforeAfter`, or pinned in the
 committed config under `pr.capture`; the host runs it either way.
 _Avoid_: screenshot — an image is one of the three kinds a capture may write;
 snapshot, visual test.
+
+**Capture plan**:
+What a run does about a Before / After, decided from the config and the
+branch's diff before anything is spawned or asked: nothing, the pinned
+commands this diff touches, or ask. It is the whole of the `beforeAfter` and
+`capture` table as one value, so every row of it is reachable without an
+agent, a forge or a base commit anywhere near it.
+_Avoid_: decision — that is the agent's answer when the plan says ask;
+strategy, mode.
 
 **Shot**:
 One capture's two halves: the files it wrote at the base, and the files it

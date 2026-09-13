@@ -1,6 +1,6 @@
 import { Effect, FileSystem, Layer, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { baseBranch, remoteOf } from "../config.ts";
+import { remoteOf } from "../config.ts";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
 import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
@@ -100,8 +100,10 @@ export const layer = (options: WorkspaceOptions) =>
             return (yield* fs.exists(file)) ? yield* fs.readFileString(file) : undefined;
           }).pipe(Effect.mapError(asFabrikaError(`reading ${WORK_DIR}/${name}`))),
 
-        exists: fs.exists(dir).pipe(Effect.orElseSucceed(() => false)),
-        currentBranch: git(["branch", "--show-current"]),
+        pinnedBranch: Effect.gen(function* () {
+          const there = yield* fs.exists(dir).pipe(Effect.orElseSucceed(() => false));
+          return there ? yield* git(["branch", "--show-current"]) : undefined;
+        }),
         githubRepo: spawned(githubRepoAt(repoRoot, base)),
         /**
          * Git rather than the filesystem: this catches a tree at *any* path —
@@ -241,7 +243,10 @@ export const layer = (options: WorkspaceOptions) =>
           return true;
         }),
 
-        push: (branch: string) => git(["push", "--quiet", "-u", remote, branch]).pipe(Effect.asVoid),
+        // The sha is read after the push rather than before it, so what is
+        // recorded as pushed is what the remote was given.
+        push: (branch: string) =>
+          git(["push", "--quiet", "-u", remote, branch]).pipe(Effect.andThen(git(["rev-parse", "HEAD"]))),
       } satisfies Workspace;
     }),
   );

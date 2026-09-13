@@ -31,9 +31,9 @@ export const nameBranch: Step = {
 
     if (store.get().branch === null) {
       const workspace = yield* Workspace;
-      if (yield* workspace.exists) {
-        const current = yield* workspace.currentBranch;
-        yield* store.update((state) => void (state.branch = current));
+      const pinned = yield* workspace.pinnedBranch;
+      if (pinned !== undefined) {
+        yield* store.update((state) => void (state.branch = pinned));
       } else {
         const agent = yield* Agent;
         const named = yield* agent

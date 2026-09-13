@@ -1,6 +1,5 @@
 import { display, livenessRow, progressRow, spinner, type Clock } from "./lines.ts";
-import type { Styler } from "./markdown.ts";
-import type { Style } from "./console.ts";
+import type { Size, Style, Styler } from "./surface.ts";
 import { steps as stepsOf, type Node, type StepState, type Tree } from "../domain/outline.ts";
 import { elapsed, scrub, stamp } from "../domain/run-event.ts";
 
@@ -20,8 +19,6 @@ export type View = {
   /** First outline row drawn, so a long outline can scroll. */
   readonly top: number;
 };
-
-export type Size = { readonly columns: number; readonly rows: number };
 
 /**
  * How a step's state reads at a glance: a hollow ring for what has not

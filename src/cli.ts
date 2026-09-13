@@ -2,6 +2,7 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Console, Effect, FileSystem, Option, Path } from "effect";
 import { CliError, Command, Flag } from "effect/unstable/cli";
+import * as fileJournal from "./adapters/file-journal.ts";
 import * as fileTickets from "./adapters/file-tickets.ts";
 import { runClaude } from "./infra/claude.ts";
 import { CONFIG_PATH, loadConfig, type Config } from "./config.ts";
@@ -9,76 +10,76 @@ import { asConfig, proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
 import { runSweep } from "./sweep.ts";
-import { openConsole, type Presenter } from "./terminal/console.ts";
 import { selectSteps } from "./terminal/select.ts";
-import { choices, unknown } from "./pipeline/fabrika.ts";
+import { choices, unknown } from "./domain/choices.ts";
 import { banner, VERSION } from "./terminal/banner.ts";
+import { Journal } from "./ports/journal.ts";
 import type { RunEvent } from "./domain/run-event.ts";
 import { exec } from "./infra/shell.ts";
 
 const credentials = [{ name: "default", env: {} }];
 
 /**
- * `init` has no run directory and no `Journal`, which is the whole reason the
- * presenter takes a stream: it gets the same colour, the same markdown and
- * the same height cap as a stage. `ensuring` rather than a plain return —
- * `init` can fail with `FabrikaError`, and a cursor left hidden past the end
- * of the process is the one failure that damages the operator's terminal.
+ * `init` has no run directory to mirror into, so its journal is the console
+ * alone — and through the port, like everything else that says anything: it
+ * gets the same colour, the same markdown and the same height cap as a stage,
+ * and the layer's own finaliser restores the cursor. `init` can fail with
+ * `FabrikaError`, and a cursor left hidden past the end of the process is the
+ * one failure that damages the operator's terminal.
  */
 const init = Command.make("init", {}, () =>
   Effect.suspend(() => {
     banner({ stream: process.stdout, version: VERSION });
-    const presenter = openConsole({ stream: process.stdout });
-    return configure(presenter).pipe(Effect.ensuring(Effect.sync(presenter.end)));
+    return configure.pipe(Effect.provide(fileJournal.consoleOnly()));
   }),
 );
 
-const configure = (presenter: Presenter) =>
-  Effect.gen(function* () {
-    const say = (entry: RunEvent | string) => Effect.sync(() => presenter.show(entry));
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const target = path.join(process.cwd(), CONFIG_PATH);
-    if (yield* fs.exists(target)) {
-      return yield* new FabrikaError({ message: `${CONFIG_PATH} already exists — edit it instead.` });
-    }
-    // The gate is whatever this repo already checks with, so it is read off
-    // the repo rather than shipped: a step that does not exist here would go
-    // red on an untouched checkout, and the agent would be handed "fix it"
-    // for code it never wrote. One structured call proposes the four
-    // repo-specific fields; the host is still the one that writes the file,
-    // so a rejected answer cannot produce a config that will not load.
-    yield* say("reading the repo: base branch, install command, the checks CI enforces, and the review bot.");
-    yield* say("this runs the candidate commands, so give it a minute.");
-    const rejected = (message: string) => say({ kind: "note", level: "warn", text: message }).pipe(Effect.as(null));
-    const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, presenter.show).pipe(
-      Effect.catchTag("AgentUnauthorized", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
-      Effect.catchTag("AgentRateLimited", () => rejected("usage limit hit")),
-      Effect.catchTag("AgentFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
-      // What is left is a filesystem or spawn failure — `claude` missing from
-      // PATH is the usual one. `init` still has a config to write, so it says
-      // what went wrong and writes the neutral one rather than dying.
-      Effect.catch((e) => rejected(`could not run the configure call (${String((e as { message?: unknown }).message ?? e).slice(0, 80)})`)),
-    );
-    for (const note of proposal?.notes ?? []) yield* say({ kind: "note", level: "detail", text: note });
-    const config = asConfig(proposal);
-    yield* fs.makeDirectory(path.dirname(target), { recursive: true });
-    yield* fs.writeFileString(target, JSON.stringify(config, null, 2) + "\n");
-    // `JSON.stringify` expands every array; prettier collapses the short ones,
-    // so a repo whose gate runs `prettier --check .` would fail on its own
-    // config. Format it with the target repo's prettier — its config, its
-    // rules — and shrug if there isn't one: the file is valid JSON either way.
-    const prettier = path.join(process.cwd(), "node_modules", ".bin", "prettier");
-    if (yield* fs.exists(prettier)) yield* exec(process.cwd(), [prettier, "--write", CONFIG_PATH]).pipe(Effect.ignore);
-    yield* say(`wrote ${CONFIG_PATH}`);
-    if (!proposal) {
-      yield* say("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
-      yield* say("`review.provider` is `none` — set it to `cubic` if this repo has the cubic review bot.");
-    }
-    yield* say("read the gate before you commit the file: it is what every code stage must pass.");
-    yield* say("edit: branch, and the mcp names each stage may use.");
-    yield* say("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");
-  });
+const configure = Effect.gen(function* () {
+  const journal = yield* Journal;
+  const say = (entry: RunEvent | string) => journal.log(entry);
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const target = path.join(process.cwd(), CONFIG_PATH);
+  if (yield* fs.exists(target)) {
+    return yield* new FabrikaError({ message: `${CONFIG_PATH} already exists — edit it instead.` });
+  }
+  // The gate is whatever this repo already checks with, so it is read off
+  // the repo rather than shipped: a step that does not exist here would go
+  // red on an untouched checkout, and the agent would be handed "fix it"
+  // for code it never wrote. One structured call proposes the four
+  // repo-specific fields; the host is still the one that writes the file,
+  // so a rejected answer cannot produce a config that will not load.
+  yield* say("reading the repo: base branch, install command, the checks CI enforces, and the review bot.");
+  yield* say("this runs the candidate commands, so give it a minute.");
+  const rejected = (message: string) => say({ kind: "note", level: "warn", text: message }).pipe(Effect.as(null));
+  const proposal = yield* proposeConfig(process.cwd(), credentials[0]!, journal.write).pipe(
+    Effect.catchTag("AgentUnauthorized", (e) => rejected(`claude cannot authenticate (${e.message.slice(0, 80)}) — run \`claude auth login\``)),
+    Effect.catchTag("AgentRateLimited", () => rejected("usage limit hit")),
+    Effect.catchTag("AgentFailed", (e) => rejected(`the configure call failed (exit ${e.exitCode}${e.message ? `: ${e.message.slice(0, 80)}` : ""})`)),
+    // What is left is a filesystem or spawn failure — `claude` missing from
+    // PATH is the usual one. `init` still has a config to write, so it says
+    // what went wrong and writes the neutral one rather than dying.
+    Effect.catch((e) => rejected(`could not run the configure call (${String((e as { message?: unknown }).message ?? e).slice(0, 80)})`)),
+  );
+  for (const note of proposal?.notes ?? []) yield* say({ kind: "note", level: "detail", text: note });
+  const config = asConfig(proposal);
+  yield* fs.makeDirectory(path.dirname(target), { recursive: true });
+  yield* fs.writeFileString(target, JSON.stringify(config, null, 2) + "\n");
+  // `JSON.stringify` expands every array; prettier collapses the short ones,
+  // so a repo whose gate runs `prettier --check .` would fail on its own
+  // config. Format it with the target repo's prettier — its config, its
+  // rules — and shrug if there isn't one: the file is valid JSON either way.
+  const prettier = path.join(process.cwd(), "node_modules", ".bin", "prettier");
+  if (yield* fs.exists(prettier)) yield* exec(process.cwd(), [prettier, "--write", CONFIG_PATH]).pipe(Effect.ignore);
+  yield* say(`wrote ${CONFIG_PATH}`);
+  if (!proposal) {
+    yield* say("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
+    yield* say("`review.provider` is `none` — set it to `cubic` if this repo has the cubic review bot.");
+  }
+  yield* say("read the gate before you commit the file: it is what every code stage must pass.");
+  yield* say("edit: branch, and the mcp names each stage may use.");
+  yield* say("mcp names must match `claude mcp list` in this repo; remote servers need a static header.");
+});
 
 /**
  * A stale keychain token fails every `claude -p` while `claude auth status`

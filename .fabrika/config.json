@@ -38,10 +38,7 @@
       "name": "refactor",
       "prompt": "refactor.md",
       "system": "implement.system.md",
-      "gate": true,
-      "only": [
-        "feat"
-      ]
+      "gate": true
     },
     {
       "name": "security",
@@ -77,6 +74,5 @@
     "timeoutMinutes": 30
   },
   "maxIterations": 4,
-  "keepAwake": true,
-  "notify": true
+  "keepAwake": true
 }

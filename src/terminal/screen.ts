@@ -1,10 +1,21 @@
 import { homedir } from "node:os";
-import { styleText } from "node:util";
 import { frame, outlineRows, type View } from "./frame.ts";
 import { display } from "./lines.ts";
 import { decode, follow, press } from "./keys.ts";
-import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
-import type { Styler } from "./markdown.ts";
+import { openConsole, type ConsoleOptions } from "./console.ts";
+import {
+  ALTERNATE_OFF,
+  ALTERNATE_ON,
+  CLEAR_BELOW,
+  CLEAR_LINE,
+  HIDE_CURSOR,
+  HOME,
+  isInteractive,
+  SHOW_CURSOR,
+  sizeOf,
+  styler,
+  type Presenter,
+} from "./surface.ts";
 import { empty, steps, take, type Tree } from "../domain/outline.ts";
 import type { RunEvent } from "../domain/run-event.ts";
 
@@ -23,17 +34,7 @@ export type ScreenOptions = ConsoleOptions & {
   readonly open?: () => void;
 };
 
-const ALTERNATE_ON = "\x1b[?1049h";
-const ALTERNATE_OFF = "\x1b[?1049l";
-const HIDE_CURSOR = "\x1b[?25l";
-const SHOW_CURSOR = "\x1b[?25h";
-const HOME = "\x1b[H";
-const CLEAR_LINE = "\x1b[K";
-const CLEAR_BELOW = "\x1b[0J";
 const FRAME_MS = 80;
-/** A terminal that reports no size: the same guesses the scrollback console makes, one for each axis. */
-const COLUMNS = 80;
-const ROWS = 24;
 
 /**
  * The presenter that owns the terminal's alternate buffer for the length of a
@@ -72,14 +73,10 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   let spin = 0;
   let timer: ReturnType<typeof globalThis.setInterval> | undefined;
 
-  const dress: Styler = (style: Style, text: string) =>
-    interactive ? styleText(style, text, { validateStream: false }) : text;
+  const dress = styler(interactive);
 
   /** Read per draw, both axes, so a resize needs no listener for the size itself. */
-  const size = () => ({
-    columns: typeof stream.columns === "number" && stream.columns > 1 ? stream.columns : COLUMNS,
-    rows: typeof stream.rows === "number" && stream.rows > 0 ? stream.rows : ROWS,
-  });
+  const size = () => sizeOf(stream);
 
   /**
    * A home and a write. Each row is followed by an erase-to-end-of-line and

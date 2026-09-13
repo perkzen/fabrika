@@ -1,12 +1,5 @@
 import { marked, type Token, type Tokens } from "marked";
-import type { styleText } from "node:util";
-
-/**
- * How a walked line is dressed. The plain walk passes a styler that returns
- * its text untouched, so both surfaces break lines in exactly the same
- * places and differ only in escape codes.
- */
-export type Styler = (style: Parameters<typeof styleText>[0], text: string) => string;
+import type { Styler } from "./surface.ts";
 
 const INDENT = "  ";
 

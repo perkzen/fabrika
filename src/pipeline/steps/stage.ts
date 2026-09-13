@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { Stage } from "../../config.ts";
+import { aboutOf, titleOf } from "../../domain/choices.ts";
 import { Agent } from "../../ports/agent.ts";
 import { Gate } from "../../ports/gate.ts";
 import { Journal } from "../../ports/journal.ts";
@@ -8,20 +9,6 @@ import { RunContext } from "../../ports/run-context.ts";
 import { Workspace } from "../../ports/workspace.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
-
-/**
- * A stage's name, read as a word: `implement` is `Implement`, `pr-body` is
- * `Pr body`. The config's pattern keeps names to lower-case kebab, so this is
- * the whole of what there is to undo; the name itself is still what every
- * plain line and the completed list say.
- */
-const titleOf = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " ");
-
-/**
- * What a stage will do, for its row before it has done it: an agent call, and
- * the gate after it if the stage has one.
- */
-const aboutOf = (stage: Stage): string => ["agent", ...(stage.gate ? ["gate"] : [])].join(" · ");
 
 /**
  * One configured stage: run the agent, then hand it the gate's verdict until

@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import type { Presenter } from "./console.ts";
+import type { Presenter } from "./surface.ts";
 import { plain, stamp, type RunEvent } from "../domain/run-event.ts";
 
 export type ArchiveOptions = {

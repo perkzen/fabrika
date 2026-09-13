@@ -65,8 +65,7 @@ export const reviewRounds: Step = {
       yield* journal.log(`review round ${round}/${config.review.maxRounds}`);
 
       if (yield* syncWithBase({ prUrl: url })) {
-        yield* workspace.push(store.get().branch!);
-        const head = yield* workspace.head;
+        const head = yield* workspace.push(store.get().branch!);
         yield* store.update((state) => void (state.pushed = [head]));
       }
 
@@ -164,8 +163,7 @@ export const reviewRounds: Step = {
 
       const touched = yield* workspace.filesSince(before);
       if ((yield* workspace.head) !== before) {
-        yield* workspace.push(store.get().branch!);
-        const head = yield* workspace.head;
+        const head = yield* workspace.push(store.get().branch!);
         yield* store.update((state) => void (state.pushed = [head]));
       }
 

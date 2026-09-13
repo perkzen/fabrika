@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { Option, Schema } from "effect";
-import { CaptureStep, FORBIDDEN } from "../config.ts";
+import { applies, CaptureStep, FORBIDDEN, type Config } from "../config.ts";
 import { scrub } from "./run-event.ts";
 
 /** One file a capture wrote, and how the body may carry it. */
@@ -199,19 +198,47 @@ export const beforeAfter = (shots: ReadonlyArray<Shot>, options: BeforeAfterOpti
 
 
 /**
- * The directory a capture's base half is cached under, as `<name>-<hash>`.
+ * What this run does about a Before / After, decided before anything is spawned
+ * or asked.
  *
- * The name alone was enough while both halves of the decision were committed:
- * one name meant one command, for every ticket cut from that base. A run that
- * decides its own command breaks that — two tickets off one base, the same
- * obvious name, two different commands, and the second run would pair its own
- * after against a before the first run rendered. That is exactly the "two
- * improvisations" the fixed command exists to prevent, and it would ship
- * silently. So the command is part of the key: a changed command is a cache
- * miss, not a mismatched pair.
+ * `None` is most runs. `Pinned` is the committed commands a human already
+ * decided on, filtered to the ones this branch's diff touches — the globs are
+ * a cached judgement about which files render which surface and nothing
+ * invalidates that cache, which is the cost of pinning and is paid
+ * deliberately. `Ask` is one structured call reading the diff instead, which
+ * is where that judgement can actually be made (ADR-0006).
  */
-export const cacheKey = (name: string, run: string): string =>
-  `${name}-${createHash("sha256").update(run).digest("hex").slice(0, 8)}`;
+export type CapturePlan =
+  | { readonly _tag: "None" }
+  | { readonly _tag: "Pinned"; readonly captures: ReadonlyArray<CaptureStep> }
+  | { readonly _tag: "Ask" };
+
+const NOTHING: CapturePlan = { _tag: "None" };
+
+/**
+ * The whole of the `beforeAfter` × `capture` table, as one function over the
+ * config and the branch's own diff.
+ *
+ * Pure, so every row of it is reachable from a plain call rather than only
+ * from a step with an agent, a forge and a base sha behind it. What is left
+ * for the step is asking when this says ask, and taking the shots.
+ *
+ * `false` wins over everything, including a pinned command: it is the switch
+ * a human flips, and a config that still lists a command is not consent. A
+ * pinned command wins over asking, because a human already decided and
+ * nothing should be re-decided per run.
+ */
+export const capturePlan = (pr: Config["pr"], changed: ReadonlyArray<string>): CapturePlan => {
+  if (pr.beforeAfter === false) return NOTHING;
+  const configured = pr.capture ?? [];
+  if (configured.length > 0) {
+    const captures = configured.filter((capture) => applies(capture.when, changed));
+    return captures.length > 0 ? { _tag: "Pinned", captures } : NOTHING;
+  }
+  // Absent is the behaviour a config written before `beforeAfter` existed
+  // has: the pinned commands alone decide, and there are none.
+  return pr.beforeAfter === true ? { _tag: "Ask" } : NOTHING;
+};
 
 /** What one structured call answers when a run works out its own Before / After. */
 export const CAPTURE_SCHEMA = JSON.stringify({

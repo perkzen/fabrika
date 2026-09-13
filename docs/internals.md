@@ -11,10 +11,13 @@ with one adapter in production and an in-memory one in the tests; nothing in
 and what every folder shares — the config, the errors and the paths. Under it,
 `domain/` is the pure models, `ports/` the interfaces, `adapters/` their
 production implementations, `pipeline/` the steps and the driver, `terminal/`
-the presenters and everything they draw with, and `infra/` the subprocess
+the presenters and the terminal they are drawn on, and `infra/` the subprocess
 plumbing the adapters and the commands sit on. Nothing in `terminal/` reaches
 into `infra/`: a presenter never spawns anything, which is what keeps the
-terminal testable without a machine behind it.
+terminal testable without a machine behind it. Nothing in `terminal/` reaches
+into `pipeline/` either — what a run may be asked to leave out is a fact about
+the config, in `domain/choices.ts`, so the select draws its rows without
+building a step to read a title off.
 
 | Path | Role |
 | --- | --- |
@@ -27,16 +30,24 @@ terminal testable without a machine behind it.
 | `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
 | `src/domain/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/domain/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
-| `src/domain/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `cacheKey()` and `asCaptureDecision()`, the rules a per-run capture answer is held to |
+| `src/domain/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `capturePlan()`, the whole `beforeAfter` × `capture` table as one function, and `asCaptureDecision()`, the rules a per-run capture answer is held to |
+| `src/domain/choices.ts` | What a run may be asked to leave out: the configured stages and the pull request, each with the title and the words a row shows. Pure over the config, so the select and `--steps` read it without reaching into `pipeline/` |
 | `src/domain/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
 | `src/domain/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
 | `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
+| `src/adapters/file-journal.ts` | Which surfaces a run reports to, decided once: the screen when an operator is watching, the scrolling console otherwise, and `log.txt` under both. A sweep and `init` ask for `consoleOnly`, which never draws a screen and keeps no archive; a sweep's worker asks for `archiveOnly`, which writes `log.txt` and never touches the terminal |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
-| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
-| `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
-| `src/terminal/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
+| `src/pipeline/steps/` | One file per step |
+| `src/pipeline/sync.ts` | The base merge the PR step, the review loop and a sweep's worker all use |
+| `src/pipeline/install.ts` | The dependency install and the two lines it can end on, so the run's workspace step and a sweep's worker say it the same way |
+| `src/pipeline/sweep.ts` | The fan-out: handing work out under a concurrency bound, turning a worker's failure into a value, and the exit code |
+| `src/pipeline/sweep-selection.ts` | Which pull requests a sweep may touch, and why it left the rest alone — six rules, first match wins |
+| `src/pipeline/sweep-report.ts` | What the operator reads: one line per pull request, and the counts line a scheduled invocation is read through |
+| `src/pipeline/sync-worker.ts` | One pull request's share of a sweep: its own tree, checked out as the forge has it, merged, gated and pushed |
+| `src/terminal/surface.ts` | The terminal every surface is drawn on: the interactivity verdict, `Style` and `Styler`, the dressing, the size, the cursor sequences and the loop that reads raw stdin into keys. Under the presenters, so a screen, a console, a select and a banner share one of each rather than four |
+| `src/terminal/console.ts` | The scrollback console presenter: the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
 | `src/terminal/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow` / `spinner`, the run's progress, whatever is blocking it and the frame anything turning is on, drawn once so the console and the screen cannot drift |
 | `src/terminal/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
 | `src/terminal/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the header and, under it, the worktree's path in `~` form, the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |

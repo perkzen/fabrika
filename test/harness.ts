@@ -239,8 +239,7 @@ export const harness = (script: Script = {}) => {
       repoRoot: script.repoRoot ?? "/repo",
       artifactsDir: "/worktree/.fabrika/work",
       readArtifact: () => Effect.succeed(undefined),
-      exists: Effect.succeed(script.worktreeExists ?? false),
-      currentBranch: Effect.succeed("existing/branch"),
+      pinnedBranch: Effect.succeed(script.worktreeExists ? "existing/branch" : undefined),
       user: Effect.succeed("domen-perko"),
       githubRepo: Effect.succeed("perkzen/fabrika"),
       checkedOutBranches: Effect.succeed(script.checkedOut ?? []),
@@ -274,7 +273,11 @@ export const harness = (script: Script = {}) => {
         return true;
       }),
       push: (branch: string) =>
-        Effect.sync(() => (recording.workspace.push(`push:${branch}`), void recording.pushed.push(branch))),
+        Effect.sync(() => {
+          recording.workspace.push(`push:${branch}`);
+          recording.pushed.push(branch);
+          return head;
+        }),
     }),
     Layer.succeed(Forge)({
       repo: "perkzen/fabrika",

@@ -1,13 +1,7 @@
-import { styleText } from "node:util";
 import { display, livenessRow, progressRow } from "./lines.ts";
+import { clearUp, HIDE_CURSOR, isInteractive, SHOW_CURSOR, sizeOf, styler, type Presenter } from "./surface.ts";
 import type { Tree } from "../domain/outline.ts";
 import { gateOver, plain, scrub, stamp, type RunEvent } from "../domain/run-event.ts";
-
-/** The stateful owner of one output surface. One per surface; only the console's animates. */
-export type Presenter = {
-  readonly show: (event: RunEvent | string) => void;
-  readonly end: () => void;
-};
 
 export type ConsoleOptions = {
   readonly stream: NodeJS.WriteStream;
@@ -23,23 +17,11 @@ export type ConsoleOptions = {
   readonly worktree?: string;
 };
 
-/** The shape `styleText` takes, named once so every surface that dresses a line reads the same alias. */
-export type Style = Parameters<typeof styleText>[0];
-
-const HIDE_CURSOR = "\x1b[?25l";
-const SHOW_CURSOR = "\x1b[?25h";
 const FRAME_MS = 80;
 /** What the poll loops printed per poll. A pipe needs the proof of life; a file does not. */
 const HEARTBEAT_MS = 60_000;
 /** About two-thirds of a small terminal: a plan's headings arrive whole, one message still cannot own the screen. */
 const MESSAGE_LINES = 20;
-
-/**
- * A run is either fully dressed or fully plain, never partly: one verdict out
- * of all four inputs, so a `NO_COLOR` run and a piped run look the same.
- */
-export const isInteractive = (stream: NodeJS.WriteStream) =>
-  Boolean(stream.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb" && !process.env.CI;
 
 /**
  * A presenter over a stream. Dependencies are handed in rather than reached
@@ -77,11 +59,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let timer: ReturnType<typeof globalThis.setInterval> | undefined;
   let spin = 0;
 
-  const dress = (style: Style | undefined, text: string) =>
-    interactive && style ? styleText(style, text, { validateStream: false }) : text;
+  const dress = styler(interactive);
 
-  /** A non-TTY sink reports no width; 80 is the only sane guess. Read per draw, so a resize needs no listener. */
-  const width = () => (typeof stream.columns === "number" && stream.columns > 1 ? stream.columns : 80);
+  /** Read per draw, so a resize needs no listener. */
+  const width = () => sizeOf(stream).columns;
 
   /**
    * Cut before styling, never after: truncating a styled line mid-escape
@@ -100,7 +81,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
 
   const clearLive = () => {
     if (drawn === 0) return;
-    stream.write(`\x1b[${drawn}A\x1b[0J`);
+    stream.write(clearUp(drawn));
     drawn = 0;
   };
 

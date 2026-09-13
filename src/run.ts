@@ -11,10 +11,8 @@ import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
-import { isInteractive, openConsole } from "./terminal/console.ts";
 import { editorOpener } from "./infra/editor.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
-import { openScreen } from "./terminal/screen.ts";
 import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -49,29 +47,6 @@ const places = (path: Path.Path, repoRoot: string, ticket: Ticket): Places => {
 };
 
 /**
- * The surface this run reports to.
- *
- * A run an operator is watching gets the screen; a pipe, `NO_COLOR`,
- * `TERM=dumb` and CI get the scrollback console. Both are named here rather
- * than either being left to the default, because the worktree reaches a
- * presenter through its options and only this knows the path.
- */
-const presenter = (ticket: Ticket, dir: string) =>
-  isInteractive(process.stdout)
-    ? (options: Parameters<typeof openConsole>[0]) =>
-        openScreen({
-          ...options,
-          ticket: ticket.identifier,
-          worktree: dir,
-          input: process.stdin,
-          // `FABRIKA_EDITOR` is the operator's shell's: fabrika loads no
-          // `.env` of its own (ADR-0005), so the environment read here is
-          // the one it was started in.
-          open: editorOpener(dir, process.env, process.platform),
-        })
-    : (options: Parameters<typeof openConsole>[0]) => openConsole({ ...options, worktree: dir });
-
-/**
  * Everything a run's ports are built on: where it says what it is doing,
  * what it remembers, the prompts filled in for this ticket, the ticket
  * itself, and the tree it works in.
@@ -83,7 +58,16 @@ const foundation = (
   repoRoot: string,
 ) =>
   Layer.mergeAll(
-    fileJournal.layer(log, undefined, [], presenter(ticket, dir)),
+    fileJournal.layer({
+      archive: log,
+      ticket: ticket.identifier,
+      worktree: dir,
+      input: process.stdin,
+      // `FABRIKA_EDITOR` is the operator's shell's: fabrika loads no `.env` of
+      // its own (ADR-0005), so the environment read here is the one it was
+      // started in.
+      open: editorOpener(dir, process.env, process.platform),
+    }),
     fileRunStore.layer(runs),
     fsPrompts.layer({
       identifier: ticket.identifier,

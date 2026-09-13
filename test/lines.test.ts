@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { display, livenessRow, progressRow } from "../src/terminal/lines.ts";
-import type { Style } from "../src/terminal/console.ts";
+import type { Style } from "../src/terminal/surface.ts";
 import type { RunEvent } from "../src/domain/run-event.ts";
 
 /** The identity styler: a test asserts on the text, never on the escape codes around it. */

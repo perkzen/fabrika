@@ -2,53 +2,28 @@
  * One sweep: list the operator's open pull requests, pick the conflicted ones
  * and hand each to a worker.
  *
- * The worker is a parameter because the layer graph one pull request needs —
- * its own worktree, run directory, gate and agent session — is composition-root
- * work. What belongs here is which pull requests get one, what their outcomes
- * add up to, and the lines the operator reads.
+ * The fan-out and nothing else. Which pull requests get a worker is
+ * `sweep-selection.ts`, what one worker does is `sync-worker.ts`, and what the
+ * operator reads is `sweep-report.ts`; what is left here is handing the work
+ * out, turning a worker's failure into a value, and the exit code.
+ *
+ * The worker is a parameter because the graph one pull request needs — its own
+ * worktree, run directory, gate and agent session — is composition-root work.
  */
 import { Effect } from "effect";
-import { baseBranch } from "../config.ts";
 import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Workspace } from "../ports/workspace.ts";
-import { identified, openedByFabrika } from "../domain/pull-request.ts";
 import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
-import { syncWithBase, type SyncServices } from "./sync.ts";
-
-export type SyncTarget = {
-  readonly number: number;
-  readonly url: string;
-  readonly branch: string;
-  /** `FAB-5`, or `pr-42` when the title does not parse. */
-  readonly identifier: string;
-  /** What `prompts/merge.md` interpolates: the title without its identifier. */
-  readonly title: string;
-  /** The worktree and run directory's name. */
-  readonly key: string;
-  readonly install?: string;
-};
-
-export type Selection =
-  | { readonly decision: "sync"; readonly pr: PullRequestDetail }
-  | { readonly decision: "skip"; readonly pr: PullRequestDetail; readonly reason: string };
+import { select, targetOf, type SyncTarget } from "./sweep-selection.ts";
+import { counts, label, reported, type SyncOutcome } from "./sweep-report.ts";
 
 /** Where one worker's tree and log live; the composition root decides both. */
 export type Placement = {
   readonly worktree: string;
   readonly log: string;
-};
-
-export type SyncOutcome = {
-  readonly pr: PullRequestDetail;
-  readonly kind: "synced" | "clean" | "escalated" | "failed" | "skipped";
-  readonly detail: string;
-  readonly worktree?: string;
-  readonly log?: string;
-  /** The one failure that stops the sweep handing out new work. */
-  readonly rateLimited?: boolean;
 };
 
 export type SweepOptions = {
@@ -67,24 +42,6 @@ export type SweepOptions = {
 export type SweepResult = {
   readonly outcomes: ReadonlyArray<SyncOutcome>;
   readonly exitCode: 0 | 2 | 3;
-};
-
-/** Whose pull request it is, off the trailer fabrika writes into every body. */
-const whose = (pr: PullRequestDetail) => (openedByFabrika(pr.body) ? "[fabrika]" : "[yours]");
-
-const label = (pr: PullRequestDetail) => `#${pr.number} ${whose(pr)} ${pr.title}`;
-
-/** An outcome as its console line: the parts that are set, in one dash-joined run. */
-const reported = (outcome: SyncOutcome) =>
-  [
-    `${label(outcome.pr)} — ${outcome.detail}`,
-    ...(outcome.worktree ? [`worktree: ${outcome.worktree}`] : []),
-    ...(outcome.log ? [`log: ${outcome.log}`] : []),
-  ].join(" — ");
-
-const counts = (outcomes: ReadonlyArray<SyncOutcome>) => {
-  const of = (kind: SyncOutcome["kind"]) => outcomes.filter((outcome) => outcome.kind === kind).length;
-  return `sync: ${of("synced")} synced, ${of("clean")} already clean, ${of("escalated")} escalated, ${of("failed")} failed, ${of("skipped")} skipped`;
 };
 
 /** What a worker's failure says on one line; `Escalated` has its own, richer form. */
@@ -137,95 +94,6 @@ const crashed = (pr: PullRequestDetail, placement: Placement | undefined, defect
   worktree: placement?.worktree,
   log: placement?.log,
 });
-
-/**
- * The number is in the key deliberately: two open pull requests can carry the
- * same identifier in their titles, and two workers in one tree is the failure
- * this command is not allowed to have.
- */
-const targetOf = (pr: PullRequestDetail): SyncTarget => {
-  const titled = identified(pr.title);
-  return {
-    number: pr.number,
-    url: pr.url,
-    branch: pr.branch,
-    identifier: titled ? titled.identifier : `pr-${pr.number}`,
-    title: titled ? titled.title : pr.title,
-    key: titled ? `${titled.identifier}-${pr.number}` : `pr-${pr.number}`,
-  };
-};
-
-/**
- * Which pull requests a sweep may touch, and why it left the rest alone.
- *
- * Pure, and first match wins, so the reason an operator reads is deterministic
- * — a merged pull request reports `mergeable: UNKNOWN` forever, so the state
- * rule has to fire before the unknown one. It stays unexported: the reason a
- * pull request was skipped is what the operator reads, so that is what a test
- * should read too.
- */
-const select = (
-  prs: ReadonlyArray<PullRequestDetail>,
-  options: {
-    readonly base: string;
-    readonly checkedOut: ReadonlyArray<{ readonly branch: string; readonly path: string }>;
-  },
-): ReadonlyArray<Selection> => {
-  const ours = baseBranch(options.base);
-  return prs.map((pr): Selection => {
-    const skip = (reason: string): Selection => ({ decision: "skip", pr, reason });
-    if (pr.state !== "open") return skip(pr.state === "merged" ? "already merged" : "closed");
-    if (pr.fork) return skip("opened from a fork; nothing here can push to it");
-    if (pr.base !== ours) return skip(`targets ${pr.base}, not ${ours}`);
-    if (pr.merge === "unknown") return skip("merge state unknown — GitHub would not compute it");
-    if (pr.merge !== "conflicted") return skip(`not conflicted (${pr.merge})`);
-    const tree = options.checkedOut.find((entry) => entry.branch === pr.branch);
-    if (tree) return skip(`branch is checked out at ${tree.path}`);
-    return { decision: "sync", pr };
-  });
-};
-
-/**
- * One pull request's share of a sweep.
- *
- * It fails the way every other step fails — the sweep is the one place that
- * turns that into a value — and it removes its tree only on the way out
- * clean, so an escalation leaves exactly what an escalated run leaves.
- *
- * No review rounds and no forge call: the reviewer has already ruled on this
- * branch, and a merge commit is not a new implementation.
- */
-export const syncPullRequest = (
-  target: SyncTarget,
-): Effect.Effect<{ readonly pushed: string | null }, StepError, SyncServices> =>
-  Effect.gen(function* () {
-    const workspace = yield* Workspace;
-    const journal = yield* Journal;
-
-    yield* workspace.checkout(target.branch);
-    yield* journal.log(`worktree ${workspace.dir}`);
-    if (target.install) {
-      const started = Date.now();
-      yield* journal.log(`install: ${target.install}`);
-      const installed = yield* workspace.install(target.install);
-      yield* journal.log(
-        installed ? `install: ok (${((Date.now() - started) / 1000).toFixed(0)}s)` : `install: skipped (already present)`,
-      );
-    }
-
-    // Read after `checkout` has fetched, so the key names the tip actually
-    // being merged: it changes exactly when the thing being merged changes.
-    const base = yield* workspace.baseSha;
-    const moved = yield* syncWithBase({ prUrl: target.url, session: `sync-${base.slice(0, 7)}` });
-    if (!moved) {
-      yield* workspace.remove;
-      return { pushed: null };
-    }
-    yield* workspace.push(target.branch);
-    const head = yield* workspace.head;
-    yield* workspace.remove;
-    return { pushed: head };
-  });
 
 export const sweep = (
   options: SweepOptions,

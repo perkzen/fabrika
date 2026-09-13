@@ -1,10 +1,19 @@
 import { Data, Effect } from "effect";
-import { styleText } from "node:util";
 import { CONFIG_PATH, type Config } from "../config.ts";
-import { choices, type Choice } from "../pipeline/fabrika.ts";
-import { isInteractive, type Style } from "./console.ts";
-import { row, type Segment, type Size } from "./frame.ts";
-import type { Styler } from "./markdown.ts";
+import { choices, type Choice } from "../domain/choices.ts";
+import { row, type Segment } from "./frame.ts";
+import {
+  canAnswer,
+  clearUp,
+  decoder,
+  HIDE_CURSOR,
+  SHOW_CURSOR,
+  sizeOf,
+  styler,
+  type Size,
+  type Styler,
+  type Surface,
+} from "./surface.ts";
 
 /**
  * The operator left before the run began. A failure rather than an empty
@@ -12,16 +21,6 @@ import type { Styler } from "./markdown.ts";
  * legitimately ask for — and walking away is not an answer at all.
  */
 export class Cancelled extends Data.TaggedError("Cancelled")<{}> {}
-
-export type Surface = {
-  /** What the verdict is made on, and what the rows are drawn to: the stream the run would report to. */
-  readonly stream: NodeJS.WriteStream;
-  /** Where the answer is typed. A surface with no keyboard is never asked. */
-  readonly input?: NodeJS.ReadStream;
-};
-
-/** Whether there is an operator here to answer a question: a dressed stdout is not enough without a keyboard. */
-export const canAnswer = (surface: Surface) => isInteractive(surface.stream) && Boolean(surface.input?.isTTY);
 
 /**
  * What is on offer, what is ticked, and which row the operator is on.
@@ -88,16 +87,7 @@ const SEQUENCES: ReadonlyArray<readonly [string, Key]> = [
 ];
 
 /** One chunk of raw stdin as the keys in it — longest match first, so a lone `Esc` is read as one last. */
-export const decode = (chunk: string): ReadonlyArray<Key> => {
-  const keys: Array<Key> = [];
-  let at = 0;
-  while (at < chunk.length) {
-    const found = SEQUENCES.find(([bytes]) => chunk.startsWith(bytes, at));
-    keys.push(found ? found[1] : "unknown");
-    at += found ? found[0].length : 1;
-  }
-  return keys;
-};
+export const decode = decoder(SEQUENCES, "unknown" as Key);
 
 /**
  * One keystroke applied to the picker. Pure, and total: `confirm` and
@@ -233,9 +223,6 @@ export const settled = (names: ReadonlyArray<string>, dress: Styler): string =>
 export const abandoned = (dress: Styler): string =>
   row([{ style: "dim", text: `${RAIL.quit}cancelled` }], Number.MAX_SAFE_INTEGER, dress);
 
-const HIDE_CURSOR = "\x1b[?25l";
-const SHOW_CURSOR = "\x1b[?25h";
-
 /**
  * Asks which steps to run, or answers `undefined` for a surface that cannot
  * be asked — a pipe, `NO_COLOR`, CI, and any shell an agent drives, all of
@@ -258,17 +245,16 @@ export const selectSteps = (config: Config, surface: Surface) =>
     ? Effect.callback<ReadonlyArray<string> | undefined, Cancelled>((resume) => {
         const stream = surface.stream;
         const input = surface.input!;
-        const dress: Styler = (style, text) => (style ? styleText(style, text, { validateStream: false }) : text);
-        const size = () => ({
-          columns: typeof stream.columns === "number" && stream.columns > 1 ? stream.columns : 80,
-          rows: typeof stream.rows === "number" && stream.rows > 0 ? stream.rows : 24,
-        });
+        // Always dressed: the select is only ever drawn where `canAnswer` said
+        // there is an operator, which is the interactive verdict and a keyboard.
+        const dress = styler(true);
+        const size = () => sizeOf(stream);
 
         let state = picker(config);
         let drawn = 0;
 
         const draw = () => {
-          if (drawn > 0) stream.write(`\x1b[${drawn}A\x1b[0J`);
+          stream.write(clearUp(drawn));
           const rows = lines(state, size(), dress);
           stream.write(rows.map((line) => `${line}\n`).join(""));
           drawn = rows.length;
@@ -282,7 +268,7 @@ export const selectSteps = (config: Config, surface: Surface) =>
           // listening holds the event loop open, and a run that short-circuits
           // before the screen mounts has nothing else to pause it.
           input.pause();
-          if (drawn > 0) stream.write(`\x1b[${drawn}A\x1b[0J`);
+          stream.write(clearUp(drawn));
           drawn = 0;
           stream.write(SHOW_CURSOR);
           // Nothing to say when the fiber was cancelled from elsewhere: the
