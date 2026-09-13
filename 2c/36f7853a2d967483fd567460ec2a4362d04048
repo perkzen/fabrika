@@ -1,0 +1,22 @@
+test/captures-adapter.test.ts
+  s_265a35446d09ee::t_2e4dbb42007e6d 229-248
+src/adapters/shell-captures.ts
+  s_265a35446d09ee::t_dbb448fa22a327 113,123-128
+  s_265a35446d09ee::t_7600898cfd2795 215,231,235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2c36f7853a2d967483fd567460ec2a4362d04048",
+  "prompts": {},
+  "sessions": {
+    "s_265a35446d09ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "309a70ff-be4f-4c30-8277-55d58b00aff8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
