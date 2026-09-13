@@ -69,7 +69,7 @@ export type SweepResult = {
   readonly exitCode: 0 | 2 | 3;
 };
 
-/** Whose pull request it is, off the trailer fabrika stamps into every body. */
+/** Whose pull request it is, off the trailer fabrika writes into every body. */
 const whose = (pr: PullRequestDetail) => (openedByFabrika(pr.body) ? "[fabrika]" : "[yours]");
 
 const label = (pr: PullRequestDetail) => `#${pr.number} ${whose(pr)} ${pr.title}`;
