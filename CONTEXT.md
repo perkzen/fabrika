@@ -56,10 +56,52 @@ either fully dressed or fully plain, never partly.
 _Avoid_: TTY, isTTY — those are one input to the verdict, not the verdict.
 
 **Live region**:
-The lines at the bottom of an interactive console that a presenter redraws in
+The lines at the bottom of a scrollback console that a presenter redraws in
 place: run progress, and whichever of gate progress or an open wait applies.
-Everything above it is permanent scrollback and is never rewritten.
+Everything above it is permanent scrollback and is never rewritten. It is the
+scrollback shape's device; a screen redraws its whole viewport instead.
 _Avoid_: status bar, footer, HUD.
+
+**Screen**:
+The presenter that owns the terminal's alternate buffer for the length of a
+run and redraws the whole viewport — the outline, the unfolded step under its
+line, and the keys that move and fold. An interactive run gets one; `init`, a
+pipe and every plain verdict get a scrollback console instead.
+_Avoid_: TUI, full-screen mode, alternate buffer — that is the terminal
+facility a screen is drawn on, not the presenter.
+
+**Step tree**:
+A run as its shape rather than its stream: a root per run, a node per step,
+and under each node the events that happened while it was open. It is a pure
+function of the run events and holds a list of roots, so one presenter over
+many pull requests is the same tree with more of them.
+_Avoid_: model, state — *view* is separately what the operator has selected
+and folded, which is not the tree.
+
+**Outline**:
+The step tree folded: one line per step carrying its position, name, state
+and, once the step has finished, its summary. It is what a screen shows by
+default and what is written to plain scrollback when a run leaves one.
+_Avoid_: step list, overview, tree view.
+
+**Summary**:
+What a finished step came to, rolled up from the events that happened inside
+it: how long, how much, how many tool calls by tool, which skills it invoked,
+and each gate command's verdict. Derived, never emitted — no run event carries
+one.
+_Avoid_: rollup, stats, totals.
+
+**Fold**:
+Whether a step's own events are shown under its outline line. The running step
+is unfolded and every other one is folded until the operator says otherwise; a
+step folds itself when it ends unless they unfolded it by hand.
+_Avoid_: expand, collapse, open, closed.
+
+**Invoked skill**:
+A skill the agent reached for inside a step, read off its `Skill` tool calls.
+Distinct from the skills a session *loaded*, which are the same plugin list
+every time and are reported nowhere.
+_Avoid_: skill, loaded skills.
 
 **Wait**:
 A stretch in which the host is blocked on something it does not control — an
