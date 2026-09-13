@@ -33,8 +33,13 @@ export type ClaudeError = AgentUnauthorized | AgentRateLimited | AgentFailed | P
 
 export type ClaudeResult = {
   readonly sessionId: string | null;
-  /** Skill names the session loaded, from the init event (e.g. `fabrika:tdd`). */
-  readonly skills: ReadonlyArray<string>;
+  /**
+   * Skill names the session *loaded*, from the init event (e.g. `fabrika:tdd`).
+   * Read by `scripts/smoke.ts` and nowhere else, and never journalled: it is
+   * the same plugin list every time, so it tells an operator nothing. What a
+   * step actually reached for is read off its `Skill` tool calls instead.
+   */
+  readonly loadedSkills: ReadonlyArray<string>;
   readonly text: string;
   /** Parsed `structured_output` when the run used `jsonSchema`. */
   readonly structured: unknown;
@@ -80,7 +85,7 @@ const AUTH_FAILED = new Set(["authentication_failed", "oauth_org_not_allowed"]);
 
 type RunState = {
   sessionId: string | null;
-  skills: Array<string>;
+  loadedSkills: Array<string>;
   text: string;
   structured: unknown;
   isError: boolean;
@@ -141,7 +146,7 @@ export const runClaude = (
 
     const state: RunState = {
       sessionId: opts.resume ?? null,
-      skills: [],
+      loadedSkills: [],
       text: "",
       structured: undefined,
       isError: false,
@@ -190,7 +195,7 @@ export const runClaude = (
 
     return {
       sessionId: state.sessionId,
-      skills: state.skills,
+      loadedSkills: state.loadedSkills,
       text: state.text,
       structured: state.structured,
       costUsd: state.costUsd,
@@ -208,7 +213,7 @@ function interpret(line: string, state: RunState, opts: ClaudeOptions) {
   if (event.session_id) state.sessionId = event.session_id;
 
   if (event.type === "system" && event.subtype === "init") {
-    state.skills = event.skills ?? [];
+    state.loadedSkills = event.skills ?? [];
     return;
   }
 

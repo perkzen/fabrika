@@ -58,7 +58,7 @@ const program = Effect.gen(function* () {
   yield* check("session_id captured", !!a.sessionId, a.sessionId ?? "");
   // Read off the init event, not the model's say-so: the stage prompts name
   // `fabrika:<skill>` and a missing plugin would fail silently otherwise.
-  yield* check("--plugin-dir loads fabrika skills", a.skills.includes("fabrika:tdd"), a.skills.filter((s) => s.startsWith("fabrika:")).join(","));
+  yield* check("--plugin-dir loads fabrika skills", a.loadedSkills.includes("fabrika:tdd"), a.loadedSkills.filter((s) => s.startsWith("fabrika:")).join(","));
 
   const events = (yield* fs.readFileString(rawLog))
     .split("\n")
@@ -88,7 +88,7 @@ const program = Effect.gen(function* () {
     prompt: "What exact string did the echo command print earlier in this conversation? Reply with only that string.",
   });
   yield* check("--resume carries context across directories", b.text.includes("fabrika-smoke-ok"), b.text.slice(0, 80));
-  yield* check("--plugin-dir loads on a resumed session", b.skills.includes("fabrika:tdd"));
+  yield* check("--plugin-dir loads on a resumed session", b.loadedSkills.includes("fabrika:tdd"));
 
   // C: --json-schema with stream-json.
   const c = yield* runClaude({
