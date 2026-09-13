@@ -167,9 +167,30 @@ test("what the answer leaves behind is one row that closes the rail", () => {
   assert.equal(abandoned(plain), "■ cancelled");
 });
 
-test("a surface with no keyboard is never asked, however dressed its output is", () => {
-  assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: true })), true);
-  assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: false })), false, "a TTY stdout with a piped stdin cannot answer");
-  assert.equal(canAnswer(tty({ isTTY: true }, undefined)), false);
-  assert.equal(canAnswer(tty({ isTTY: false }, { isTTY: true })), false, "and a pipe is not asked either");
-});
+/**
+ * The environment `isInteractive` consults, put out of the way: what this test
+ * pins is the keyboard half of the verdict, and a suite run under `CI=true`
+ * (or `NO_COLOR`, or a dumb `TERM`) must not be able to answer for the other.
+ */
+const bare = <A>(run: () => A): A => {
+  const saved = { NO_COLOR: process.env.NO_COLOR, TERM: process.env.TERM, CI: process.env.CI };
+  delete process.env.NO_COLOR;
+  delete process.env.CI;
+  process.env.TERM = "xterm-256color";
+  try {
+    return run();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+};
+
+test("a surface with no keyboard is never asked, however dressed its output is", () =>
+  bare(() => {
+    assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: true })), true);
+    assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: false })), false, "a TTY stdout with a piped stdin cannot answer");
+    assert.equal(canAnswer(tty({ isTTY: true }, undefined)), false);
+    assert.equal(canAnswer(tty({ isTTY: false }, { isTTY: true })), false, "and a pipe is not asked either");
+  }));
