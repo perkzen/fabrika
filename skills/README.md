@@ -6,6 +6,7 @@ target repo's own `.claude/skills/` still load alongside.
 
 | Skill | Stage | Reads | Writes |
 | --- | --- | --- | --- |
+| `fabrika:fabrika` | human-invoked, outside a run | `.fabrika/config.json`, a run's log | `.fabrika/config.json` through `fabrika init`, nothing otherwise — it drives the CLI for a human in an interactive session |
 | `fabrika:configure` | `fabrika init`, before any run | CI workflows, lockfile, scripts | `{base, install, gate}` as structured output; the host writes the config |
 | `fabrika:branch-naming` | naming call, before the worktree exists | ticket, repo | `{type, slug, preview}` as structured output; the host builds the branch |
 | `fabrika:to-tickets` | human-invoked, before a run | a spec, plan, or conversation | `.fabrika/tickets/<feature>/<NN>-<slug>.md`, each runnable with `fabrika run --file` |
@@ -28,8 +29,12 @@ target repo's own `.claude/skills/` still load alongside.
 to `~/.fabrika/runs/<repo>/<ticket>/work/` when the run finishes, and `pr.md`
 becomes the pull request body.
 
-Every skill is written for an unattended run: wherever the original would ask
-the user, the fabrika version decides, records the decision, and moves on.
+Every skill but `fabrika:fabrika` is written for an unattended run: wherever
+the original would ask the user, the fabrika version decides, records the
+decision, and moves on. `fabrika:fabrika` is the exception by construction —
+it is the operator's side of the tool, user-invocable only
+(`disable-model-invocation: true`), so no stage can invoke it — `--plugin-dir`
+still loads it, the flag keeps it off the model's list.
 
 ## Names
 
@@ -37,10 +42,20 @@ Skill names follow the `engineering/` folder of Matt's repo where a counterpart
 exists (`to-spec`, `to-tickets`, `tdd`, `implement`, `codebase-design`,
 `domain-modeling`, `improve-codebase-architecture`, `code-review`, `research`,
 `resolving-merge-conflicts`, `grill-with-docs`), so the two sets read the same.
-`plan`, `security`, `branch-naming`, `configure`, `fix-ci`, and `code-comments` are fabrika's own.
+`plan`, `security`, `branch-naming`, `configure`, `fix-ci`, `code-comments` and
+`fabrika` are fabrika's own.
 
-To use the human-facing ones (`to-tickets`) in an interactive session, load the
-plugin: `claude --plugin-dir /path/to/fabrika`.
+To use the human-facing ones (`fabrika`, `to-tickets`) in an interactive
+session, install them from the skills registry:
+
+```bash
+npx skills add perkzen/fabrika@fabrika -g
+```
+
+`-g` installs for the user; drop it to install into the current project.
+`npx skills add perkzen/fabrika -l` lists every skill in this table, and
+`--skill <a,b>` picks which to install. Loading the whole plugin still works
+and gets all of them: `claude --plugin-dir /path/to/fabrika`.
 
 ## Attribution
 

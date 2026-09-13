@@ -179,8 +179,29 @@ test("what the answer leaves behind is one row that closes the rail", () => {
 });
 
 test("a surface with no keyboard is never asked, however dressed its output is", () => {
-  assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: true })), true);
-  assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: false })), false, "a TTY stdout with a piped stdin cannot answer");
-  assert.equal(canAnswer(tty({ isTTY: true }, undefined)), false);
-  assert.equal(canAnswer(tty({ isTTY: false }, { isTTY: true })), false, "and a pipe is not asked either");
+  // `canAnswer` reads the console's own verdict, and that verdict reads the
+  // environment — so this test states the keyboard half on an environment it
+  // owns rather than on whatever the machine running it happens to export.
+  // Left ambient, the first assertion is a fact about the shell: it holds on
+  // a developer's terminal and fails under `CI=true`, which is every run of
+  // this suite on a runner.
+  const saved = { NO_COLOR: process.env.NO_COLOR, TERM: process.env.TERM, CI: process.env.CI };
+  try {
+    delete process.env.NO_COLOR;
+    delete process.env.CI;
+    process.env.TERM = "xterm-256color";
+
+    assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: true })), true);
+    assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: false })), false, "a TTY stdout with a piped stdin cannot answer");
+    assert.equal(canAnswer(tty({ isTTY: true }, undefined)), false);
+    assert.equal(canAnswer(tty({ isTTY: false }, { isTTY: true })), false, "and a pipe is not asked either");
+
+    process.env.CI = "true";
+    assert.equal(canAnswer(tty({ isTTY: true }, { isTTY: true })), false, "and a veto on the console closes the question too");
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
