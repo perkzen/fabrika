@@ -1,0 +1,27 @@
+src/adapters/shell-captures.ts
+  s_5776a105a9d739::t_1524aa0d147b24 5
+src/infra/notifier.ts
+  s_5776a105a9d739::t_06155bfc9fa47d 2,19-20
+test/editor.test.ts
+  s_5776a105a9d739::t_206432b9ca27a3 8-16,63-83
+src/infra/editor.ts
+  s_5776a105a9d739::t_06155bfc9fa47d 1,15-19,25,32
+src/infra/shell.ts
+  s_5776a105a9d739::t_06155bfc9fa47d 12-27,33-36,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "359976ff54d9c5f1f643d7f52a58c47da0d9f1cc",
+  "prompts": {},
+  "sessions": {
+    "s_5776a105a9d739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573bb086-864c-4e8c-afc2-303511a01b24",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
