@@ -79,6 +79,25 @@ export const layer = (options: WorkspaceOptions) =>
           }),
         ),
         /**
+         * Git rather than the filesystem: this catches a tree at *any* path —
+         * a renamed pull request whose key no longer matches its directory
+         * cannot slip past — and it catches the operator's own checkout.
+         */
+        checkedOutBranches: git(["worktree", "list", "--porcelain"], repoRoot).pipe(
+          Effect.map((out) =>
+            // Blank-line-separated blocks; a detached worktree carries
+            // `detached` instead of `branch` and contributes nothing.
+            out.split("\n\n").flatMap((block) => {
+              const field = (name: string) =>
+                block.split("\n").find((line) => line.startsWith(`${name} `))?.slice(name.length + 1);
+              const where = field("worktree");
+              const ref = field("branch");
+              return where && ref ? [{ branch: ref.replace(/^refs\/heads\//, ""), path: where }] : [];
+            }),
+          ),
+        ),
+
+        /**
          * "Domen Perko" → `domen-perko`, for the `{user}` in the branch
          * pattern: the config is committed to the target repo, so the prefix
          * has to be whoever is running rather than a baked-in name.

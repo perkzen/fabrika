@@ -13,6 +13,29 @@ export type Check = {
 
 export type PullRequest = { readonly number: number; readonly url: string };
 
+/**
+ * What the forge says about a pull request against its base. `unknown` is
+ * GitHub not having finished computing it, which is a thing to be told about
+ * rather than a thing to guess at.
+ */
+export type MergeState = "conflicted" | "behind" | "clean" | "unknown";
+
+export type PullRequestDetail = {
+  readonly number: number;
+  readonly url: string;
+  readonly title: string;
+  readonly body: string;
+  /** The head branch, as a bare name. */
+  readonly branch: string;
+  /** The branch it targets, as a bare name. */
+  readonly base: string;
+  readonly state: "open" | "closed" | "merged";
+  readonly draft: boolean;
+  /** The head branch lives in another repository; nothing here can push to it. */
+  readonly fork: boolean;
+  readonly merge: MergeState;
+};
+
 export type NewPullRequest = {
   readonly branch: string;
   readonly title: string;
@@ -29,6 +52,10 @@ export type NewPullRequest = {
  * commit has finished, tolerates the window right after a push where the
  * rollup is still empty, and gives up at the timeout (`undefined`). A caller
  * that had to do this itself would have to know all three.
+ *
+ * `authored` is deep the same way: the list query, the author filter and the
+ * mapping onto four merge states sit behind one call, and the caller gets a
+ * list it can filter.
  */
 export interface Forge {
   readonly repo: string;
@@ -43,6 +70,9 @@ export interface Forge {
   readonly failureLog: (check: Check) => Effect.Effect<string, FabrikaError>;
   /** Reruns a job's failed steps, for a suspected flake. */
   readonly rerun: (check: Check) => Effect.Effect<void, FabrikaError>;
+  /** Open pull requests the authenticated operator authored, with their merge
+   *  state settled as far as the forge will settle it. */
+  readonly authored: Effect.Effect<ReadonlyArray<PullRequestDetail>, FabrikaError>;
 }
 
 export const Forge = Context.Service<Forge>("Forge");

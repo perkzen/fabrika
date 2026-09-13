@@ -2,7 +2,7 @@ import { Duration, Effect, Layer } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
-import { Forge, type Check, type CheckState, type NewPullRequest } from "../ports/forge.ts";
+import { Forge, type Check, type CheckState, type MergeState, type NewPullRequest, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Reviewer } from "../ports/reviewer.ts";
 import { Workspace } from "../ports/workspace.ts";
@@ -53,6 +53,56 @@ export const classify = (rollup: Rollup["statusCheckRollup"], ignore: (name: str
       },
     ];
   });
+
+/** One entry of the listing below; GitHub sends `state`, `mergeable` and `mergeStateStatus` uppercase. */
+type Listed = {
+  number: number;
+  url: string;
+  title: string;
+  body: string;
+  headRefName: string;
+  baseRefName: string;
+  state: string;
+  isDraft: boolean;
+  isCrossRepository: boolean;
+  mergeable: string;
+  mergeStateStatus?: string;
+};
+
+const LIST_FIELDS =
+  "number,url,title,body,headRefName,baseRefName,state,isDraft,isCrossRepository,mergeable,mergeStateStatus";
+
+/**
+ * GitHub's two fields onto the four states.
+ *
+ * `mergeStateStatus` only separates `behind` from `clean`, both of which a
+ * sweep skips: it is reported only under branch protection that requires
+ * up-to-date branches, and it is the expensive half of the query, so nothing
+ * load-bearing may depend on it. Anything that is neither `CONFLICTING` nor
+ * `MERGEABLE` is GitHub still computing, which is `unknown` rather than a
+ * guess in either direction.
+ */
+export const mergeStateOf = (mergeable: string, mergeStateStatus?: string): MergeState =>
+  mergeable === "CONFLICTING"
+    ? "conflicted"
+    : mergeable !== "MERGEABLE"
+      ? "unknown"
+      : mergeStateStatus === "BEHIND"
+        ? "behind"
+        : "clean";
+
+const detailOf = (pr: Listed): PullRequestDetail => ({
+  number: pr.number,
+  url: pr.url,
+  title: pr.title,
+  body: pr.body,
+  branch: pr.headRefName,
+  base: pr.baseRefName,
+  state: pr.state.toLowerCase() as PullRequestDetail["state"],
+  draft: pr.isDraft,
+  fork: pr.isCrossRepository,
+  merge: mergeStateOf(pr.mergeable, pr.mergeStateStatus),
+});
 
 export type ForgeOptions = {
   /** The branch PRs target, without the remote. */
@@ -138,6 +188,17 @@ export const layer = (options: ForgeOptions) =>
 
         rerun: (check: Check) =>
           check.job ? gh(["run", "rerun", check.job.id, "--failed", "-R", check.job.repo]).pipe(Effect.asVoid) : Effect.void,
+
+        // `--limit` is explicit because `gh`'s default of 30 drops pull
+        // requests silently; `--base` is deliberately absent, because a
+        // stacked pull request has to be listed to be reported.
+        authored: gh([
+          "pr", "list", "-R", repo,
+          "--author", "@me",
+          "--state", "open",
+          "--limit", "200",
+          "--json", LIST_FIELDS,
+        ]).pipe(Effect.map((out) => (JSON.parse(out) as Array<Listed>).map(detailOf))),
       } satisfies Forge;
     }),
   );

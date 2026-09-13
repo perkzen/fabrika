@@ -4,7 +4,7 @@ import type { Config } from "../src/config.ts";
 import { CONFIG_TEMPLATE } from "../src/config.ts";
 import type { StepServices } from "../src/pipeline/step.ts";
 import { Agent, type AgentReply, type AgentRequest } from "../src/ports/agent.ts";
-import { Forge, type Check } from "../src/ports/forge.ts";
+import { Forge, type Check, type PullRequestDetail } from "../src/ports/forge.ts";
 import { Gate, type GateFailure } from "../src/ports/gate.ts";
 import { Journal } from "../src/ports/journal.ts";
 import { Prompts } from "../src/ports/prompts.ts";
@@ -31,6 +31,10 @@ export type Script = {
   /** Swaps the shipped no-reviewer adapter in for the scripted fake. */
   readonly reviewer?: "none";
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
+  /** Answered by `Forge.authored`. */
+  readonly pullRequests?: ReadonlyArray<PullRequestDetail>;
+  /** Answered by `Workspace.checkedOutBranches`. */
+  readonly checkedOut?: ReadonlyArray<{ readonly branch: string; readonly path: string }>;
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
@@ -166,6 +170,7 @@ export const harness = (script: Script = {}) => {
       currentBranch: Effect.succeed("existing/branch"),
       user: Effect.succeed("domen-perko"),
       githubRepo: Effect.succeed("perkzen/fabrika"),
+      checkedOutBranches: Effect.succeed(script.checkedOut ?? []),
       create: () => Effect.void,
       install: () => Effect.succeed(true),
       remove: Effect.sync(() => void recording.removed.push("/worktree")),
@@ -191,6 +196,7 @@ export const harness = (script: Script = {}) => {
       settledChecks: () => Effect.sync(nextChecks),
       failureLog: () => Effect.succeed("the failing log"),
       rerun: (check: Check) => Effect.sync(() => void recording.rerun.push(check.job!.id)),
+      authored: Effect.succeed(script.pullRequests ?? []),
     }),
     // The shipped adapter, not the fake with a flag flipped: it pins the behaviour, not the double.
     script.reviewer === "none"

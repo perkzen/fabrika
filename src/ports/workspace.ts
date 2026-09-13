@@ -36,6 +36,15 @@ export interface Workspace {
   readonly user: Effect.Effect<string, FabrikaError>;
   /** `owner/repo` of the base branch's remote. */
   readonly githubRepo: Effect.Effect<string, FabrikaError>;
+  /**
+   * Branches checked out in any worktree of this repository on this machine,
+   * with where. The path comes with the branch because the reason it produces
+   * has to name it: the tree a sweep left behind is the thing to clean up.
+   */
+  readonly checkedOutBranches: Effect.Effect<
+    ReadonlyArray<{ readonly branch: string; readonly path: string }>,
+    FabrikaError
+  >;
 
   /** Creates the tree on `branch` off a freshly fetched base, or reuses one already on it. */
   readonly create: (branch: string) => Effect.Effect<void, FabrikaError>;
