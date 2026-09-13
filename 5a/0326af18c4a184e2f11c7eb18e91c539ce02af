@@ -1,0 +1,19 @@
+src/adapters/gh-forge.ts
+  s_5dd1191cb85828::t_a585be9431db50 112-128,142,169-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5a0326af18c4a184e2f11c7eb18e91c539ce02af",
+  "prompts": {},
+  "sessions": {
+    "s_5dd1191cb85828": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2fe348e-7146-469f-b2c6-1189a5d1d9df",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
