@@ -48,6 +48,23 @@ export type CaptureStep = typeof CaptureStep.Type;
 export const applies = (when: ReadonlyArray<string> | undefined, changed: ReadonlyArray<string>): boolean =>
   !when || changed.some((file) => when.some((glob) => matchesGlob(file, glob)));
 
+/**
+ * Commands the host will not run on an agent's say-so, whoever proposed them.
+ *
+ * `deny` keeps `git push`, `gh pr merge` and the rest away from the agent
+ * subprocess, but a gate step and a capture are commands the *host* spawns,
+ * with no permission layer in front of them — so they are the place that rule
+ * could be laundered back in. Lives here rather than in `configure.ts`
+ * because it now guards two callers: the proposal `init` writes, and the
+ * capture a run decides for itself.
+ *
+ * The four `deny` rules, one for one — `gh api graphql` included, which this
+ * pattern went without while every command it guarded had a human's eyes on
+ * it first. `rm -rf dist` is an ordinary clean-build step and stays allowed;
+ * only a path outside the worktree is not.
+ */
+export const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\bgh\s+api\s+graphql\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
+
 export const Config = Schema.Struct({
   base: Schema.String,
   /** Branch pattern; `{user}` (`git config user.name`, kebab-cased), `{type}`, `{ticket}` and `{slug}` are filled per run. */
@@ -68,6 +85,17 @@ export const Config = Schema.Struct({
   pr: Schema.Struct({
     draft: Schema.Boolean,
     emptyCommit: Schema.Boolean,
+    /**
+     * Whether a run works out its own Before / After.
+     *
+     * `true` and no `capture`: one structured call at the pull request reads
+     * the branch and answers whether it changed a surface a person looks at
+     * and which single command renders it. `false` is off however `capture`
+     * is set — it is the switch a human flips, so it wins. Absent is today's
+     * behaviour: `capture` alone decides.
+     */
+    beforeAfter: Schema.optional(Schema.Boolean),
+    /** The pinned override: named commands, gated by globs, decided once by a human rather than per run. */
     capture: Schema.optional(Schema.Array(CaptureStep)),
   }),
   review: Schema.Struct({
@@ -148,8 +176,10 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "review", prompt: "review.md", system: "implement.system.md", gate: true },
   ],
   deny: ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr review:*)", "Bash(gh api graphql:*)"],
-  // `capture` is present so `init` keeps the key in this position; `JSON.stringify` drops it.
-  pr: { draft: true, emptyCommit: true, capture: undefined },
+  // On by default: the run works out its own Before / After, and answers "no
+  // surface" cheaply for a library or a server that has none. `capture` is
+  // present so `init` keeps the key in this position; `JSON.stringify` drops it.
+  pr: { draft: true, emptyCommit: true, beforeAfter: true, capture: undefined },
   // What `init` writes when its configure call is rejected, and a fallback that escalates by construction is not a fallback.
   review: { provider: "none", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
   checks: { timeoutMinutes: 30 },

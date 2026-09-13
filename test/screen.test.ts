@@ -99,9 +99,9 @@ test("the screen is entered by the run event and left by end(), which writes the
   assert.deepEqual(
     left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n"),
     [
-      "· 1/3 preflight",
-      "▸ 2/3 implement",
-      "· 3/3 review",
+      " ○ preflight",
+      " ▸ implement",
+      " ○ review",
       "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
     ],
     "the folded outline, then the result, last",
@@ -126,9 +126,9 @@ test("the exit scrollback carries the worktree between the outline and the resul
   assert.deepEqual(
     left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n"),
     [
-      "· 1/3 preflight",
-      "▸ 2/3 implement",
-      "· 3/3 review",
+      " ○ preflight",
+      " ▸ implement",
+      " ○ review",
       "worktree: /Users/x/.fabrika/worktrees/fabrika/FAB-6",
       "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
     ],
@@ -163,29 +163,32 @@ test("a screen that never mounted leaves no buffer and writes no outline", () =>
   );
 });
 
-test("a frame is drawn on the timer while a wait is open, and not otherwise", (t) => {
+test("a frame is drawn on the timer while something is turning, and not otherwise", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const out = terminal();
   const presenter = open(out);
 
   presenter.show(RUN);
-  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
   t.mock.timers.tick(80);
   const settled = out.chunks.length;
   t.mock.timers.tick(160);
   assert.equal(out.chunks.length, settled, "a model nothing has changed is not redrawn twelve times a second");
 
-  presenter.show({ kind: "wait", state: "start", subject: "implement agent" });
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
   t.mock.timers.tick(80);
   const spinning = out.chunks.length;
   t.mock.timers.tick(160);
-  assert.equal(out.chunks.length, spinning + 2, "an open wait is what proves the run is alive, so it animates");
+  assert.equal(
+    out.chunks.length,
+    spinning + 2,
+    "the running step's marker is what proves the run is alive, so it animates",
+  );
 
-  presenter.show({ kind: "wait", state: "end", subject: "implement agent", seconds: 9 });
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 9, outcome: "done" });
   t.mock.timers.tick(80);
   const closed = out.chunks.length;
   t.mock.timers.tick(160);
-  assert.equal(out.chunks.length, closed, "and it stops when the wait does");
+  assert.equal(out.chunks.length, closed, "and it stops when the step does");
 
   presenter.end();
 });
@@ -285,7 +288,10 @@ test("a screen with no opener neither names o nor draws anything different when 
   // Past the frame the press marked dirty: a key that did nothing has to be
   // read after the redraw it asks for, not before it.
   t.mock.timers.tick(80);
-  assert.equal(out.chunks.at(-1)!, settled, "the frame an untouched screen would have drawn, to the byte");
+  // The running step's marker turns on every tick whether or not a key was
+  // pressed, so the one glyph that is meant to differ is read as the same.
+  const still = (chunk: string) => chunk.replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/gu, "⠿");
+  assert.equal(still(out.chunks.at(-1)!), still(settled), "the frame an untouched screen would have drawn, to the byte");
 
   presenter.end();
 });

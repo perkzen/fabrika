@@ -95,9 +95,23 @@ export const follow = (view: View, tree: Tree): View => {
   return opened === view.opened ? view : { ...view, selected: running?.key ?? view.selected, opened, scroll: 0 };
 };
 
+/**
+ * Whether a step is one the operator can land on: only a step that has run
+ * or is running has a stream to unfold. A pending step, a skipped one and
+ * one a resume found already done have nothing under their line, so a
+ * selection that could reach them would be a fold that opens on nothing —
+ * the selection steps over them, and the queue reads as the queue.
+ */
+const readable = (step: Node): boolean => step.state === "running" || step.state === "done" || step.state === "failed";
+
 const moved = (view: View, steps: ReadonlyArray<Node>, by: number, tree: Tree, size: Size): View => {
-  const at = steps.findIndex((step) => step.key === view.selected);
-  const next = steps[Math.min(Math.max((at < 0 ? 0 : at) + by, 0), steps.length - 1)];
+  const candidates = steps.filter(readable);
+  const at = candidates.findIndex((step) => step.key === view.selected);
+  // Off the readable steps — nothing selected yet, or the selection is on a
+  // step that has since stopped being one — a move enters from the end it
+  // is moving away from.
+  const from = at >= 0 ? at : by > 0 ? -1 : candidates.length;
+  const next = candidates[Math.min(Math.max(from + by, 0), candidates.length - 1)];
   if (!next) return view;
   // `top` is kept here rather than derived per frame, so an outline longer
   // than the terminal scrolls with the selection instead of jumping back to

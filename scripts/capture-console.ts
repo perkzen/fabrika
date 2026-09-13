@@ -18,7 +18,7 @@ const FIXTURE: ReadonlyArray<RunEvent | string> = [
     { name: "implement", done: false },
     { name: "review", done: false },
   ] },
-  { kind: "step", name: "implement", at: 3, of: 4, state: "start" },
+  { kind: "step", name: "implement", title: "Implement", at: 3, of: 4, state: "start" },
   { kind: "agent", stage: "implement", markdown: "Working the plan's **third slice**: the read-back that puts the plain body\nback when a host path survived the upload.\n\n- `test/pull-request.test.ts` — the failing test\n- `src/pipeline/steps/pull-request.ts` — the step" },
   { kind: "tool", stage: "implement", tool: "Read", subject: "src/pipeline/steps/pull-request.ts" },
   { kind: "tool", stage: "implement", tool: "Edit", subject: "src/captures.ts" },

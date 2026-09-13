@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Console, Effect, FileSystem, Option, Path } from "effect";
-import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { Console, Effect, FileSystem, Path } from "effect";
+import { CliError, Command, Flag } from "effect/unstable/cli";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import * as fileTickets from "./adapters/file-tickets.ts";
-import * as linearTickets from "./adapters/linear-tickets.ts";
 import { runClaude } from "./infra/claude.ts";
 import { CONFIG_PATH, loadConfig } from "./config.ts";
 import { asConfig, proposeConfig } from "./configure.ts";
@@ -92,9 +89,6 @@ const VERSION = ((): string => {
   return typeof pkg === "object" && pkg !== null && "version" in pkg && typeof pkg.version === "string" ? pkg.version : "0.0.0";
 })();
 
-/** Secrets live outside the target repo; loaded by explicit path, no dotenv. */
-const ENV_FILE = join(homedir(), ".config", "fabrika", ".env");
-
 /**
  * A stale keychain token fails every `claude -p` while `claude auth status`
  * still says logged in (seen 2026-09-10 with the desktop app signed in). One cheap call up front beats
@@ -107,28 +101,29 @@ const authProbe = runClaude({ cwd: process.cwd(), prompt: "Reply with exactly: O
   Effect.asVoid,
 );
 
+/**
+ * A run's ticket is a markdown file, and only a markdown file.
+ *
+ * Linear still reaches a run — through the `linear-ro` MCP server a stage
+ * declares, which is the agent reading the issue, its comments and its linked
+ * issues at the point it needs them. That is strictly more than the host's own
+ * GraphQL fetch ever got, and it costs no API key: the server's credential is
+ * registered once with `claude mcp add`, so fabrika holds no secret, loads no
+ * `.env`, and has nothing to leak into a worktree or a capture. A file's
+ * `linear:` frontmatter is what still puts the issue's identifier on the
+ * branch and its URL in the pull request.
+ */
 const run = Command.make(
   "run",
   {
-    ticket: Argument.String("ticket").pipe(Argument.withDescription("a Linear identifier, e.g. PAR-123"), Argument.optional),
-    file: Flag.File("file").pipe(Flag.withDescription("a local markdown spec instead of a Linear issue"), Flag.optional),
+    file: Flag.File("file").pipe(Flag.withDescription("the markdown spec to run, e.g. .fabrika/tickets/FAB-7.md")),
   },
-  ({ ticket, file }) =>
+  ({ file }) =>
     Effect.gen(function* () {
       banner({ stream: process.stdout, version: VERSION });
-      if (Option.isSome(ticket) === Option.isSome(file)) {
-        return yield* new FabrikaError({ message: "give exactly one of: a Linear identifier, or --file <spec.md>" });
-      }
-      if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
       const config = yield* loadConfig(process.cwd());
       yield* authProbe;
-      const record = Option.isSome(file)
-        ? yield* fileTickets.source(file.value).fetch
-        : yield* Effect.gen(function* () {
-            const key = process.env.LINEAR_API_KEY;
-            if (!key) return yield* new FabrikaError({ message: `LINEAR_API_KEY is not set; put it in ${ENV_FILE}` });
-            return yield* linearTickets.source(Option.getOrThrow(ticket), key).fetch;
-          });
+      const record = yield* fileTickets.source(file).fetch;
       yield* runTicket(config, record, credentials).pipe(
         Effect.catchTag("Escalated", (e) =>
           Console.error(
@@ -174,7 +169,6 @@ const sync = Command.make(
       // `Flag` has no numeric minimum — `Flag.atLeast` is about how often a
       // flag repeats — so the handler checks, and a CLI error is exit 1.
       if (concurrency < 1) return yield* new FabrikaError({ message: "--concurrency must be at least 1" });
-      if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
       const config = yield* loadConfig(process.cwd());
       // A dry run spawns no agent, so it needs no credential: the point of it
       // is that it is the cheapest, safest thing to reach for first.

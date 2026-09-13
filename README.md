@@ -16,7 +16,7 @@ No API keys, no containers, no custom auth. Every stage is a headless
 
 ```mermaid
 flowchart LR
-    T["Ticket<br/>Linear issue or spec file"] --> S[spec]
+    T["Ticket<br/>markdown spec file"] --> S[spec]
     S --> P[plan]
     P --> I[implement]
     I --> A[refactor]
@@ -41,7 +41,7 @@ rough edges.
 - The [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI, logged in (`claude auth login`)
 - The [GitHub CLI](https://cli.github.com) (`gh`), authenticated against the target repo
 - Only for `review.provider: "cubic"`: the [cubic](https://cubic.dev) review bot installed on the target repo. A repo without one sets `"none"`, which `init` does on its own, and its runs are decided by CI alone
-- For Linear tickets: a Linear API key in `~/.config/fabrika/.env` as `LINEAR_API_KEY=...`
+- Only to let a stage read Linear: the `linear-ro` MCP server registered once with `claude mcp add` (see [docs/internals.md](docs/internals.md)). fabrika itself holds no Linear key
 
 ## Quick start
 
@@ -86,14 +86,10 @@ Read the gate, correct anything it guessed wrong, set the branch-name pattern
 (`{user}` in it is your `git config user.name`, kebab-cased), and commit the
 file. The gate for a repo belongs in that repo.
 
-Run a ticket from either source:
+Run a ticket:
 
 ```bash
-fabrika run PAR-123
-```
-
-```bash
-fabrika run --file spec.md
+fabrika run --file .fabrika/tickets/login-timeout.md
 ```
 
 The last log line of a clean run is the PR URL. If the run stops, rerun the
@@ -169,6 +165,37 @@ did not seek.
 
 A failed CI run is rerun once first, for flakes. The host never resolves a
 thread the agent did not address.
+
+### The PR shows the change, not only the diff
+
+For the half of a change a diff cannot show, the pull request carries a
+**Before / After** section: one command that renders a user-visible surface,
+run by the host twice — in a checkout of the base, and on your branch — with
+`$FABRIKA_CAPTURE_DIR` pointing at an empty directory it writes into. Images go
+up as GitHub attachments, text is fenced, and nothing is committed.
+
+It is `pr.beforeAfter` in your config, on by default:
+
+```json
+"pr": { "draft": true, "emptyCommit": true, "beforeAfter": true }
+```
+
+Nothing else to declare. Each run reads its own diff and works out whether it
+changed a surface anyone looks at and what already renders it, so a branch that
+touched only logic, tests or docs adds nothing to the PR. That decision is one
+short agent call per run, made after the push.
+
+On by default means new configs. `fabrika init` writes the key, but a config
+written before this field existed does not have it and keeps the old behaviour
+— add the line by hand to turn it on. A repository with no user-visible surface
+never produces a section either way.
+
+Set `pr.capture` instead when the render is expensive enough to be worth
+pinning — a simulator boot, a full site build — and the named commands and
+their globs take over. `"beforeAfter": false` turns the whole thing off.
+
+Images need `gh` 2.99.0 or newer for `gh pr create --attach`; an older `gh`
+keeps the text and says so in the log.
 
 ### Keeping the machine awake
 
@@ -247,9 +274,11 @@ System Settings → Notifications.
 
 ## Tickets
 
-A ticket is a small record: an identifier, a title, a description. It can come
-from a Linear issue or from a local markdown file; the pipeline cannot tell the
-difference.
+A ticket is a small record — an identifier, a title, a description — and it is
+always a local markdown file. Linear reaches a run through the `linear-ro` MCP
+server a stage declares, not through a key fabrika holds: the agent reads the
+issue, its comments and its linked issues itself, and the `linear:` frontmatter
+below is what puts the identifier on the branch and the URL on the PR.
 
 A spec file is markdown with optional frontmatter:
 
@@ -293,12 +322,17 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 
 ## Where things live
 
-- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, `model` (per stage, or one for the whole run), denied tools, review settings, `keepAwake`, `notify`, PR captures
+- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, `model` (per stage, or one for the whole run), denied tools, review settings, `keepAwake`, `notify`, Before / After
 - `~/.fabrika/worktrees/<repo>/<ticket>/`: the worktree for a run
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
-- `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each PR capture, reused by every ticket cut from that commit
+- `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each capture, keyed by name and command, reused by every ticket cut from that commit
 - `~/.fabrika/notifier/Fabrika.app`: the bundle notifications are posted through, built on first use
-- `~/.config/fabrika/.env`: what is this machine's rather than this repo's, kept out of every repo — secrets like `LINEAR_API_KEY`, and `FABRIKA_EDITOR="open -a WebStorm"`, the editor the screen's `o` opens the worktree in
+
+fabrika stores no credentials of its own: `claude`, `gh` and each MCP server
+hold theirs. The one thing it reads from the environment is
+`FABRIKA_EDITOR` — `FABRIKA_EDITOR="open -a WebStorm"` in your shell — the
+editor the screen's `o` opens the worktree in; on macOS it falls back to
+`open`.
 
 For source layout, exit codes, MCP and Linear setup, the smoke test and other
 operator notes, see [docs/internals.md](docs/internals.md).

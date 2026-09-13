@@ -20,16 +20,18 @@ import { test } from "node:test";
  */
 const CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 
-const sync = (...args: ReadonlyArray<string>) => {
+const cli = (...args: ReadonlyArray<string>) => {
   const cwd = mkdtempSync(join(tmpdir(), "fabrika-cli-"));
   try {
-    execFileSync("node", [CLI, "sync", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync("node", [CLI, ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     return "";
   } catch (error) {
     const failure = error as { stdout?: string; stderr?: string };
     return `${failure.stdout ?? ""}${failure.stderr ?? ""}`;
   }
 };
+
+const sync = (...args: ReadonlyArray<string>) => cli("sync", ...args);
 
 test("`fabrika sync` runs without --dry-run, which is a flag you opt into", () => {
   const out = sync();
@@ -44,4 +46,11 @@ test("`fabrika sync --dry-run` parses too", () => {
 
 test("--concurrency below 1 is a CLI error, not a fan-out of none", () => {
   assert.match(sync("--concurrency", "0"), /--concurrency must be at least 1/);
+});
+
+test("`fabrika run` takes a spec file and nothing else: Linear reaches a run through MCP, not an API key", () => {
+  const out = cli("run");
+
+  assert.match(out, /--file/, `the one input a run has is the one the parser asks for:\n${out}`);
+  assert.doesNotMatch(out, /LINEAR_API_KEY/, "fabrika holds no Linear credential to be missing");
 });

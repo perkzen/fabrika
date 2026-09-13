@@ -106,6 +106,11 @@ stage; the answer is rejected outright if one appears in a gate step.
 
 ## capture
 
+**Almost always propose nothing.** `pr.beforeAfter` is on by default, and each
+run works out its own capture from its own diff — whether this branch changed a
+surface anyone looks at, and what already renders it. That judgement is better
+made against a diff than cached in globs here, where nothing invalidates it.
+
 A capture renders one user-visible surface to files, so the pull request can
 show the same surface at the base and on the branch. The host runs it twice —
 once in a checkout of the base, once in the run's tree — with
@@ -113,18 +118,15 @@ once in a checkout of the base, once in the run's tree — with
 never fails a run: a missing tool, a non-zero exit or an empty directory just
 leaves the pull request as it is today.
 
-**Propose one only where the repo already has the mechanism.** Not a plan to
-add one. Look for something that already renders a surface without a human
-watching:
+**Pin one here only when the render is expensive**: a simulator boot, a full
+site build, anything that takes minutes and should be reviewed by a human
+rather than re-chosen every run. Say in `notes` what you found and that you
+left it to `beforeAfter`, whether or not you pinned anything.
 
-- a script that screenshots a page, a window or a simulator
-- a UI or snapshot test that already writes an image
-- a CLI entry point that can be given a fixture and made to print a frame
-- a static site build whose output a headless browser on `PATH` could shoot
-
-None of those: propose nothing and say so in `notes`. A repo with no
-user-visible surface — a library, a server with no UI — has nothing to capture
-and that is the normal answer.
+Everything else — a script that shoots a page or a window, a snapshot test that
+writes an image, a CLI entry point you can hand a fixture — is cheap enough
+that the run should find it for itself. Leave it. A repo with no user-visible
+surface, a library or a server with no UI, needs nothing here either.
 
 Each capture is `{ name, run, when, timeoutMinutes }`:
 

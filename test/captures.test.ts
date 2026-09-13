@@ -1,15 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  beforeAfter,
-  kindOf,
-  linkTarget,
-  textContent,
-  SECTION_CHARS,
-  type BeforeAfterOptions,
-  type CaptureFile,
-  type Shot,
-} from "../src/captures.ts";
+import { SECTION_CHARS, asCaptureDecision, beforeAfter, cacheKey, kindOf, linkTarget, textContent, type BeforeAfterOptions, type CaptureFile, type Shot } from "../src/captures.ts";
 
 const OPTIONS: BeforeAfterOptions = { baseSha: "a1b2c3d4e5", headSha: "e4f5g6h7i8", images: true };
 
@@ -202,4 +193,61 @@ test("a name the body cannot quote is not a file the body carries", () => {
 test("a link cannot close its own markdown and open another one", () => {
   assert.equal(linkTarget("https://x.example/)[**Approved**](https://evil.example/"), undefined);
   assert.equal(linkTarget("https://x.example/a(b"), undefined);
+});
+
+test("the cache key is the name and the command, so one name cannot pair two commands", () => {
+  assert.equal(cacheKey("console", "a"), cacheKey("console", "a"), "the same capture is the same key");
+  assert.notEqual(cacheKey("console", "a"), cacheKey("console", "b"), "a changed command is a miss, not a mismatched pair");
+  assert.notEqual(cacheKey("console", "a"), cacheKey("screen", "a"), "and two captures never share a directory");
+  assert.match(cacheKey("console", "a"), /^console-[0-9a-f]{8}$/, "still legible on disk");
+});
+
+test("a decision is believed only where the host can act on it", () => {
+  const good = asCaptureDecision({ capture: true, name: "console", run: "node x.ts", reason: "the screen changed" });
+  assert.deepEqual(good.capture, { name: "console", run: "node x.ts" });
+  assert.equal(good.reason, "the screen changed");
+
+  assert.equal(asCaptureDecision({ capture: false, reason: "nothing visible" }).capture, undefined, "no is the ordinary answer");
+  assert.equal(asCaptureDecision({ capture: false, reason: "nothing visible" }).reason, "nothing visible", "and it carries why");
+
+  const rejected = [
+    { capture: true, name: "console", run: "git push origin main", reason: "" },
+    { capture: true, name: "console", run: "gh pr merge 7", reason: "" },
+    { capture: true, name: "console", run: "gh api graphql -f query=x", reason: "" },
+    { capture: true, name: "console", run: "npm publish", reason: "" },
+    { capture: true, name: "console", run: "rm -rf ~", reason: "" },
+    { capture: true, name: "Console Frame", run: "node x.ts", reason: "" },
+    { capture: true, name: "../../etc/passwd", run: "node x.ts", reason: "" },
+    { capture: true, name: "console", run: "x".repeat(301), reason: "" },
+    { capture: true, name: "console", reason: "" },
+    { capture: true, run: "node x.ts", reason: "" },
+    undefined,
+  ];
+  for (const answer of rejected) {
+    assert.equal(asCaptureDecision(answer).capture, undefined, `rejected: ${JSON.stringify(answer)}`);
+  }
+
+  const timed = asCaptureDecision({ capture: true, name: "sim", run: "xcodebuild", timeoutMinutes: 12, reason: "" });
+  assert.equal(timed.capture?.timeoutMinutes, 12, "a slow capture keeps its budget");
+  const zero = asCaptureDecision({ capture: true, name: "sim", run: "xcodebuild", timeoutMinutes: 0, reason: "" });
+  assert.equal(zero.capture?.timeoutMinutes, undefined, "a nonsense budget falls back to the default");
+});
+
+test("a decision's prose is model output, and is treated as such", () => {
+  const long = asCaptureDecision({ capture: false, reason: "x".repeat(500) });
+  assert.equal(long.reason.length, 200, "capped, because it reaches the journal");
+  const multi = asCaptureDecision({ capture: false, reason: "first line\nsecond line" });
+  assert.equal(multi.reason, "first line", "one line, so it cannot forge a second journal entry");
+});
+
+test("a command the host threw out does not read as a run that found no surface", () => {
+  const thrown = asCaptureDecision({ capture: true, name: "console", run: "git push origin main", reason: "the screen changed" });
+  assert.equal(thrown.capture, undefined);
+  assert.match(thrown.reason, /^rejected: the command/, "the operator is sent to the answer, not to the diff");
+  assert.match(thrown.reason, /the screen changed/, "and still sees the case the call was making");
+
+  const bad = asCaptureDecision({ capture: true, name: "Not A Name", run: "node x.ts", reason: "" });
+  assert.match(bad.reason, /^rejected: the answer/);
+
+  assert.equal(asCaptureDecision({ capture: false, reason: "docs only" }).reason, "docs only", "a real no is left alone");
 });

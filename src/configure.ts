@@ -1,7 +1,7 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
-import { CONFIG_TEMPLATE, type CaptureStep, type Config, type GateStep } from "./config.ts";
+import { CONFIG_TEMPLATE, FORBIDDEN, type CaptureStep, type Config, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
 /** The repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
@@ -34,7 +34,7 @@ export const CONFIG_SCHEMA = JSON.stringify({
     capture: {
       type: "array",
       description:
-        "Commands that render one user-visible surface to files in $FABRIKA_CAPTURE_DIR; propose one only where the repo already has a screenshot mechanism, and none otherwise",
+        "Almost always empty: `pr.beforeAfter` is on by default and each run works its own capture out from its diff. Propose one ONLY when the render is expensive enough to be worth pinning — a simulator boot, a full site build — so it is reviewed rather than re-chosen every run",
       items: {
         type: "object",
         properties: {
@@ -61,15 +61,6 @@ export const CONFIG_SCHEMA = JSON.stringify({
   required: ["base", "gate", "provider", "notes"],
 });
 
-/**
- * The config denies the agent `git push`, `gh pr merge` and the rest, because
- * the host owns them. A gate step is a command the host runs on the agent's
- * say-so every stage, so it is the one place that rule could be laundered
- * back in — one of these anywhere in the answer rejects the whole answer.
- * `rm -rf dist` is an ordinary clean-build step and stays allowed; only a path
- * outside the worktree is not.
- */
-const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
 
 /**
  * Shape is normalised, not rejected. The fallback for a rejected answer is no

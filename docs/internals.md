@@ -11,7 +11,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 
 | Path | Role |
 | --- | --- |
-| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
+| `src/cli.ts` | `fabrika init` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
 | `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
@@ -19,16 +19,16 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
-| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
+| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
-| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
+| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call; plus `cacheKey()` and `asCaptureDecision()`, the rules a per-run capture answer is held to |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
 | `src/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
 | `src/infra/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
-| `src/infra/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow`, the run's progress and whatever is blocking it, drawn once so the console and the screen cannot drift |
+| `src/infra/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow` / `spinner`, the run's progress, whatever is blocking it and the frame anything turning is on, drawn once so the console and the screen cannot drift |
 | `src/infra/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
 | `src/infra/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the header and, under it, the worktree's path in `~` form, the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
 | `src/infra/keys.ts` | `decode`, `press` and `follow` — a keystroke and a view in, a view out. Pure, so the keyboard is tested without a terminal |
@@ -66,23 +66,40 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 ## What a run looks like
 
 An interactive `fabrika run` is a **screen**: the terminal's alternate buffer,
-with one line per step from `preflight` to `review`, the running step unfolded
-under its line, and a finished step's line carrying how long it took, what it
-cost, how many tool calls it made and by which tool, which skills it invoked
-and each gate command's verdict. The keys are `↑↓` (or `k`/`j`) to move the
-selection, space or enter to fold and unfold it, `PgUp`/`PgDn` to scroll the
+with a header carrying the ticket, the progress bar, the step the run is on
+and what the run has taken so far in time and money, the worktree's path on
+the row under it, then one line per step from `Preflight` to `Review loop`.
+A step's line is its title and, after it, what there is to say: a pending
+step says what it will do (`agent · gate`), the running step says how long
+it has been at it and is unfolded under its line, and a finished step says
+how long it took, what it cost, how many tool calls it made and by which
+tool, which skills it invoked and each gate command's verdict — time and
+cost in columns, so the rows read as a table. Steps are titled by the
+pipeline (`title` on a `Step`; a stage's is its name capitalised) and named
+by the run: the name is what the completed list, the config and every plain
+line say, and a title never replaces it.
+
+The keys are `↑↓` (or `k`/`j`) to move the selection over the steps that
+have run, space or enter to fold and unfold it, `PgUp`/`PgDn` to scroll the
 open window, `Esc` to go back to following the running step, `o` to open the
-worktree — whose path is the header's second row — in `FABRIKA_EDITOR`, and
-`Ctrl-C` to interrupt the run. They are optional: a run whose operator went
-home has the same outcome, the same exit code and the same last line, and one
-who pressed `o` has an editor open beside a run that is otherwise identical.
-Leaving the screen — on every exit path — writes the folded outline, the
-worktree's absolute path and the result line to plain scrollback.
+worktree in `FABRIKA_EDITOR`, and `Ctrl-C` to interrupt the run. They are
+optional: a run whose operator went home has the same outcome, the same exit
+code and the same last line, and one who pressed `o` has an editor open
+beside a run that is otherwise identical. Leaving the screen — on every exit
+path — writes the folded outline, the worktree's absolute path and the
+result line to plain scrollback.
 
 A pipe, `NO_COLOR`, `TERM=dumb`, CI and `fabrika init` get the scrolling log
 instead, unchanged but for one `step refactor: done (8m 53s)` line per step.
 `log.txt` is the same, plain, stamped and uncapped. ADR-0004 records why the
 screen is hand-rolled rather than built on a framework.
+
+To look at any of it without a ticket, `pnpm rehearse` runs the whole
+pipeline on the test harness's in-memory ports — no `git`, `gh` or `claude`,
+nothing under `~/.fabrika` — with a scripted agent, a gate that goes red
+once, a skipped stage and a reviewer that opens one thread before signing
+off, paced like a run; `pnpm rehearse --fast` is the same run in seconds.
+It is `scripts/rehearse.ts`, and it does not ship.
 
 ## Exit codes
 
@@ -159,17 +176,22 @@ names the ones it wants in its `mcp` array. Remote servers must carry a static
 `Authorization` header, because OAuth-backed servers cannot re-authenticate
 unattended.
 
-The ticket body is inlined into the spec prompt for both sources, so the Linear
-server is optional even on Linear runs. It only lets the planner read comments
-and linked issues. To use it, register a read-only key once, user-scoped:
+A ticket is always a markdown file and its body is inlined into the spec
+prompt, so a run needs no Linear at all. The `linear-ro` server is how a run
+reaches Linear when it should: a stage that names it can read the issue, its
+comments and its linked issues, which is the part a file cannot carry. Register
+a read-only key once, user-scoped:
 
 ```bash
 claude mcp add -s user --transport http linear-ro https://mcp.linear.app/mcp \
-  --header "Authorization: Bearer $LINEAR_API_KEY"
+  --header "Authorization: Bearer <a Linear read-only API key>"
 ```
 
-A Linear run reads `LINEAR_API_KEY` from `~/.config/fabrika/.env`. Running from
-a file needs no Linear key at all.
+The key lives in Claude Code's own config from then on; fabrika never reads it,
+loads no `.env`, and so has no Linear secret to leak into a worktree or a
+capture. The default `spec` stage declares `mcp: ["linear-ro"]` — a repo whose
+config drops it gets no Linear tools in that stage, and the spec is written from
+the ticket file alone.
 
 ## Run state
 
@@ -308,12 +330,40 @@ ADR-0002 records why the port carries inert stubs instead of being split.
 
 ## Before / After on the pull request
 
-A **capture** is a named command in `pr.capture`, shaped like a gate step and
-gated by the same globs against the branch's diff. The host runs it twice — in
-a detached checkout of the base and in the run's own worktree — with
+A **capture** is one named command. The host runs it twice — in a detached
+checkout of the base and in the run's own worktree — with
 `FABRIKA_CAPTURE_DIR` pointing at an empty directory, and reads back whatever
 files it wrote. fabrika never looks inside one, which is why a simulator
 screen, a browser page and a terminal frame need no change here.
+
+Who decides the command is `pr.beforeAfter`:
+
+| `beforeAfter` | `capture` | What happens |
+| --- | --- | --- |
+| `true` | absent | One structured call at the pull request reads the branch and answers whether it changed a surface and what renders it |
+| absent | set | The pinned commands, gated by their own globs against the diff |
+| `true` | set | The pinned commands; a human already decided, so nothing is re-decided |
+| `false` | either | Nothing, whatever the config still lists |
+
+`true` is the template's default and the better one. The globs are a cached
+judgement about which files render which surface and nothing invalidates that
+cache — add an import to a rendering module and the capture quietly stops
+firing on branches that do change the surface. The call reads the diff instead,
+which is where that judgement can actually be made. `pr.capture` stays for the
+repo whose render is a simulator boot or a full build, where the command is
+worth reviewing rather than re-choosing every run.
+
+The answer is a command the *host* spawns, with no permission layer in front
+of it, so `asCaptureDecision` believes it only where it is safe to act on: the
+name is decoded through `CaptureStep` because the host makes a directory of it
+and empties that directory recursively, and the command is held to `FORBIDDEN`
+because `deny` gates the agent's subprocess and not this. A rejected answer is
+no section, never a failed run. ADR-0006 records the split.
+
+The base half is cached under `<name>-<hash of the command>`, not the name
+alone: a run that decides its own command can bring a different one under the
+same obvious name, and pairing this branch's after against that one's before
+compares two commands rather than two revisions.
 
 Kinds are decided by extension: `.png` `.jpg` `.jpeg` `.gif` `.webp` are
 uploaded with the pull request and shown side by side, `.txt` is scrubbed,
@@ -324,11 +374,13 @@ a non-zero exit, a timeout, an overrun cap or an empty directory all end as a
 missing half and today's body. ADR-0003 records why the images are attachments
 rather than anything committed.
 
-This repo's own capture is `scripts/capture-console.ts`, once `pr.capture`
-names it — nothing in `.fabrika/config.json` does yet. It replays a fixture
-of run events through the console presenter rather than running a ticket, and
-writes a PNG through whatever `freeze`-class tool is on `PATH`, or a `.txt`
-when there is none.
+This repo's own capture is `scripts/capture-console.ts`, which the call finds
+for itself: `.fabrika/config.json` sets `beforeAfter` and names no command. It
+replays a fixture of run events through the console presenter rather than
+running a ticket, and writes a PNG through whatever `freeze`-class tool is on
+`PATH`, or a `.txt` when there is none. It renders the console, not the
+screen — a branch that only changes the alternate buffer has nothing here to
+show, and a second script would be a second capture.
 
 ## Tests
 

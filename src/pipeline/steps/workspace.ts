@@ -8,6 +8,8 @@ import type { Step } from "../step.ts";
 /** The tree the rest of the run happens in, and its dependencies. */
 export const prepareWorkspace: Step = {
   name: "workspace",
+  title: "Workspace",
+  about: "git worktree",
   run: Effect.gen(function* () {
     const { config } = yield* RunContext;
     const workspace = yield* Workspace;

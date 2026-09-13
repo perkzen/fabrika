@@ -38,6 +38,15 @@ export type Node = {
   /** Unique and stable for the life of a run; the view's selection and fold are keyed by it. */
   readonly key: string;
   readonly name: string;
+  /** What a row calls the step: the `run` event's title, or the name when it gave none. */
+  readonly title: string;
+  /** What the step will do, if the `run` event said; a pending row's whole detail. */
+  readonly about?: string;
+  /**
+   * When the step started, or the run did, so a live row can say how long it
+   * has been going; unset until it has.
+   */
+  readonly since?: number;
   /**
    * The step's **position** in the run — the same pair the `step` event
    * carries. On a root they are the run's own progress: the running step's
@@ -79,9 +88,10 @@ export type Tree = {
 
 const noSummary = (): Summary => ({ calls: 0, tools: [], skills: [], gates: [] });
 
-const node = (key: string, name: string, at: number, of: number, state: StepState): Node => ({
+const node = (key: string, name: string, title: string, at: number, of: number, state: StepState): Node => ({
   key,
   name,
+  title,
   at,
   of,
   state,
@@ -107,19 +117,21 @@ export const take = (tree: Tree, when: number, entry: RunEvent | string): Tree =
       const index = tree.roots.length;
       const of = entry.steps.length;
       const root: Node = {
-        ...node(`${index}`, "", 0, of, "running"),
+        ...node(`${index}`, "", "", 0, of, "running"),
+        since: when,
         // Keyed by position, never by name: a pipeline can hold two steps
         // called `review` and they are two rows.
-        children: entry.steps.map((step, at) =>
-          node(`${index}:${at + 1}`, step.name, at + 1, of, step.done ? "already-done" : "pending"),
-        ),
+        children: entry.steps.map((step, at) => ({
+          ...node(`${index}:${at + 1}`, step.name, step.title ?? step.name, at + 1, of, step.done ? "already-done" : "pending"),
+          ...(step.about === undefined ? {} : { about: step.about }),
+        })),
       };
       return { ...tree, roots: [...tree.roots, root] };
     }
     // A step's own events say what state it is in; putting them in its stream
     // would repeat the line they are written under.
     case "step":
-      return stepped(tree, entry);
+      return stepped(tree, when, entry);
     // Held rather than streamed: the line the piped contract ends on is the
     // one the exit scrollback has to write last, after the whole outline.
     case "result":
@@ -148,19 +160,19 @@ export const outline = (entries: Iterable<Entry>): Tree => {
   return tree;
 };
 
-const stepped = (tree: Tree, entry: Extract<RunEvent, { kind: "step" }>): Tree =>
+const stepped = (tree: Tree, when: number, entry: Extract<RunEvent, { kind: "step" }>): Tree =>
   inRoot(tree, (root) => ({
     ...root,
     // A step that ended leaves the run's progress where it was: the next
     // `start` is what moves it on.
     at: entry.state === "end" ? root.at : entry.at,
-    children: root.children.map((child) => (child.at === entry.at ? restated(child, entry) : child)),
+    children: root.children.map((child) => (child.at === entry.at ? restated(child, when, entry) : child)),
   }));
 
-const restated = (child: Node, entry: Extract<RunEvent, { kind: "step" }>): Node => {
+const restated = (child: Node, when: number, entry: Extract<RunEvent, { kind: "step" }>): Node => {
   switch (entry.state) {
     case "start":
-      return { ...child, state: "running" };
+      return { ...child, state: "running", since: when };
     case "end":
       return {
         ...child,

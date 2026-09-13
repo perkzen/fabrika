@@ -81,8 +81,8 @@ const styleOf = (event: RunEvent): Style | undefined => {
 
 /**
  * The conventional braille cadence; one array literal is cheaper than a
- * dependency. Private, so the two live surfaces spin alike by construction
- * rather than by both reaching for the same constant.
+ * dependency. Private, so every surface that spins does it by calling
+ * `spinner` rather than by reaching for the same constant.
  */
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 /** How wide the run's progress bar is drawn, on either surface. */
@@ -90,6 +90,15 @@ const BAR = 12;
 
 /** `now` and `spin` are arguments rather than reads, so an elapsed time is a fact a test states. */
 export type Clock = { readonly now: number; readonly spin: number };
+
+/**
+ * The frame the run is on: one glyph, one column wide, the same cadence
+ * wherever something is turning.
+ *
+ * Exported rather than the frame list, so the liveness row's spinner and the
+ * running step's marker cannot fall out of step with each other.
+ */
+export const spinner = (clock: Clock): string => FRAMES[clock.spin % FRAMES.length]!;
 
 /**
  * How far through the run is: the bar, the position, and the step it is on.
@@ -116,7 +125,7 @@ export const progressRow = (progress: { readonly at: number; readonly of: number
 export const livenessRow = (live: Pick<Tree, "wait" | "gate">, clock: Clock): string | undefined => {
   if (live.wait) {
     const against = live.wait.deadlineMinutes ? ` / ${live.wait.deadlineMinutes}m` : "";
-    return `${FRAMES[clock.spin % FRAMES.length]} waiting for ${live.wait.subject} — ${elapsed((clock.now - live.wait.since) / 1000)}${against}`;
+    return `${spinner(clock)} waiting for ${live.wait.subject} — ${elapsed((clock.now - live.wait.since) / 1000)}${against}`;
   }
   if (live.gate) return `gate ${live.gate.at}/${live.gate.of} ${live.gate.name}`;
   return undefined;

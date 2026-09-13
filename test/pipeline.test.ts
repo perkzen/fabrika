@@ -159,3 +159,21 @@ test("a run no step returned a line for logs no result", async () => {
     "which is what a pipeline built without the review step has always done",
   );
 });
+
+test("a step's title and what it will do travel on the run event and its step lines, and its name stays its name", async () => {
+  const built = pipeline()
+    .step({ ...noop("spec"), title: "Spec", about: "agent" })
+    .step(noop("review"))
+    .build();
+  const { recording } = await exercise(built.run);
+
+  const run = recording.events.find((entry): entry is Extract<RunEvent, { kind: "run" }> =>
+    typeof entry !== "string" && entry.kind === "run",
+  );
+  assert.deepEqual(run?.steps, [{ name: "spec", done: false, title: "Spec", about: "agent" }, { name: "review", done: false }]);
+  const start = recording.events.find(
+    (entry): entry is Extract<RunEvent, { kind: "step" }> => typeof entry !== "string" && entry.kind === "step" && entry.state === "start",
+  );
+  assert.equal(start?.title, "Spec", "the step's own lines carry it too, for the live region that reads them");
+  assert.equal(recording.log[0], "steps: spec, review", "and no plain line says anything but the name");
+});
