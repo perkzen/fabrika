@@ -274,7 +274,7 @@ const summary = (step: Node): ReadonlyArray<Segment> => {
   return [
     ...(seconds === undefined ? [] : [{ text: `${FIELD}${elapsed(seconds)}` }]),
     ...(usd === undefined ? [] : [{ text: `${FIELD}$${usd.toFixed(2)}` }]),
-    ...(calls === 0 ? [] : [{ text: `${FIELD}${calls} calls (${named(tools)})` }]),
+    ...(calls === 0 ? [] : [{ text: `${FIELD}${calls} call${calls === 1 ? "" : "s"} (${named(tools)})` }]),
     ...(skills.length === 0 ? [] : [{ text: `${FIELD}${skills.join(", ")}` }]),
     ...verdicts(gates),
   ];

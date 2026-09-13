@@ -71,6 +71,18 @@ test("a finished step's line carries its summary in field order", () => {
   );
 });
 
+test("a step that made one tool call says so in the singular", () => {
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "tool", stage: "implement", tool: "Skill", subject: "fabrika:tdd" }],
+    [3, { kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 4, outcome: "done" }],
+  );
+  const lines = frame(tree, view, { columns: 200, rows: 5 }, bare, { now: noon, spin: 0 });
+  assert.equal(lines[2], "✔ 2/3 implement  4s  1 call (Skill 1)  fabrika:tdd");
+});
+
 test("a summary naming more than three tools says how many it left out", () => {
   const many = ["Bash", "Bash", "Bash", "Edit", "Edit", "Read", "Glob", "Grep"].map(
     (tool, index) => [index + 2, { kind: "tool", stage: "implement", tool, subject: "x" }] as const,
