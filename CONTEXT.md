@@ -97,6 +97,19 @@ is unfolded and every other one is folded until the operator says otherwise; a
 step folds itself when it ends unless they unfolded it by hand.
 _Avoid_: expand, collapse, open, closed.
 
+**View**:
+What the operator has selected, unfolded and scrolled to. It is the step
+tree's companion and the only thing a key press changes, so nothing on the
+keyboard can alter what the run did.
+_Avoid_: state, selection, mode.
+
+**Window**:
+The scrollable region under an unfolded step's outline line, showing that
+step's own stream and, while that step is the running one, the liveness of an
+open wait or gate.
+_Avoid_: pane, viewport — a viewport is the whole of what a screen redraws;
+the desktop window a capture may render is a different thing.
+
 **Invoked skill**:
 A skill the agent reached for inside a step, read off its `Skill` tool calls.
 Distinct from the skills a session *loaded*, which are the same plugin list
