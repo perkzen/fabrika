@@ -16,6 +16,16 @@ export type RunEvent =
       readonly state: "start" | "skipped" | "already-done";
       readonly reason?: string;
     }
+  | {
+      readonly kind: "gate";
+      readonly name: string;
+      readonly at: number;
+      readonly of: number;
+      readonly command: string;
+      readonly state: "start" | "pass" | "fail" | "skipped";
+      readonly seconds?: number;
+      readonly exitCode?: number;
+    }
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
 
@@ -35,6 +45,18 @@ export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
           return [`${entry.name}: skipped (${entry.reason})`];
         case "already-done":
           return [`${entry.name}: already done`];
+      }
+    case "gate":
+      switch (entry.state) {
+        case "start":
+          return [`gate ${entry.name}: ${entry.command}`];
+        case "pass":
+          return [`gate ${entry.name}: ok (${entry.seconds}s)`];
+        case "fail":
+          return [`gate ${entry.name}: FAILED (exit ${entry.exitCode}, ${entry.seconds}s)`];
+        // The only skip reason shell-gate has; a second one earns a field.
+        case "skipped":
+          return [`gate ${entry.name}: skipped (no matching changes)`];
       }
     case "note":
       return (entry.level === "detail" ? `  ${entry.text}` : entry.text).split("\n");

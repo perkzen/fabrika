@@ -34,6 +34,8 @@ export type Script = {
   readonly touched?: ReadonlyArray<string>;
   readonly commits?: number;
   readonly worktreeExists?: boolean;
+  /** Where a real adapter would spawn commands; the fakes never touch it. */
+  readonly dir?: string;
   readonly config?: Partial<Config>;
   readonly ticket?: Partial<Ticket>;
   readonly state?: Partial<RunState>;
@@ -153,7 +155,7 @@ export const harness = (script: Script = {}) => {
       feedback: (failure: GateFailure) => `gate ${failure.name} failed`,
     }),
     Layer.succeed(Workspace)({
-      dir: "/worktree",
+      dir: script.dir ?? "/worktree",
       repoRoot: "/repo",
       artifactsDir: "/worktree/.fabrika/work",
       readArtifact: () => Effect.succeed(undefined),
