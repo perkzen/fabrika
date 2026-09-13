@@ -1,4 +1,4 @@
-import { Context, type Effect } from "effect";
+import { Context, Effect } from "effect";
 import type { RunEvent } from "../run-event.ts";
 
 /**
@@ -16,3 +16,26 @@ export interface Journal {
 }
 
 export const Journal = Context.Service<Journal>("Journal");
+
+/**
+ * The effect as the wait it is: one `start` when it opens, one `end` carrying
+ * how long it took, and the `end` written whichever way it goes out — a wait
+ * left open animates forever.
+ *
+ * The clock is read inside the effect rather than where the wait is built,
+ * so an effect run twice is timed twice. A free function over the interface
+ * rather than a method on it: `Reviewer.await` and `Forge.settledChecks`
+ * declare what they need, and a wait must not add `Journal` to it.
+ */
+export const waitFor =
+  (journal: Journal, subject: string, deadlineMinutes?: number) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    Effect.suspend(() => {
+      const started = Date.now();
+      return journal.log({ kind: "wait", state: "start", subject, deadlineMinutes }).pipe(
+        Effect.andThen(effect),
+        Effect.ensuring(
+          journal.log({ kind: "wait", state: "end", subject, seconds: (Date.now() - started) / 1000 }),
+        ),
+      );
+    });

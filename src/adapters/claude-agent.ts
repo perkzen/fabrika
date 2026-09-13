@@ -3,7 +3,7 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import { runClaudeWithFallback, type Credential } from "../infra/claude.ts";
 import { mcpConfigFile, resolveServers } from "../infra/mcp.ts";
 import { Agent, AgentFailed, type AgentError, type AgentReply, type AgentRequest } from "../ports/agent.ts";
-import { Journal } from "../ports/journal.ts";
+import { Journal, waitFor } from "../ports/journal.ts";
 import { RunStore } from "../ports/run-store.ts";
 
 export type AgentOptions = {
@@ -62,8 +62,6 @@ export const layer = (options: AgentOptions) =>
             // The whole call is one wait: the stage is the only thing that
             // tells one agent call from the next, and the minutes in between
             // are exactly what the live region exists to fill.
-            const started = Date.now();
-            yield* journal.log({ kind: "wait", state: "start", subject: `${request.stage} agent` });
             const result = yield* runClaudeWithFallback({
               cwd: request.cwd ?? options.defaultCwd,
               prompt: request.prompt,
@@ -76,20 +74,7 @@ export const layer = (options: AgentOptions) =>
               rawLog: path.join(store.directory, `${request.stage}-${++call}.jsonl`),
               stage: request.stage,
               onEvent: journal.write,
-            }).pipe(
-              // Suspended, because `ensuring` builds its argument up front:
-              // reading the clock in the literal would time nothing at all.
-              Effect.ensuring(
-                Effect.suspend(() =>
-                  journal.log({
-                    kind: "wait",
-                    state: "end",
-                    subject: `${request.stage} agent`,
-                    seconds: (Date.now() - started) / 1000,
-                  }),
-                ),
-              ),
-            );
+            }).pipe(waitFor(journal, `${request.stage} agent`));
             // Recorded before anything is done with the answer: a run that
             // dies here has to resume into this conversation, not a new one.
             yield* store.update((state) => {
