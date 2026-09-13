@@ -104,6 +104,17 @@ test("keepAwake is optional, so every config written before it still loads", asy
   assert.match(String(error), /\["keepAwake"\]/, "a string fails at the start of the run, not hours in");
 });
 
+test("notify is optional on the same terms", async () => {
+  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(without.notify, undefined);
+
+  const on = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: true })));
+  assert.equal(on.notify, true);
+
+  const error = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: 1 })).pipe(Effect.flip));
+  assert.match(String(error), /\["notify"\]/);
+});
+
 test("the config init falls back to is runnable on a repo with no review bot", async () => {
   const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");

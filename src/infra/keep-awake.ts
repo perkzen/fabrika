@@ -20,16 +20,13 @@ import type { RunEvent } from "../run-event.ts";
  * sleep on AC); `-d` and `-u` keep the display lit and declare user activity,
  * so the screen does not lock over a run the operator is watching.
  *
- * macOS only, and never fatal: `caffeinate` is a Darwin binary, and a machine
- * that falls asleep is a nuisance, not a wrong result. A missing binary
- * arrives asynchronously as an `error` event — unhandled, that is an uncaught
- * exception that would kill the run this exists to protect.
+ * `caffeinate` is a Darwin binary; the caller is the one that knows whether
+ * this machine is a Mac, so that check is not repeated here. Never fatal
+ * either way: a missing binary arrives asynchronously as an `error` event,
+ * and unhandled that is an uncaught exception that would kill the run this
+ * exists to protect.
  */
 export const keepAwake = (write: (entry: RunEvent | string) => void): void => {
-  if (process.platform !== "darwin") {
-    write({ kind: "note", level: "warn", text: "keepAwake is set, but only macOS is supported — the machine may sleep mid-run" });
-    return;
-  }
   const child = spawn("caffeinate", ["-dimsu", "-w", String(process.pid)], { stdio: "ignore" });
   // Both notes wait for the outcome: the assertion is not held until the
   // process is actually up, and saying so before that is a claim the operator

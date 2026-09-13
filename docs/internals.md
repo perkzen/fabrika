@@ -27,6 +27,8 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
+| `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
+| `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
 | `src/paths.ts` | The one place that resolves the package root, so the lookup works from `src/` and from `dist/` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |

@@ -47,6 +47,13 @@ export const Config = Schema.Struct({
    * preference living in every contributor's checkout.
    */
   keepAwake: Schema.optional(Schema.Boolean),
+  /**
+   * Post the run's outcome to Notification Center when it ends, however it
+   * ends, through a bundle built once per machine so the notification carries
+   * fabrika's own name and icon. macOS only, and off unless asked for, for the
+   * same reason as `keepAwake`: this file is committed.
+   */
+  notify: Schema.optional(Schema.Boolean),
   maxIterations: Schema.Number,
 });
 export type Config = typeof Config.Type;
