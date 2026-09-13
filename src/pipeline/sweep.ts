@@ -121,6 +121,15 @@ const failure = (pr: PullRequestDetail, placement: Placement | undefined, error:
     : failed;
 };
 
+/** A worker that threw rather than failed; the tree stays wherever it left it. */
+const crashed = (pr: PullRequestDetail, placement: Placement | undefined, defect: unknown): SyncOutcome => ({
+  pr,
+  kind: "failed",
+  detail: `failed: the worker crashed: ${defect}`,
+  worktree: placement?.worktree,
+  log: placement?.log,
+});
+
 /**
  * The number is in the key deliberately: two open pull requests can carry the
  * same identifier in their titles, and two workers in one tree is the failure
@@ -288,12 +297,18 @@ export const sweep = (
                       : { pr, kind: "clean", detail: "already clean: base had not moved" },
                   onFailure: (error) => failure(pr, placement, error),
                 }),
+                // A defect is not a failure, so the matching above does not see
+                // it and it unwinds the fan-out instead. Crashing is the third
+                // thing story 15 says one pull request may do on its own, and
+                // the tree is left wherever the crash left it.
+                Effect.catchDefect((defect) => Effect.succeed(crashed(pr, placement, defect))),
               ),
             ),
             // Inside the isolation, not before it: a placement that could not
             // be resolved is this pull request's failure, and the fan-out is
             // the one thing a single pull request may never take down.
             Effect.catch((error) => Effect.succeed(failure(pr, undefined, error))),
+            Effect.catchDefect((defect) => Effect.succeed(crashed(pr, undefined, defect))),
           );
           outcomes.push(outcome);
           rateLimited ||= outcome.rateLimited === true;

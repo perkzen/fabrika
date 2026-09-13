@@ -416,3 +416,34 @@ test("a worker installs the branch's dependencies after checking it out and befo
     "remove",
   ]);
 });
+
+/**
+ * Story 15 names three things one pull request may do without stopping the
+ * others: escalate, go red, or *crash*. `Effect.match` converts failures, but a
+ * defect is not a failure — it unwinds the whole fan-out. Two defect sources
+ * were found and converted one at a time during this branch; this is the rule
+ * that means the third does not have to be. The line names the tree, because
+ * a crash leaves one behind exactly as a rate-limited worker does.
+ */
+test("a worker that crashes outright is still one pull request's failure", async () => {
+  const { exit, failed, recording } = await exercise(
+    sweep(
+      oneAtATime((target) =>
+        target.number === 40
+          ? Effect.sync(() => {
+              throw new TypeError("cannot read properties of undefined");
+            })
+          : Effect.succeed({ pushed: "9f1c2ab3d4e5f6" }),
+      ),
+    ),
+    { pullRequests: twoConflicted },
+  );
+
+  assert.equal(failed, false, "a defect in one worker must not unwind the sweep");
+  assert.equal((exit as { exitCode: number }).exitCode, 2);
+  assert.deepEqual(recording.log.slice(-3), [
+    "  #40 [yours] fix: thing — failed: the worker crashed: TypeError: cannot read properties of undefined — worktree: /worktrees/pr-40 — log: /runs/pr-40/log.txt",
+    "waited 0s for syncing 2 pull request(s)",
+    "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
+  ]);
+});
