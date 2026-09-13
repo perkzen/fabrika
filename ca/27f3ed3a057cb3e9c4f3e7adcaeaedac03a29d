@@ -1,0 +1,9 @@
+src/infra/claude.ts
+  ai_agent 275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ca27f3ed3a057cb3e9c4f3e7adcaeaedac03a29d",
+  "prompts": {}
+}
