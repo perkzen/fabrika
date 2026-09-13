@@ -207,9 +207,9 @@ export const layer = (options: CapturesOptions) =>
               Effect.gen(function* () {
                 for (const capture of misses) {
                   const started = Date.now();
-                  // Staged first and moved into the cache only once the
-                  // command succeeded: a crashed half-write in the cache
-                  // directory would be a permanent hit.
+                  // Staged first and copied into the cache only once the
+                  // command succeeded: what a failing command wrote must never
+                  // read as a hit to the next ticket cut from this base.
                   const into = yield* emptied(path.join(staging, capture.name, "base"));
                   if (!(yield* command(capture, dir, into))) continue;
                   const files = yield* filesIn(capture.name, into);

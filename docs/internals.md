@@ -82,8 +82,8 @@ path working by failing the typecheck on syntax Node cannot strip.
 
 `fabrika init` writes the template in `src/config.ts`, but `base`, `install`,
 `gate` and `capture` are left neutral there and filled in by one structured
-call that applies the `fabrika:configure` skill. They are the fields that cannot be
-shipped: a gate step naming a script the target repo does not have goes red on
+call that applies the `fabrika:configure` skill. They are the fields that
+cannot be shipped: a gate step naming a script the target repo does not have goes red on
 an untouched checkout, and the runner hands that failure to the agent as
 "fix it" for code it never wrote — so the agent spends `maxIterations`
 inventing a way to make a command that should not be there pass.
@@ -235,7 +235,8 @@ a non-zero exit, a timeout, an overrun cap or an empty directory all end as a
 missing half and today's body. ADR-0003 records why the images are attachments
 rather than anything committed.
 
-This repo's own capture is `scripts/capture-console.ts`: it replays a fixture
+This repo's own capture is `scripts/capture-console.ts`, once `pr.capture`
+names it — nothing in `.fabrika/config.json` does yet. It replays a fixture
 of run events through the console presenter rather than running a ticket, and
 writes a PNG through whatever `freeze`-class tool is on `PATH`, or a `.txt`
 when there is none.
