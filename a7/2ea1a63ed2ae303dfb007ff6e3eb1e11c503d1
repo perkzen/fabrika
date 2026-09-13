@@ -1,0 +1,21 @@
+test/sweep.test.ts
+  s_4246d0f2d87b1d::t_a6e7986ca75320 64-113
+src/pipeline/sweep.ts
+  s_4246d0f2d87b1d::t_0d76468cafe337 2,24-27,80-109,116,120-121,124-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a72ea1a63ed2ae303dfb007ff6e3eb1e11c503d1",
+  "prompts": {},
+  "sessions": {
+    "s_4246d0f2d87b1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c857d290-f91a-4d61-9c82-c217de57a947",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
