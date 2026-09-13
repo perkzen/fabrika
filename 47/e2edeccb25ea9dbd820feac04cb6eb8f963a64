@@ -1,0 +1,23 @@
+test/domain.test.ts
+  s_ea6524a97b6b22::t_b2a1290e0a29d9 185,210
+src/adapters/shell-gate.ts
+  s_ea6524a97b6b22::t_e3cbfebf190f09 40
+src/pipeline/steps/stage.ts
+  s_ea6524a97b6b22::t_e3cbfebf190f09 27,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "47e2edeccb25ea9dbd820feac04cb6eb8f963a64",
+  "prompts": {},
+  "sessions": {
+    "s_ea6524a97b6b22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92fd0998-e94b-48f0-a74c-b7fcb6b86760",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
