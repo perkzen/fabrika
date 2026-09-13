@@ -2,11 +2,12 @@ import { layout, scrolled, type Size, type View } from "./frame.ts";
 import { steps as outlineSteps, type Node, type Tree } from "../outline.ts";
 
 /**
- * What one keystroke means. Keys change what is shown, never what is done, so
- * a run in a terminal whose operator went home has the same outcome, the same
- * exit code and the same last line.
+ * What one keystroke means. Keys change nothing about the run, so one in a
+ * terminal whose operator went home has the same outcome, the same exit code
+ * and the same last line — `open` spawns an editor beside it, and `interrupt`
+ * ends it, but neither is anything the run's work reads.
  */
-export type Key = "up" | "down" | "toggle" | "page-up" | "page-down" | "follow" | "interrupt" | "unknown";
+export type Key = "up" | "down" | "toggle" | "page-up" | "page-down" | "follow" | "open" | "interrupt" | "unknown";
 
 /**
  * The smallest set that covers every behaviour asked for, all of it
@@ -24,6 +25,7 @@ const SEQUENCES: ReadonlyArray<readonly [string, Key]> = [
   ["\x1b", "follow"],
   ["k", "up"],
   ["j", "down"],
+  ["o", "open"],
   [" ", "toggle"],
   ["\r", "toggle"],
   ["\n", "toggle"],
@@ -33,8 +35,8 @@ const SEQUENCES: ReadonlyArray<readonly [string, Key]> = [
 /**
  * One chunk of raw stdin as the keys in it — a paste or a held key arrives as
  * several. An escape sequence split across two chunks decodes as `follow` plus
- * junk, which is one ignored keystroke and nothing worse: keys are optional
- * and change only what is shown.
+ * junk, which is one ignored keystroke and nothing worse: keys are optional,
+ * and the worst a stray one does is fold a step or open an editor.
  */
 export const decode = (chunk: string): ReadonlyArray<Key> => {
   const keys: Array<Key> = [];
@@ -54,7 +56,8 @@ export const decode = (chunk: string): ReadonlyArray<Key> => {
  * `interrupt` is deliberately not handled here — raw mode stops the terminal
  * raising SIGINT, so the presenter turns it into a signal and lets the runner
  * interrupt the fiber. Exiting here would preempt the finalisers that clean up
- * the MCP temp files.
+ * the MCP temp files. `open` falls through too, for a reason of its own:
+ * spawning an editor is not a view change, and this returns a view.
  */
 export const press = (key: Key, view: View, tree: Tree, size: Size): View => {
   const steps = outlineSteps(tree);

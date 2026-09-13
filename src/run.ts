@@ -11,7 +11,8 @@ import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
-import { isInteractive } from "./infra/console.ts";
+import { isInteractive, openConsole } from "./infra/console.ts";
+import { editorOpener } from "./infra/editor.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
 import { notifierApp } from "./infra/notifier-app.ts";
 import { openNotifier } from "./infra/notifier.ts";
@@ -56,14 +57,25 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
 
     const foundation = Layer.mergeAll(
       // A run an operator is watching gets the screen; a pipe, `NO_COLOR`,
-      // `TERM=dumb` and CI get the scrollback console the default supplies.
+      // `TERM=dumb` and CI get the scrollback console. Both are named here
+      // rather than either being left to the default, because the worktree
+      // reaches a presenter through its options and only this knows the path.
       fileJournal.layer(
         path.join(runsDir, "log.txt"),
         undefined,
         notifier,
         isInteractive(process.stdout)
-          ? (options) => openScreen({ ...options, ticket: ticket.identifier, input: process.stdin })
-          : undefined,
+          ? (options) =>
+              openScreen({
+                ...options,
+                ticket: ticket.identifier,
+                worktree: dir,
+                input: process.stdin,
+                // `cli.ts` loaded `~/.config/fabrika/.env` before this ran, so
+                // `FABRIKA_EDITOR` is already in the environment read here.
+                open: editorOpener(dir, process.env, process.platform),
+              })
+          : (options) => openConsole({ ...options, worktree: dir }),
       ),
       fileRunStore.layer(runsDir),
       fsPrompts.layer({

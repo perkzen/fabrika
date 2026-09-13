@@ -40,6 +40,62 @@ test("a frame is exactly rows lines, each at most columns - 1 wide", () => {
   assert.deepEqual(lines.slice(4), Array<string>(6).fill(""), "the rest of the viewport is blank, not stale");
 });
 
+/** The tree the run is in, as `run.ts` hands it to the presenter: absolute, under the operator's home. */
+const WORKTREE = "/Users/x/.fabrika/worktrees/fabrika/FAB-7";
+
+test("the worktree is the header's second row, abbreviated against the operator's home", () => {
+  const tree: Tree = {
+    ...script("FAB-7", [0, RUN], [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }]),
+    worktree: WORKTREE,
+  };
+  const lines = frame(tree, view, { columns: 80, rows: 12 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+
+  assert.equal(lines.length, 12, "the row it takes comes out of the body, never out of the frame");
+  for (const line of lines) assert.ok(line.length <= 79, `"${line}" is wider than columns - 1`);
+  assert.deepEqual(
+    lines.slice(0, 5),
+    [
+      "FAB-7 [████░░░░░░░░] 2/3 implement",
+      "~/.fabrika/worktrees/fabrika/FAB-7",
+      "· 1/3 preflight",
+      "▸ 2/3 implement",
+      "· 3/3 review",
+    ],
+    "the path is directly under the progress row, and the outline follows it",
+  );
+});
+
+test("only the home directory and what is under it is written as ~", () => {
+  const started = script("FAB-7", [0, RUN]);
+  const size = { columns: 80, rows: 12 };
+  const at = (worktree: string, home?: string) =>
+    frame({ ...started, worktree }, view, size, bare, { now: noon, spin: 0 }, home === undefined ? {} : { home })[1];
+
+  assert.equal(at("/Users/xtra/work/FAB-7", "/Users/x"), "/Users/xtra/work/FAB-7", "a neighbour of home is not under it");
+  assert.equal(at("/Users/x", "/Users/x"), "~", "home itself is the one the operator writes as ~");
+  assert.equal(at(WORKTREE), WORKTREE, "no home to write it against, so it is written whole");
+});
+
+test("the worktree row is viewport furniture, dropped at the height the keys row is", () => {
+  const started: ReadonlyArray<readonly [number, RunEvent | string]> = [
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+  ];
+  const tree: Tree = { ...script("FAB-7", ...started), worktree: WORKTREE };
+  const cramped = frame(tree, view, { columns: 80, rows: 11 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+
+  assert.equal(cramped.length, 11);
+  assert.deepEqual(
+    cramped.slice(0, 4),
+    ["FAB-7 [████░░░░░░░░] 2/3 implement", "· 1/3 preflight", "▸ 2/3 implement", "· 3/3 review"],
+    "under twelve rows the path goes the way the keys do, and the outline keeps every step",
+  );
+  assert.equal(cramped.at(-1), "", "the rows it gave up are the body's, not another row of furniture");
+
+  const noTree = frame(script("FAB-7", ...started), view, { columns: 80, rows: 12 }, bare, { now: noon + 1000, spin: 0 }, { home: "/Users/x" });
+  assert.equal(noTree[1], "· 1/3 preflight", "a run with no worktree has no second header row at any height");
+});
+
 test("a row too wide for the terminal is cut rather than wrapped", () => {
   const tree = script("FAB-6", [0, RUN]);
   const lines = frame(tree, view, { columns: 12, rows: 4 }, bare, { now: noon, spin: 0 });
@@ -238,6 +294,21 @@ test("the footer names the keys, and is the row dropped first when rows are scar
   const cramped = frame(tree, view, { columns: 80, rows: 11 }, bare, { now: noon, spin: 0 });
   assert.equal(cramped.length, 11);
   assert.equal(cramped.at(-1), "", "under twelve rows it is the row worth losing first");
+});
+
+test("the keys row names o open exactly when there is an editor to open with", () => {
+  const tree = script("FAB-7", [0, RUN]);
+  const size = { columns: 80, rows: 12 };
+  const named = (operator?: { editor: boolean }) => frame(tree, view, size, bare, { now: noon, spin: 0 }, operator).at(-1);
+
+  assert.equal(
+    named({ editor: true }),
+    "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  o open  Ctrl-C interrupt",
+    "still inside an eighty-column terminal, with Ctrl-C last as the most drastic key",
+  );
+  const silent = "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  Ctrl-C interrupt";
+  assert.equal(named({ editor: false }), silent, "a machine with no editor command is never shown a key that does nothing");
+  assert.equal(named(), silent);
 });
 
 test("an open wait's spinner, elapsed and deadline are the window's last row", () => {
