@@ -424,3 +424,18 @@ test("a scrolled outline keeps the running step on screen too, until the selecti
   assert.equal(apart[1], "· 1/11 step1");
   assert.equal(apart.at(-1), "· 5/11 step5", "too far apart, so the selection wins");
 });
+
+test("a resumed run reads the same as a fresh one: the step behind it says so on its own line", () => {
+  const tree = script("FAB-6", [
+    0,
+    {
+      kind: "run",
+      completed: ["preflight"],
+      steps: [{ name: "preflight", done: true }, { name: "implement", done: false }, { name: "review", done: false }],
+    },
+  ], [1, { kind: "step", name: "implement", at: 2, of: 3, state: "skipped", reason: "fix ticket; runs for feat" }]);
+  const lines = frame(tree, view, { columns: 80, rows: 6 }, bare, { now: noon, spin: 0 });
+
+  assert.equal(lines[1], "✔ 1/3 preflight  already done");
+  assert.equal(lines[2], "– 2/3 implement  skipped (fix ticket; runs for feat)", "a skip carries its reason instead of a summary");
+});
