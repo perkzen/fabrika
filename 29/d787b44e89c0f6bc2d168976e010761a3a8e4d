@@ -1,0 +1,21 @@
+test/journal.test.ts
+  s_5104f62af74a68::t_e0b87d6284aa68 48-66,72-97,99-105
+test/select.test.ts
+  s_5104f62af74a68::t_114aab160fb779 170-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "29d787b44e89c0f6bc2d168976e010761a3a8e4d",
+  "prompts": {},
+  "sessions": {
+    "s_5104f62af74a68": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25e95ec0-b751-481c-a109-308231418f10",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
