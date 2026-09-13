@@ -103,7 +103,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
         .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
         .pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),
-      claudeAgent.layer({ repoRoot, defaultCwd: dir, credentials, deny: config.deny }).pipe(Layer.provide(foundation)),
+      claudeAgent
+        .layer({ repoRoot, defaultCwd: dir, credentials, deny: config.deny, model: config.model })
+        .pipe(Layer.provide(foundation)),
     );
 
     return yield* Effect.gen(function* () {

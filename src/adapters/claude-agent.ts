@@ -13,6 +13,12 @@ export type AgentOptions = {
   readonly credentials: ReadonlyArray<Credential>;
   /** Permission rules every call is denied; the host does its own pushing and merging. */
   readonly deny: ReadonlyArray<string>;
+  /**
+   * What a call runs on unless it names its own model. Held here, not threaded
+   * through every step, so a call site that knows nothing about models still
+   * spends what the repository says it spends (ADR-0005).
+   */
+  readonly model?: string;
 };
 
 const AGENT_TAGS = new Set(["AgentUnauthorized", "AgentRateLimited", "AgentFailed"]);
@@ -65,6 +71,7 @@ export const layer = (options: AgentOptions) =>
             const result = yield* runClaudeWithFallback({
               cwd: request.cwd ?? options.defaultCwd,
               prompt: request.prompt,
+              model: request.model ?? options.model,
               credentials: options.credentials,
               resume: store.get().sessions[key] ?? null,
               systemPromptFile: request.systemPromptFile,

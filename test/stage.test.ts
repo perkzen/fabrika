@@ -67,3 +67,22 @@ test("a stage is titled by its name read as a word, and says what it will do", (
   assert.equal(codeStage({ name: "pr-body", prompt: "pr.md" }).title, "Pr body", "a kebab name reads as words");
   assert.equal(codeStage(implement).name, "implement", "the name is the config's and stays so");
 });
+
+test("a stage's model rides on every call in its session", async () => {
+  const opus: Stage = { ...implement, model: "opus" };
+  const { recording } = await exercise(codeStage(opus).run, {
+    gate: [{ name: "compile", command: "tsc", output: "boom" }, undefined],
+  });
+  assert.deepEqual(
+    recording.agent.map((call) => call.model),
+    ["opus", "opus"],
+    "the gate retry is the same conversation, so it cannot be a different model",
+  );
+
+  const { recording: unset } = await exercise(codeStage(implement).run, { gate: [undefined] });
+  assert.deepEqual(
+    unset.agent.map((call) => call.model),
+    [undefined],
+    "a stage that names none leaves the CLI's own default standing",
+  );
+});

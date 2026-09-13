@@ -322,7 +322,7 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 
 ## Where things live
 
-- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, denied tools, review settings, `keepAwake`, `notify`, Before / After
+- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, `model` (per stage, or one for the whole run), denied tools, review settings, `keepAwake`, `notify`, Before / After
 - `~/.fabrika/worktrees/<repo>/<ticket>/`: the worktree for a run
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
 - `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each capture, keyed by name and command, reused by every ticket cut from that commit

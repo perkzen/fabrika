@@ -167,3 +167,28 @@ test("checks that never settle with no reviewer escalate rather than being passe
   assert.equal(failed, true);
   assert.match((exit as { reason: string }).reason, /checks still pending/);
 });
+
+/**
+ * A round is one session, so it is one model (ADR-0005). A stage label is not
+ * a session — `fake`, `ci` and `fake-gate` are three labels inside `round-1` —
+ * so none of the three may name a model of its own; all three take the
+ * adapter's run-wide default.
+ */
+test("no call in a review round names a model, whatever it is doing", async () => {
+  const { recording } = await exercise(reviewRounds.run, {
+    ...open,
+    reviews: [{ commit: "sha1", score: 5, threads: [thread] }, clean],
+    checks: [[failingCheck], [failingCheck], []],
+    gate: [{ name: "compile", command: "tsc", output: "boom" }, undefined],
+  });
+  assert.deepEqual(
+    recording.agent.map((call) => call.session),
+    ["round-1", "round-1", "round-1"],
+    "the threads, the CI repair and the gate repair are one conversation",
+  );
+  assert.deepEqual(
+    recording.agent.map((call) => call.model),
+    [undefined, undefined, undefined],
+    "so a single conversation cannot change model twice with nothing in the config saying so",
+  );
+});

@@ -92,7 +92,7 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
         foundation,
         shellGate.layer(config.gate).pipe(Layer.provide(Layer.merge(foundation, platform))),
         claudeAgent
-          .layer({ repoRoot, defaultCwd: placement.worktree, credentials, deny: config.deny })
+          .layer({ repoRoot, defaultCwd: placement.worktree, credentials, deny: config.deny, model: config.model })
           .pipe(Layer.provide(Layer.merge(foundation, platform))),
       );
       // The config is the composition root's to know, so the target carries
