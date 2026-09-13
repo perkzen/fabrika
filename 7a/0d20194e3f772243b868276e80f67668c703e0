@@ -1,0 +1,23 @@
+test/branch.test.ts
+  s_fbe5b97d2e9af7::t_77c1dafb06753c 1-18
+test/review.test.ts
+  s_fbe5b97d2e9af7::t_77c1dafb06753c 170-194
+test/sync.test.ts
+  s_fbe5b97d2e9af7::t_77c1dafb06753c 30-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7a0d20194e3f772243b868276e80f67668c703e0",
+  "prompts": {},
+  "sessions": {
+    "s_fbe5b97d2e9af7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "747b4a06-b4c9-450a-985a-c4dc0344fba9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
