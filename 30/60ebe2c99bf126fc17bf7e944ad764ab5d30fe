@@ -1,0 +1,25 @@
+src/configure.ts
+  s_eea98a71ee6f11::t_6c440f34ad75ab 4,107-126
+test/domain.test.ts
+  s_eea98a71ee6f11::t_522d81f5b853f3 7,111-142
+src/cli.ts
+  s_eea98a71ee6f11::t_86910fe7f51f8c 48
+  s_eea98a71ee6f11::t_6c440f34ad75ab 13,64
+  s_eea98a71ee6f11::t_23dc3f76d7f2da 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3060ebe2c99bf126fc17bf7e944ad764ab5d30fe",
+  "prompts": {},
+  "sessions": {
+    "s_eea98a71ee6f11": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7c0702c-a391-4b48-ae97-d4b2652538f9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
