@@ -88,3 +88,23 @@ test("a stage carrying both guards needs both, and only answers first", async ()
   const agree = await exercise(both.skip!, { state: { type: "feat" }, changed: ["src/a.ts"] });
   assert.equal(agree.exit, undefined);
 });
+
+test("a stage with when and nothing changed yet runs, because a skip needs evidence", async () => {
+  const refactor = codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**"] });
+  const { exit } = await exercise(refactor.skip!, { changed: [] });
+  assert.equal(exit, undefined, "spec and plan are reached before a tracked file has changed; see ADR-0003");
+});
+
+test("the skip reads the branch's changed files, not the files since a sha", async () => {
+  const refactor = codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**"] });
+  const { exit } = await exercise(refactor.skip!, { changed: ["docs/x.md"], touched: ["src/a.ts"] });
+  assert.equal(exit, "no changed file matches src/**", "filesSince would have matched; changedFiles is what is asked");
+});
+
+test("a stage without when never asks for the changed files", async () => {
+  const plain = await exercise(codeStage({ name: "spec", prompt: "spec.md" }).skip!);
+  assert.equal(plain.recording.changedFilesReads(), 0, "an old config's run makes no new port call");
+
+  const filtered = await exercise(codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**"] }).skip!);
+  assert.equal(filtered.recording.changedFilesReads(), 1);
+});
