@@ -78,3 +78,30 @@ test("a branch command that fails is a missing half, not a failed run", async ()
   assert.ok(log.includes("capture console: command failed (exit 3); no half"), "with the exit code the operator needs");
   assert.ok(log.includes("capture console: no output; no section"), "and what it means for the pull request");
 });
+
+test("a base that will not check out still leaves the branch half to show", async () => {
+  // Nothing is seeded, so the base is a miss and the adapter goes looking for
+  // a worktree. The harness's `repoRoot` is not a repository, so it does not
+  // get one — the case of a base commit the host cannot produce.
+  const { shots, log } = await take([{ name: "console", run: writes({ "out.txt": "after" }) }], () => {});
+
+  assert.deepEqual(shots, [
+    { capture: "console", before: undefined, after: [{ name: "out.txt", kind: "text", content: "after" }] },
+  ]);
+  assert.ok(!log.some((line) => line.includes("(from cache)")), "nothing was cached");
+});
+
+test("a capture's files are what the body can carry, in pairing order", async () => {
+  const { shots } = await take(
+    [{ name: "console", run: writes({ "notes.md": "#", "b.txt": "second", "a.txt": "first", "link.url": "https://e.example" }) }],
+    (cache) => {
+      writeFileSync(join(cache("console"), "out.txt"), "before");
+    },
+  );
+
+  assert.deepEqual(shots[0]?.after, [
+    { name: "a.txt", kind: "text", content: "first" },
+    { name: "b.txt", kind: "text", content: "second" },
+    { name: "link.url", kind: "link", content: "https://e.example" },
+  ], "sorted by name so the two halves pair deterministically, and `notes.md` is not a file the body carries");
+});
