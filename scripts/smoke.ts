@@ -93,9 +93,8 @@ const program = Effect.gen(function* () {
   // C: --json-schema with stream-json, and --model on the same call. An alias
   // rather than a full name, on the same staleness argument fabrika makes about
   // baking model names in: `--help` lists the aliases and they outlive releases.
-  // This is the only place --model reaches the real binary — no test below the
-  // Agent port can read a spawned process's argv — so a run that answers here
-  // is the proof the flag is accepted.
+  // The test suite proves fabrika puts the flag in the argv; only this call
+  // proves the binary accepts what it says. An answer here is that proof.
   const c = yield* runClaude({
     cwd,
     credential,

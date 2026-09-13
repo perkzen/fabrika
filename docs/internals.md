@@ -363,9 +363,11 @@ context across directories, `--json-schema` returns structured output on the
 model `--model` asked for, and the `fabrika:*` skills load on both fresh and
 resumed sessions. Run it before trusting anything else.
 
-`--model` is here and nowhere else: the only seam below the `Agent` port is
-`ChildProcessSpawner`, so no test can read a spawned process's argv, and the
-config's `model` reaching the flag is confirmed by this run or by none.
+`--model` is here for the half a test cannot reach. That fabrika *passes* the
+flag is covered in `test/claude.test.ts`, which spawns through a fake
+`ChildProcessSpawner` and reads the argv it was handed. That the real binary
+*accepts* the value is what only a real call can say, and this is the run that
+says it.
 
 ## Migrating an old config
 
