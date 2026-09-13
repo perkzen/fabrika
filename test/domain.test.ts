@@ -6,6 +6,7 @@ import { NodePath } from "@effect/platform-node";
 import { Effect, Path } from "effect";
 import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
+import { checkedOut } from "../src/adapters/git-workspace.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
 import { home } from "../src/paths.ts";
 import { identified, openedByFabrika, titleOf, TRAILER } from "../src/stamp.ts";
@@ -204,4 +205,41 @@ test("the trailer is what tells a sweep whose pull request it is", () => {
 
   assert.equal(openedByFabrika(body), true);
   assert.equal(openedByFabrika("a pull request somebody wrote by hand"), false);
+});
+
+/** Real `git worktree list --porcelain` output, trimmed the way `run` trims it. */
+const PORCELAIN = [
+  "worktree /Users/domen/dev/fabrika",
+  "HEAD 4464ffb68cabfe7f741a26da8d8701cdb7a0dfec",
+  "branch refs/heads/main",
+  "",
+  "worktree /Users/domen/.fabrika/worktrees/fabrika/FAB-5",
+  "HEAD eac6ac204b2122ec63973a61835d575ec362da3e",
+  "branch refs/heads/perkzen/feat/FAB-5/sync-conflicted-prs",
+  "",
+  "worktree /Users/domen/.fabrika/worktrees/fabrika/FAB-4",
+  "HEAD 7b8c8baf6f3ef21eeaaa6c07618d02ac4b0236dc",
+  "detached",
+].join("\n");
+
+test("every branch checked out on this machine is read off git's own listing", () => {
+  assert.deepEqual(
+    checkedOut(PORCELAIN),
+    [
+      { branch: "main", path: "/Users/domen/dev/fabrika" },
+      {
+        branch: "perkzen/feat/FAB-5/sync-conflicted-prs",
+        path: "/Users/domen/.fabrika/worktrees/fabrika/FAB-5",
+      },
+    ],
+    "the operator's own checkout is in it — ADR-0004's reset is only safe because this rule sees it",
+  );
+});
+
+test("a detached worktree is on no branch, and one worktree is still a listing", () => {
+  assert.deepEqual(checkedOut("worktree /tmp/x\nHEAD 7b8c8ba\ndetached"), []);
+  assert.deepEqual(checkedOut("worktree /repo\nHEAD 4464ffb\nbranch refs/heads/main"), [
+    { branch: "main", path: "/repo" },
+  ]);
+  assert.deepEqual(checkedOut(""), [], "a listing that came back empty skips nothing rather than everything");
 });

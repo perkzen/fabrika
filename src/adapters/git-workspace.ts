@@ -17,6 +17,23 @@ import { Workspace, type MergeOutcome } from "../ports/workspace.ts";
 export const WORK_DIR = ".fabrika/work";
 
 /**
+ * `git worktree list --porcelain` as branch-and-path pairs.
+ *
+ * Blank-line-separated blocks, one field per line; a detached worktree carries
+ * `detached` where a branch would be and belongs to no branch. Exported
+ * because this is the parse ADR-0004's hard reset is fenced by: a listing this
+ * misreads is a sweep that resets a tree somebody is working in.
+ */
+export const checkedOut = (porcelain: string): ReadonlyArray<{ readonly branch: string; readonly path: string }> =>
+  porcelain.split("\n\n").flatMap((block) => {
+    const field = (name: string) =>
+      block.split("\n").find((line) => line.startsWith(`${name} `))?.slice(name.length + 1);
+    const where = field("worktree");
+    const ref = field("branch");
+    return where && ref ? [{ branch: ref.replace(/^refs\/heads\//, ""), path: where }] : [];
+  });
+
+/**
  * `owner/repo` for a repository, without building a `Workspace` first: a
  * sweep resolves it before it has a tree, and `Workspace.githubRepo` answers
  * through the same call, so the two cannot disagree.
@@ -91,19 +108,7 @@ export const layer = (options: WorkspaceOptions) =>
          * a renamed pull request whose key no longer matches its directory
          * cannot slip past — and it catches the operator's own checkout.
          */
-        checkedOutBranches: git(["worktree", "list", "--porcelain"], repoRoot).pipe(
-          Effect.map((out) =>
-            // Blank-line-separated blocks; a detached worktree carries
-            // `detached` instead of `branch` and contributes nothing.
-            out.split("\n\n").flatMap((block) => {
-              const field = (name: string) =>
-                block.split("\n").find((line) => line.startsWith(`${name} `))?.slice(name.length + 1);
-              const where = field("worktree");
-              const ref = field("branch");
-              return where && ref ? [{ branch: ref.replace(/^refs\/heads\//, ""), path: where }] : [];
-            }),
-          ),
-        ),
+        checkedOutBranches: git(["worktree", "list", "--porcelain"], repoRoot).pipe(Effect.map(checkedOut)),
 
         /**
          * "Domen Perko" → `domen-perko`, for the `{user}` in the branch
