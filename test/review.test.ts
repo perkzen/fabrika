@@ -101,3 +101,14 @@ test("checks that never settle escalate rather than passing an unknown state off
   assert.equal(failed, true);
   assert.match((exit as { reason: string }).reason, /checks still pending/);
 });
+
+test("green CI with no reviewer finishes the run rather than escalating on a review nobody sought", async () => {
+  const { failed, recording } = await exercise(reviewRounds.run, { ...open, reviewer: "none", checks: [[]] });
+  assert.equal(failed, false);
+  assert.equal(recording.state().done, true);
+  assert.deepEqual(recording.removed, ["/worktree"]);
+  assert.equal(
+    recording.log.at(-1),
+    "done: no review bot, checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
+  );
+});

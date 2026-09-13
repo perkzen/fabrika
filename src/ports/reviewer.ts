@@ -32,6 +32,11 @@ export type Decision = { readonly threadId: string; readonly action: "fixed" | "
  */
 export interface Reviewer {
   readonly name: string;
+  /**
+   * Whether this reviewer returns a verdict the run must satisfy. False for a
+   * repo with no review bot: its rounds are decided by the checks alone.
+   */
+  readonly scores: boolean;
   readonly await: (
     pr: number,
     commits: ReadonlyArray<string>,

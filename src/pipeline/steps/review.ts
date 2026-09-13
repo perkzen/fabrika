@@ -18,13 +18,15 @@ const renderFailures = (failures: ReadonlyArray<{ check: Check; log: string }>) 
 /**
  * The loop that decides when the branch is ready for a human.
  *
- * Done means three things at once, on the commit that was actually pushed:
- * the reviewer's score is the one the config demands, no review thread is
- * open, and no check is failing. Anything less is fed back to the agent —
- * threads and CI logs in the round's own session — and the round starts
- * again. Everything the agent could act on is exhausted before the run gives
- * up, and a round that finds nothing actionable escalates immediately rather
- * than waiting for the same verdict again.
+ * Done means everything the configured reviewer can say is satisfied, on the
+ * commit that was actually pushed: no check is failing, no review thread is
+ * open, and — for a reviewer that scores — the score is the one the config
+ * demands. A reviewer with no bot behind it seeks no verdict, so its rounds
+ * turn on the checks alone. Anything less is fed back to the agent — threads
+ * and CI logs in the round's own session — and the round starts again.
+ * Everything the agent could act on is exhausted before the run gives up, and
+ * a round that finds nothing actionable escalates immediately rather than
+ * waiting for the same verdict again.
  */
 export const reviewRounds: Step = {
   name: "review",
@@ -86,7 +88,7 @@ export const reviewRounds: Step = {
       yield* journal.log(
         `  score ${review.score ?? "none"}/5, ${threads.length} open thread(s), ${failed.length} failing check(s)`,
       );
-      const scoreOk = review.score !== null && review.score >= config.review.requireScore;
+      const scoreOk = !reviewer.scores || (review.score !== null && review.score >= config.review.requireScore);
       if (scoreOk && threads.length === 0 && failed.length === 0) {
         yield* store.update((state) => void (state.done = true));
         const kept = yield* store.archive(workspace.artifactsDir);
@@ -95,7 +97,11 @@ export const reviewRounds: Step = {
         yield* journal.log({
           kind: "result",
           outcome: "done",
-          text: `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`,
+          // Both wordings end with the URL: the last line of stdout is what a
+          // caller pipes this to reads.
+          text: reviewer.scores
+            ? `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`
+            : `done: no review bot, checks green — ready for human review: ${url}`,
         });
         return;
       }
