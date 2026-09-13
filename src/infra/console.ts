@@ -15,6 +15,12 @@ export type ConsoleOptions = {
   readonly now?: () => number;
   /** Where the uncapped copy lives, named in the elision line. `init` has none. */
   readonly archive?: string;
+  /**
+   * The run's worktree, absolute. An option rather than a run event: `log.txt`
+   * gets every event, and where this machine put the tree is no business of
+   * the record. A surface given none says nothing about one.
+   */
+  readonly worktree?: string;
 };
 
 /** The shape `styleText` takes, named once so every surface that dresses a line reads the same alias. */

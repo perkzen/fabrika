@@ -46,7 +46,11 @@ const keyboard = () => {
   return input;
 };
 
-const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<typeof keyboard> } = {}) =>
+/** Opt-in rather than a default: the whole-scrollback assertions belong to the tests that are about them. */
+const open = (
+  out: ReturnType<typeof terminal>,
+  extra: { input?: ReturnType<typeof keyboard>; worktree?: string } = {},
+) =>
   openScreen({
     stream: out.stream,
     interactive: true,
@@ -54,7 +58,10 @@ const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<type
     ticket: "FAB-6",
     input: (extra.input ?? keyboard()) as unknown as NodeJS.ReadStream,
     kill: () => {},
+    worktree: extra.worktree,
   });
+
+const WORKTREE = "/Users/x/.fabrika/worktrees/fabrika/FAB-6";
 
 const RUN: RunEvent = {
   kind: "run",
@@ -98,6 +105,39 @@ test("the screen is entered by the run event and left by end(), which writes the
     ],
     "the folded outline, then the result, last",
   );
+});
+
+test("the exit scrollback carries the worktree between the outline and the result", () => {
+  const out = terminal({ columns: 80, rows: 12 });
+  const presenter = open(out, { worktree: WORKTREE });
+
+  presenter.show(RUN);
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  presenter.show(RESULT);
+  presenter.end();
+
+  const left = out.text().slice(out.text().lastIndexOf("\x1b[?1049l"));
+  assert.deepEqual(
+    left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n"),
+    [
+      "· 1/3 preflight",
+      "▸ 2/3 implement",
+      "· 3/3 review",
+      "worktree: /Users/x/.fabrika/worktrees/fabrika/FAB-6",
+      "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
+    ],
+    "absolute and unstamped, where the operator can copy it, and the result still last",
+  );
+});
+
+test("a screen that never mounted writes no worktree line", () => {
+  const out = terminal();
+  const presenter = open(out, { worktree: WORKTREE });
+
+  presenter.show("already done: FAB-6 — remove ~/.fabrika/runs/fabrika/FAB-6 to rerun");
+  presenter.end();
+
+  assert.doesNotMatch(out.text(), /worktree:/, "a run that never started has no tree worth naming");
 });
 
 test("a screen that never mounted leaves no buffer and writes no outline", () => {

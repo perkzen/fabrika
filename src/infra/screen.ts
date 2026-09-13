@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { styleText } from "node:util";
 import { frame, outlineRows, type View } from "./frame.ts";
 import { display } from "./lines.ts";
@@ -53,7 +54,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   const keyboard =
     options.input?.isTTY && typeof options.input.setRawMode === "function" ? options.input : undefined;
 
-  let tree: Tree = { ...empty, label: options.ticket };
+  let tree: Tree = { ...empty, label: options.ticket, worktree: options.worktree };
+  // Once per run rather than per draw: it cannot change while one is going,
+  // and a frame is drawn twelve times a second. Read here because `frame` is
+  // pure and has no machine in it.
+  const operator = { home: homedir() };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
   let mounted = false;
   let ended = false;
@@ -76,7 +81,7 @@ export const openScreen = (options: ScreenOptions): Presenter => {
    * a row and put every frame after it permanently out.
    */
   const draw = () => {
-    const lines = frame(tree, view, size(), dress, { now: now(), spin });
+    const lines = frame(tree, view, size(), dress, { now: now(), spin }, operator);
     stream.write(HOME + lines.map((line) => line + CLEAR_LINE).join("\n") + CLEAR_BELOW);
     dirty = false;
   };
@@ -157,6 +162,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     stream.off("resize", onResize);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
     for (const line of outlineRows(tree, size().columns, dress)) stream.write(line + "\n");
+    // Absolute and unabbreviated: this is the line an operator copies into a
+    // `cd`, an hour after the screen it was a `~` on has gone.
+    if (tree.worktree) for (const line of display(`worktree: ${tree.worktree}`, dress)) stream.write(line + "\n");
     // Through `display`, like every other line this repo writes: it is where
     // the result's colour is decided and, more to the point, where the text is
     // scrubbed. An escalation's wording carries `gh` output and agent text,
