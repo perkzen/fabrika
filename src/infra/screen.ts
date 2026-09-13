@@ -61,11 +61,12 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     options.input?.isTTY && typeof options.input.setRawMode === "function" ? options.input : undefined;
 
   let tree: Tree = { ...empty, label: options.ticket, worktree: options.worktree };
-  // Once per run rather than per draw: it cannot change while one is going,
-  // and a frame is drawn twelve times a second. Read here because `frame` is
-  // pure and has no machine in it.
-  // The opener's presence is the single fact deciding both whether `o` does
-  // anything and whether the keys row names it, so the two cannot disagree.
+  // What the frame needs from the machine, read once per run rather than per
+  // draw — neither fact can change while one is going, and a frame is drawn
+  // twelve times a second. Read here because `frame` is pure and has no
+  // machine in it; the opener's presence is the one fact deciding both whether
+  // `o` does anything and whether the keys row names it, so the two cannot
+  // disagree.
   const operator = { home: homedir(), editor: options.open !== undefined };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
   let mounted = false;
