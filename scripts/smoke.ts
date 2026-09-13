@@ -109,7 +109,7 @@ const program = Effect.gen(function* () {
   });
   const structured = c.structured as { ok?: boolean; name?: string } | undefined;
   yield* check(
-    "--json-schema returns structured_output, on the model --model asked for",
+    "--json-schema returns structured_output on a call that also sets --model",
     structured?.ok === true && structured?.name === "fabrika",
     JSON.stringify(c.structured ?? c.text.slice(0, 120)),
   );
