@@ -31,10 +31,16 @@ markdown, render a line), so the noun has to be something else.
 
 **Plain rendering**:
 A run event as ANSI-free text lines, unstamped — the timestamp belongs to the
-surface that writes them. It is what `log.txt` always receives and what the
-console receives when the terminal is not interactive, so the two cannot
-drift.
+surface that writes them. It is what `log.txt` always receives, and what a
+non-interactive console emits for every kind but agent speech, which the
+console always walks and caps.
 _Avoid_: log format, raw output.
+
+**Agent speech**:
+What the agent said, as the markdown it said it in. The archive keeps it
+whole and raw; a console walks it into styled lines and caps its height,
+because one message must not own the screen.
+_Avoid_: agent output, message text, assistant text.
 
 **Interactive**:
 The verdict that the console may use colour, animation and cursor movement.
