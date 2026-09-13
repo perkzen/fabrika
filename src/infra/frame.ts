@@ -361,14 +361,19 @@ const verdicts = (gates: Node["summary"]["gates"]): ReadonlyArray<Segment> =>
  * styled line mid-escape corrupts it, and a line of exactly `columns - 1`
  * occupies exactly one row. Scrubbed for the same reason — one escape in a
  * step's name and a row is no longer a row.
+ *
+ * Counted in code points, the way `wrap` counts them: a cut through the middle
+ * of an emoji leaves a lone surrogate, which is the garbage a terminal draws a
+ * replacement character for.
  */
 const row = (segments: ReadonlyArray<Segment>, width: number, dress: Styler): string => {
   const out: Array<string> = [];
   let left = width;
   for (const segment of segments) {
     if (left <= 0) break;
-    const text = flattened(scrub(segment.text)).slice(0, left);
-    left -= text.length;
+    const points = [...flattened(scrub(segment.text))].slice(0, left);
+    left -= points.length;
+    const text = points.join("");
     out.push(segment.style ? dress(segment.style, text) : text);
   }
   return out.join("");

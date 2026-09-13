@@ -439,3 +439,19 @@ test("a resumed run reads the same as a fresh one: the step behind it says so on
   assert.equal(lines[1], "✔ 1/3 preflight  already done");
   assert.equal(lines[2], "– 2/3 implement  skipped (fix ticket; runs for feat)", "a skip carries its reason instead of a summary");
 });
+
+test("a cut row never splits a character in half either, whatever width the terminal is", () => {
+  // `wrap` counts code points; `row` cut by UTF-16 units, so the same emoji
+  // that survives a wrapped window came apart in an outline row.
+  const tree = script("FAB-6", [
+    0,
+    { kind: "run", completed: [], steps: [{ name: "implement 🚀 the thing", done: false }] },
+  ]);
+  const half = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  for (let columns = 8; columns < 30; columns += 1) {
+    const line = frame(tree, { ...view, selected: "0:1" }, { columns, rows: 3 }, bare, { now: noon, spin: 0 })[1]!;
+    assert.doesNotMatch(line, half, `"${line}" at ${columns} columns carries half a character`);
+    assert.ok([...line].length <= columns - 1, `"${line}" is wider than columns - 1`);
+  }
+});
