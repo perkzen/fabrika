@@ -86,6 +86,13 @@ const node = (key: string, name: string, at: number, of: number, state: StepStat
 
 export const empty: Tree = { roots: [] };
 
+/**
+ * The steps of the run in progress — the last root's children, and an empty
+ * list before the first `run` event. Every surface asks the tree this, so it
+ * is asked in one place.
+ */
+export const steps = (tree: Tree): ReadonlyArray<Node> => tree.roots.at(-1)?.children ?? [];
+
 /** One event folded in. Returns a new tree and mutates nothing the caller holds. */
 export const take = (tree: Tree, when: number, entry: RunEvent | string): Tree => {
   if (typeof entry === "string") return streamed(tree, { when, entry });

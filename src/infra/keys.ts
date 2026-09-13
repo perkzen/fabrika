@@ -1,5 +1,5 @@
 import { layout, scrolled, type Size, type View } from "./frame.ts";
-import type { Node, Tree } from "../outline.ts";
+import { steps as outlineSteps, type Node, type Tree } from "../outline.ts";
 
 /**
  * What one keystroke means. Keys change what is shown, never what is done, so
@@ -91,8 +91,6 @@ export const follow = (view: View, tree: Tree): View => {
   // whatever the operator scrolled it to.
   return opened === view.opened ? view : { ...view, selected: running?.key ?? view.selected, opened, scroll: 0 };
 };
-
-const outlineSteps = (tree: Tree): ReadonlyArray<Node> => tree.roots.at(-1)?.children ?? [];
 
 const moved = (view: View, steps: ReadonlyArray<Node>, by: number, tree: Tree, size: Size): View => {
   const at = steps.findIndex((step) => step.key === view.selected);

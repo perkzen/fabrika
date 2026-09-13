@@ -1,7 +1,7 @@
 import { display, livenessRow, progressRow, type Clock } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
-import type { Node, StepState, Tree } from "../outline.ts";
+import { steps as stepsOf, type Node, type StepState, type Tree } from "../outline.ts";
 import { elapsed, scrub, stamp } from "../run-event.ts";
 
 /**
@@ -128,7 +128,7 @@ export type Layout = {
  * where the selection drags the outline to.
  */
 export const layout = (tree: Tree, view: View, size: Size): Layout => {
-  const steps = tree.roots.at(-1)?.children ?? [];
+  const steps = stepsOf(tree);
   const footer = size.rows >= FOOTER_AT;
   const body = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
   const window =
@@ -207,7 +207,7 @@ const BARE: Styler = (_style, text) => text;
  */
 export const scrolled = (tree: Tree, view: View, size: Size, scroll: number): number => {
   const { window } = layout(tree, view, size);
-  const step = (tree.roots.at(-1)?.children ?? []).find((child) => child.key === view.opened);
+  const step = stepsOf(tree).find((child) => child.key === view.opened);
   if (!step || window <= 0) return 0;
   const rows = window - (step.state === "running" && livenessRow(tree, { now: 0, spin: 0 }) !== undefined ? 1 : 0);
   if (rows <= 0) return 0;
@@ -287,7 +287,7 @@ const wrap = (line: string, width: number): ReadonlyArray<string> => {
  */
 export const outlineRows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
   // Nothing is selected in scrollback: the run is over and there is no view.
-  (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
+  stepsOf(tree).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
 
 /** The run's own line: what the operator calls it, and the progress row every surface draws. */
 const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> => {
