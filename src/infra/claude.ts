@@ -272,8 +272,7 @@ export const runClaudeWithFallback = (
   return Effect.suspend(() => {
     // Once for the call, not once per attempt: the model does not change when
     // the credential does, and repeating it would add noise at exactly the
-    // moment something else did. Nothing is said when no model was asked for —
-    // the CLI's own default is the CLI's business.
+    // moment something else did.
     if (opts.model) opts.onEvent?.({ kind: "note", level: "detail", text: `[model] ${opts.model}` });
     return attempt(0, opts.resume ?? null);
   });
