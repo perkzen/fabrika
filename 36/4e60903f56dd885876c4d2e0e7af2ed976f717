@@ -1,0 +1,21 @@
+src/infra/screen.ts
+  s_452e0dc20cfb40::t_cfb0120f61f2da 3,45-50,85-95,100-105,124,128,140-147
+test/screen.test.ts
+  s_452e0dc20cfb40::t_392d2b7caa9151 48-49,137-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "364e60903f56dd885876c4d2e0e7af2ed976f717",
+  "prompts": {},
+  "sessions": {
+    "s_452e0dc20cfb40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4524da7e-3317-48d7-8fb6-368534551506",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
