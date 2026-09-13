@@ -1,5 +1,4 @@
 import { Effect, Layer, Path } from "effect";
-import { homedir } from "node:os";
 import * as claudeAgent from "./adapters/claude-agent.ts";
 import * as cubicReviewer from "./adapters/cubic-reviewer.ts";
 import * as fileJournal from "./adapters/file-journal.ts";
@@ -10,13 +9,14 @@ import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
-import type { Config } from "./config.ts";
+import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
 import { isInteractive } from "./infra/console.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
 import { notifierApp } from "./infra/notifier-app.ts";
 import { openNotifier } from "./infra/notifier.ts";
 import { openScreen } from "./infra/screen.ts";
+import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
 import { RunContext } from "./ports/run-context.ts";
@@ -24,16 +24,6 @@ import { RunStore } from "./ports/run-store.ts";
 import type { Ticket } from "./ticket.ts";
 
 export { Escalated } from "./pipeline/escalated.ts";
-
-/**
- * Where a run keeps what it must not lose: state, logs and raw transcripts
- * outside the target repo, the worktree outside it as well. Both are keyed by
- * repository and ticket, so two tickets never share either. The capture cache
- * is keyed by repository and base sha instead, so ten tickets cut from one
- * base share it.
- */
-const home = (kind: "runs" | "worktrees" | "captures", repoRoot: string, identifier: string) =>
-  Effect.map(Path.Path, (path) => path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), identifier));
 
 /**
  * Assembles one run and executes it.
@@ -49,8 +39,11 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
   Effect.gen(function* () {
     const path = yield* Path.Path;
     const repoRoot = process.cwd();
-    const dir = yield* home("worktrees", repoRoot, ticket.identifier);
-    const runsDir = yield* home("runs", repoRoot, ticket.identifier);
+    const dir = home(path, "worktrees", repoRoot, ticket.identifier);
+    // Before the forge layer, because the forge no longer has a `Workspace` to
+    // ask: every `gh` call carries `-R`, so where it is spawned is incidental.
+    const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
+    const runsDir = home(path, "runs", repoRoot, ticket.identifier);
 
     // macOS only, both of them, and the run says so once rather than failing:
     // a machine that sleeps or a notification that never arrives is a
@@ -90,10 +83,12 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const ports = Layer.mergeAll(
       foundation,
       shellCaptures
-        .layer({ cacheRoot: yield* home("captures", repoRoot, ""), install: config.install })
+        .layer({ cacheRoot: home(path, "captures", repoRoot, ""), install: config.install })
         .pipe(Layer.provide(foundation)),
       reviewer,
-      ghForge.layer({ base: gitWorkspace.baseBranch(config.base) }).pipe(Layer.provide(Layer.merge(foundation, reviewer))),
+      ghForge
+        .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
+        .pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),
       claudeAgent.layer({ repoRoot, defaultCwd: dir, credentials, deny: config.deny }).pipe(Layer.provide(foundation)),
     );

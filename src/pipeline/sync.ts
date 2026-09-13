@@ -6,7 +6,15 @@ import { Prompts } from "../ports/prompts.ts";
 import { RunStore } from "../ports/run-store.ts";
 import { Workspace } from "../ports/workspace.ts";
 import { Escalated } from "./escalated.ts";
-import type { StepError, StepServices } from "./step.ts";
+import type { StepError } from "./step.ts";
+
+/**
+ * The six ports a base merge actually reaches for. Narrower than
+ * `StepServices` on purpose: it never touches `Forge`, `Reviewer` or
+ * `RunContext`, and saying so is what lets a sweep's worker omit them — and
+ * with them the ticket a `RunContext` would have forced it to invent.
+ */
+export type SyncServices = Agent | Gate | Journal | Prompts | RunStore | Workspace;
 
 /**
  * Keeps the branch mergeable while the base moves, and keeps it green after.
@@ -15,8 +23,14 @@ import type { StepError, StepServices } from "./step.ts";
  * findings stay valid. Conflicts go to the agent — in the round's own session,
  * so a second conflict in the same round is handed to the agent that resolved
  * the first. Answers `true` when HEAD moved, which is the caller's cue to push.
+ *
+ * `session` is for a caller whose unit of work is not a round — a sweep names
+ * it after the base tip, which changes exactly when the thing being merged
+ * changes and cannot collide with a round counter.
  */
-export const syncWithBase = (prUrl?: string): Effect.Effect<boolean, StepError, StepServices> =>
+export const syncWithBase = (
+  options: { readonly prUrl?: string; readonly session?: string } = {},
+): Effect.Effect<boolean, StepError, SyncServices> =>
   Effect.gen(function* () {
     const workspace = yield* Workspace;
     const journal = yield* Journal;
@@ -25,8 +39,8 @@ export const syncWithBase = (prUrl?: string): Effect.Effect<boolean, StepError, 
     const prompts = yield* Prompts;
     const store = yield* RunStore;
 
-    const escalate = (reason: string) => new Escalated({ reason, worktree: workspace.dir, prUrl });
-    const session = `merge-${store.get().round}`;
+    const escalate = (reason: string) => new Escalated({ reason, worktree: workspace.dir, prUrl: options.prUrl });
+    const session = options.session ?? `merge-${store.get().round}`;
     const implementer = prompts.file("implement.system.md");
 
     const outcome = yield* workspace.mergeBase;

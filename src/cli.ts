@@ -13,6 +13,7 @@ import { CONFIG_PATH, loadConfig } from "./config.ts";
 import { asConfig, proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
+import { runSweep } from "./sweep.ts";
 import { openConsole, type Presenter } from "./infra/console.ts";
 import { banner } from "./infra/banner.ts";
 import type { RunEvent } from "./run-event.ts";
@@ -148,7 +149,45 @@ const run = Command.make(
     }),
 );
 
-const fabrika = Command.make("fabrika").pipe(Command.withSubcommands([init, run]));
+/**
+ * One sweep over the operator's open pull requests. `--concurrency` is a flag
+ * rather than a config field: `.fabrika/config.json` is committed and shared
+ * by everyone who runs fabrika in that repo, and how much of one person's
+ * Claude budget a sweep may spend is theirs per invocation, not repo policy.
+ */
+const sync = Command.make(
+  "sync",
+  {
+    // Defaulted, not bare: a `Flag.Boolean` with no default is *required*, so
+    // `fabrika sync` — the form the README documents and a schedule invokes —
+    // died on "Missing required flag: --dry-run".
+    dryRun: Flag.Boolean("dry-run").pipe(
+      Flag.withDescription("print the selection and change nothing"),
+      Flag.withDefault(false),
+    ),
+    concurrency: Flag.Int("concurrency").pipe(
+      Flag.withDescription("how many pull requests to sync at once"),
+      Flag.withDefault(2),
+    ),
+  },
+  ({ dryRun, concurrency }) =>
+    Effect.gen(function* () {
+      // `Flag` has no numeric minimum — `Flag.atLeast` is about how often a
+      // flag repeats — so the handler checks, and a CLI error is exit 1.
+      if (concurrency < 1) return yield* new FabrikaError({ message: "--concurrency must be at least 1" });
+      if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+      const config = yield* loadConfig(process.cwd());
+      // A dry run spawns no agent, so it needs no credential: the point of it
+      // is that it is the cheapest, safest thing to reach for first.
+      if (!dryRun) yield* authProbe;
+      const { exitCode } = yield* runSweep(config, credentials, { dryRun, concurrency });
+      // Outside `runSweep`, so the presenter's `ensuring` has already
+      // restored the cursor — the same shape `run` uses around `runTicket`.
+      if (exitCode !== 0) yield* Effect.sync(() => process.exit(exitCode));
+    }),
+);
+
+const fabrika = Command.make("fabrika").pipe(Command.withSubcommands([init, run, sync]));
 
 fabrika.pipe(
   Command.run({ version: VERSION }),

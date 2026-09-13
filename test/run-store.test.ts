@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -54,6 +54,38 @@ test("a state file from an older fabrika gains the fields it never had", async (
   assert.equal(state.done, false);
 });
 
+test("the kept artifacts include the subdirectories an agent wrote, not just the stage files", async () => {
+  // An agent that researches into `work/research/` rather than `work/research.md`
+  // used to end the run on a copy that only handled files.
+  const work = mkdtempSync(join(tmpdir(), "fabrika-work-"));
+  writeFileSync(join(work, "spec.md"), "the spec");
+  mkdirSync(join(work, "research"));
+  writeFileSync(join(work, "research", "pr-body-images.md"), "the notes");
+
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  const kept = await inDirectory(directory, (store) => store.archive(work));
+
+  assert.equal(kept, join(directory, "work"));
+  assert.equal(readFileSync(join(directory, "work", "spec.md"), "utf8"), "the spec");
+  assert.equal(readFileSync(join(directory, "work", "research", "pr-body-images.md"), "utf8"), "the notes");
+});
+
+test("archiving twice keeps the later artifacts rather than the first ones", async () => {
+  const work = mkdtempSync(join(tmpdir(), "fabrika-work-"));
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  writeFileSync(join(work, "review.md"), "round one");
+  await inDirectory(directory, (store) => store.archive(work));
+  writeFileSync(join(work, "review.md"), "round two");
+  await inDirectory(directory, (store) => store.archive(work));
+  assert.equal(readFileSync(join(directory, "work", "review.md"), "utf8"), "round two");
+});
+
+test("there is nothing to keep when the run never wrote a work directory", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  const kept = await inDirectory(directory, (store) => store.archive(join(directory, "no-such-work")));
+  assert.equal(kept, undefined);
+});
+
 test("two states built from the same empty template do not share their arrays", async () => {
   const first = mkdtempSync(join(tmpdir(), "fabrika-store-"));
   const second = mkdtempSync(join(tmpdir(), "fabrika-store-"));
@@ -96,4 +128,67 @@ test("a service provided to several dependents is built once", async () => {
   );
   assert.equal(built, 1, "one instance");
   assert.deepEqual(ids, [1, 1, 1], "and everyone has it");
+});
+
+/** The runs directory of one repository, with a run per entry. */
+const runsWith = async (runs: Record<string, number | null>) => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-runs-"));
+  for (const [key, prNumber] of Object.entries(runs)) {
+    await inDirectory(join(directory, key), (store) => store.update((state) => void (state.prNumber = prNumber)));
+  }
+  return directory;
+};
+
+const found = (runs: string, prNumber: number) =>
+  Effect.runPromise(
+    Effect.provide(fileRunStore.runDirectoryFor(runs, prNumber), NodeServices.layer) as Effect.Effect<string | undefined>,
+  );
+
+test("a pull request's own run directory is the one whose state claims it", async () => {
+  const runs = await runsWith({ "FAB-4": 7, "FAB-5-42": 42, "FAB-9": null });
+
+  assert.equal(
+    await found(runs, 42),
+    join(runs, "FAB-5-42"),
+    "so a sweep's merge lands in the conversation the run that opened the pull request was having",
+  );
+  assert.equal(await found(runs, 8), undefined, "a pull request no run on this machine opened has none");
+});
+
+test("the lookup is best-effort: a file it cannot read is not an error", async () => {
+  const runs = await runsWith({ "FAB-5-42": 42 });
+  mkdirSync(join(runs, "FAB-1"), { recursive: true });
+  writeFileSync(join(runs, "FAB-1", "state.json"), "{not json");
+
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"), "the unreadable run is skipped, not fatal");
+  assert.equal(await found(join(runs, "nothing-here"), 42), undefined, "a repo with no runs at all answers the same");
+});
+
+test("two runs claiming one pull request resolve the same way every time", async () => {
+  const runs = await runsWith({ "pr-42": 42, "FAB-5-42": 42 });
+
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"), "lowest-sorting wins, so it is not the readdir order");
+  assert.equal(await found(runs, 42), join(runs, "FAB-5-42"));
+});
+
+/**
+ * A state file a run was killed part-way through writing. The sweep isolates
+ * one pull request's *failure*, so this has to be one — a `JSON.parse` that
+ * throws inside the layer is a defect, which `Effect.match` does not catch and
+ * which would take every other worker down with it.
+ */
+test("an unreadable state file fails the store rather than crashing its caller", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "fabrika-store-"));
+  writeFileSync(join(directory, "state.json"), "{not json");
+
+  const outcome = await Effect.runPromise(
+    Effect.flatMap(RunStore, (store) => Effect.succeed(store.get())).pipe(
+      Effect.provide(fileRunStore.layer(directory)),
+      Effect.provide(NodeServices.layer),
+      Effect.match({ onSuccess: () => "read", onFailure: (error) => `failed: ${error.message}` }),
+    ) as Effect.Effect<string>,
+  );
+
+  assert.match(outcome, /^failed:/, "a defect here escapes every caller's error channel, this must be a failure");
+  assert.match(outcome, /state\.json/, "and the line names the file the operator has to look at");
 });

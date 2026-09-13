@@ -31,7 +31,9 @@ flowchart LR
 
 Early. `init` and `run` work end to end up to the draft PR on a scratch repo,
 including resume from saved state. The six-stage pipeline and the automated
-review loop have not yet run on a real ticket. Expect rough edges.
+review loop have not yet run on a real ticket. `sync` discovery and its dry run
+have been exercised against a real repository; its workers have not. Expect
+rough edges.
 
 ## Prerequisites
 
@@ -96,6 +98,30 @@ fabrika run --file spec.md
 
 The last log line of a clean run is the PR URL. If the run stops, rerun the
 same command and it picks up where it left off.
+
+Draft PRs wait for a human, and while they wait the base moves. When one goes
+conflicted, sweep them:
+
+```bash
+fabrika sync --dry-run
+```
+
+```bash
+fabrika sync
+```
+
+One pass over every open pull request you authored on this repository: the
+conflicted ones that target your base and whose branch is not checked out
+anywhere on this machine get their own worktree, run directory and agent
+session, and are merged, gated and pushed. Everything else is reported with
+the rule that skipped it — a pull request that is merely behind is left for
+the human who is going to read its diff.
+
+`--dry-run` prints exactly that selection and changes nothing; reach for it
+first, because filtering by author deliberately includes your hand-written
+branches. `--concurrency <n>` (default 2) is how many run at once. One line
+per pull request on your console, each worker's full log in its own
+`log.txt`, and the counts on the last line.
 
 Before trusting a real ticket to it, run `pnpm smoke` in the fabrika checkout.
 It proves the `claude` CLI behaviours the pipeline depends on.

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
-import { Effect } from "effect";
-import { attachesFrom, classify, createArgs } from "../src/adapters/gh-forge.ts";
+import { NodePath } from "@effect/platform-node";
+import { Effect, Path } from "effect";
+import { attachesFrom, classify, createArgs, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
-import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
+import { checkedOut } from "../src/adapters/git-workspace.ts";
+import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
+import { home } from "../src/paths.ts";
+import { identified, openedByFabrika, titleOf, TRAILER } from "../src/pull-request.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -161,6 +167,104 @@ test("a repo that needs no install step gets a config with no install key at all
 
 test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
   assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
+});
+
+test("GitHub's two merge fields map onto the four merge states", () => {
+  assert.equal(mergeStateOf("CONFLICTING", "DIRTY"), "conflicted");
+  assert.equal(mergeStateOf("MERGEABLE", "BEHIND"), "behind");
+  assert.equal(mergeStateOf("MERGEABLE", "CLEAN"), "clean");
+  assert.equal(mergeStateOf("MERGEABLE", undefined), "clean", "the expensive half of the query may be absent");
+  assert.equal(mergeStateOf("UNKNOWN", "UNKNOWN"), "unknown");
+  assert.equal(mergeStateOf("", ""), "unknown", "never assumed clean, never assumed conflicted");
+  assert.equal(mergeStateOf("CONFLICTING", undefined), "conflicted", "only `mergeable` decides anything");
+});
+
+test("the configured base splits into the remote and the branch", () => {
+  assert.equal(remoteOf("origin/main"), "origin");
+  assert.equal(baseBranch("origin/main"), "main");
+  assert.equal(remoteOf("main"), "origin", "a bare branch is the default remote's");
+  assert.equal(baseBranch("main"), "main");
+  // A branch name may carry slashes; a remote name may not, so only the
+  // first segment is ever the remote.
+  assert.equal(remoteOf("upstream/release/2.0"), "upstream");
+  assert.equal(baseBranch("upstream/release/2.0"), "release/2.0");
+});
+
+test("a run's directory is keyed by the repository's name and the run's own key", () => {
+  const path = Effect.runSync(Effect.provide(Path.Path, NodePath.layer));
+  assert.equal(
+    home(path, "runs", "/Users/domen/dev/fabrika", "FAB-5-42"),
+    join(homedir(), ".fabrika", "runs", "fabrika", "FAB-5-42"),
+  );
+  assert.equal(
+    home(path, "worktrees", "/Users/domen/dev/fabrika", "FAB-5-42"),
+    join(homedir(), ".fabrika", "worktrees", "fabrika", "FAB-5-42"),
+    "the two kinds differ only in that segment, so a tree and its log are findable from each other",
+  );
+  // The repository's basename, not its path: the scan for a pull request's
+  // existing run directory lists this one directory and nothing above it.
+  assert.equal(home(path, "runs", "/somewhere/else/fabrika", ""), home(path, "runs", "/Users/domen/dev/fabrika", ""));
+});
+
+test("a pull request fabrika opened reads back as the ticket it was opened for", () => {
+  const title = titleOf("FAB-5", "Conflicted PRs pile up");
+
+  assert.equal(title, "FAB-5: Conflicted PRs pile up");
+  assert.deepEqual(
+    identified(title),
+    { identifier: "FAB-5", title: "Conflicted PRs pile up" },
+    "the round trip is what a sweep keys its worktree and its merge prompt off",
+  );
+});
+
+test("a title fabrika did not write carries no identifier", () => {
+  assert.equal(identified("fix: a thing"), null);
+  assert.equal(identified("2026-05-01: a dated title"), null, "an identifier starts with a letter");
+  assert.deepEqual(identified("ENG-42:no space"), { identifier: "ENG-42", title: "no space" });
+});
+
+test("the trailer is what tells a sweep whose pull request it is", () => {
+  const body = ["Linear: https://linear.app/x/FAB-5", "", "a description", "", "---", TRAILER].join("\n");
+
+  assert.equal(openedByFabrika(body), true);
+  assert.equal(openedByFabrika("a pull request somebody wrote by hand"), false);
+});
+
+/** Real `git worktree list --porcelain` output, trimmed the way `run` trims it. */
+const PORCELAIN = [
+  "worktree /Users/domen/dev/fabrika",
+  "HEAD 4464ffb68cabfe7f741a26da8d8701cdb7a0dfec",
+  "branch refs/heads/main",
+  "",
+  "worktree /Users/domen/.fabrika/worktrees/fabrika/FAB-5",
+  "HEAD eac6ac204b2122ec63973a61835d575ec362da3e",
+  "branch refs/heads/perkzen/feat/FAB-5/sync-conflicted-prs",
+  "",
+  "worktree /Users/domen/.fabrika/worktrees/fabrika/FAB-4",
+  "HEAD 7b8c8baf6f3ef21eeaaa6c07618d02ac4b0236dc",
+  "detached",
+].join("\n");
+
+test("every branch checked out on this machine is read off git's own listing", () => {
+  assert.deepEqual(
+    checkedOut(PORCELAIN),
+    [
+      { branch: "main", path: "/Users/domen/dev/fabrika" },
+      {
+        branch: "perkzen/feat/FAB-5/sync-conflicted-prs",
+        path: "/Users/domen/.fabrika/worktrees/fabrika/FAB-5",
+      },
+    ],
+    "the operator's own checkout is in it — ADR-0004's reset is only safe because this rule sees it",
+  );
+});
+
+test("a detached worktree is on no branch, and one worktree is still a listing", () => {
+  assert.deepEqual(checkedOut("worktree /tmp/x\nHEAD 7b8c8ba\ndetached"), []);
+  assert.deepEqual(checkedOut("worktree /repo\nHEAD 4464ffb\nbranch refs/heads/main"), [
+    { branch: "main", path: "/repo" },
+  ]);
+  assert.deepEqual(checkedOut(""), [], "a listing that came back empty skips nothing rather than everything");
 });
 
 test("gh is asked for the right things", () => {

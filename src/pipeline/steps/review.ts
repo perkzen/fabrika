@@ -62,7 +62,7 @@ export const reviewRounds: Step = {
       const round = store.get().round;
       yield* journal.log(`review round ${round}/${config.review.maxRounds}`);
 
-      if (yield* syncWithBase(url)) {
+      if (yield* syncWithBase({ prUrl: url })) {
         yield* workspace.push(store.get().branch!);
         const head = yield* workspace.head;
         yield* store.update((state) => void (state.pushed = [head]));
@@ -92,10 +92,13 @@ export const reviewRounds: Step = {
       yield* journal.log(`  ${verdict}${failed.length} failing check(s)`);
       const scoreOk = !reviewer.scores || (review.score !== null && review.score >= config.review.requireScore);
       if (scoreOk && threads.length === 0 && failed.length === 0) {
-        yield* store.update((state) => void (state.done = true));
         const kept = yield* store.archive(workspace.artifactsDir);
         if (kept) yield* journal.log(`artifacts: ${kept}`);
         yield* workspace.remove;
+        // Last, once the finishing has finished: a state that says `done`
+        // before the artifacts are kept and the worktree is gone turns a
+        // failure in either into one no resume will ever retry.
+        yield* store.update((state) => void (state.done = true));
         // Returned rather than logged: the driver writes it after this step's
         // `end`, so the URL stays the last line of stdout. Both wordings end
         // with it, because that is the piped contract.
