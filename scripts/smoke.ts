@@ -90,11 +90,9 @@ const program = Effect.gen(function* () {
   yield* check("--resume carries context across directories", b.text.includes("fabrika-smoke-ok"), b.text.slice(0, 80));
   yield* check("--plugin-dir loads on a resumed session", b.loadedSkills.includes("fabrika:tdd"));
 
-  // C: --json-schema with stream-json, and --model on the same call. An alias
-  // rather than a full name, on the same staleness argument fabrika makes about
-  // baking model names in: `--help` lists the aliases and they outlive releases.
-  // The test suite proves fabrika puts the flag in the argv; only this call
-  // proves the binary accepts what it says. An answer here is that proof.
+  // C: --json-schema with stream-json, and --model on the same call — the only
+  // place the real binary is asked to accept the flag. An alias rather than a
+  // full name: `--help` lists the aliases and they outlive releases.
   const c = yield* runClaude({
     cwd,
     credential,
