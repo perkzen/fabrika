@@ -1,0 +1,23 @@
+test/captures-adapter.test.ts
+  s_5dd1191cb85828::t_8ac694321fd8b8 2,114-117,130,132-136
+  s_5dd1191cb85828::t_0dd6bc2813912e 3,118-129,131,137
+  s_5dd1191cb85828::t_5f2ca5181269f2 24-29,33,41,44,52
+test/harness.ts
+  s_5dd1191cb85828::t_5f2ca5181269f2 55-56,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "06343fabf05251332bd38c0908a796082444f2a2",
+  "prompts": {},
+  "sessions": {
+    "s_5dd1191cb85828": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2fe348e-7146-469f-b2c6-1189a5d1d9df",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
