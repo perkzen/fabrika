@@ -84,3 +84,19 @@ test("a tree that is already there is refused, not reset over", async () => {
   );
   assert.ok(existsSync(join(where.dir, ".git")));
 });
+
+/**
+ * The third branch of `checkout`: a pull request whose head branch the remote
+ * no longer has — deleted after a merge, or renamed while the sweep was
+ * listing. It has to fail readably rather than create a worktree on whatever
+ * the local repository happens to have under that name.
+ */
+test("a branch the remote does not have is refused by name, and no tree is left", async () => {
+  const where = repository();
+
+  const error = await Effect.runPromise(Effect.flip(checking(where, "no-such-branch")));
+
+  assert.ok(error instanceof FabrikaError, `the error the ports speak, not a crash: ${error}`);
+  assert.match(error.message, /origin\/no-such-branch/, "the line names the ref that is missing");
+  assert.equal(existsSync(where.dir), false, "nothing half-made is left behind for the next sweep to refuse");
+});
