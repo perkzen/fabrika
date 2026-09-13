@@ -68,6 +68,7 @@ test("the editor is handed an environment with no credentials in it", () => {
     {
       FABRIKA_EDITOR: "code",
       PATH: "/usr/bin",
+      SSH_AUTH_SOCK: "/tmp/agent.sock",
       LINEAR_API_KEY: "lin_api_secret",
       ANTHROPIC_AUTH_TOKEN: "sk-secret",
       GH_TOKEN: "ghp_secret",
@@ -78,7 +79,7 @@ test("the editor is handed an environment with no credentials in it", () => {
 
   assert.deepEqual(
     envs,
-    [{ FABRIKA_EDITOR: "code", PATH: "/usr/bin" }],
-    "an editor is a long-lived process the operator works inside, and fabrika's keys are not its to hold",
+    [{ FABRIKA_EDITOR: "code", PATH: "/usr/bin", SSH_AUTH_SOCK: "/tmp/agent.sock" }],
+    "an editor is a long-lived process the operator works inside, and fabrika's keys are not its to hold — but the ssh agent is the operator's own, and a terminal in there still has to push",
   );
 });

@@ -16,7 +16,9 @@ import { detached, withoutSecrets } from "./shell.ts";
  * The editor gets this environment minus its credentials. An editor is a
  * process the operator then works inside — its terminal, its tasks, its
  * extensions all inherit what it was started with — and none of that is work
- * fabrika's Linear or Claude keys belong to.
+ * fabrika's Linear or Claude keys belong to. The ssh agent is the exception:
+ * its socket is named like a credential and is not one, and a terminal in
+ * there still has to push.
  */
 export const editorOpener = (
   dir: string,
@@ -29,5 +31,5 @@ export const editorOpener = (
   // worth guessing, and a key that cannot do anything is worse than no key.
   const [bin, ...args] = named ? named.split(/\s+/) : platform === "darwin" ? ["open"] : [];
   if (bin === undefined) return undefined;
-  return () => spawn(bin, [...args, dir], withoutSecrets(env));
+  return () => spawn(bin, [...args, dir], withoutSecrets(env, ["SSH_AUTH_SOCK"]));
 };

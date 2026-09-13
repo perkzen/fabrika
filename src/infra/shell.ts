@@ -16,11 +16,19 @@ export type ShellResult = { readonly code: number; readonly out: string };
  */
 const SECRET = /KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|_AUTH|^AUTH/;
 
-/** An environment minus anything named like a credential. */
-export const withoutSecrets = (environment: NodeJS.ProcessEnv): Record<string, string> => {
+/**
+ * An environment minus anything named like a credential, and minus nothing
+ * the caller names in `keep`. The pattern is a guess at a name, so a child
+ * that needs one of its false positives says which; deciding that at the call
+ * site is what keeps "what does this child get" beside the spawn.
+ */
+export const withoutSecrets = (
+  environment: NodeJS.ProcessEnv,
+  keep: ReadonlyArray<string> = [],
+): Record<string, string> => {
   const kept: Record<string, string> = {};
   for (const [name, value] of Object.entries(environment)) {
-    if (value !== undefined && !SECRET.test(name.toUpperCase())) kept[name] = value;
+    if (value !== undefined && (keep.includes(name) || !SECRET.test(name.toUpperCase()))) kept[name] = value;
   }
   return kept;
 };
