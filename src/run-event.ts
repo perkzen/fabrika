@@ -9,6 +9,11 @@
  */
 export type RunEvent =
   | {
+      readonly kind: "run";
+      readonly steps: ReadonlyArray<{ readonly name: string; readonly done: boolean }>;
+      readonly completed: ReadonlyArray<string>;
+    }
+  | {
       readonly kind: "step";
       readonly name: string;
       readonly at: number;
@@ -37,6 +42,13 @@ export type RunEvent =
 export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
   if (typeof entry === "string") return entry.split("\n");
   switch (entry.kind) {
+    // The ticket header is preflight's line and stays preflight's line; this
+    // event says what the run is made of and how much of it is already behind.
+    case "run":
+      return [
+        ...(entry.completed.length > 0 ? [`resuming after ${entry.completed.join(", ")}`] : []),
+        `steps: ${entry.steps.map((step) => step.name).join(", ")}`,
+      ];
     case "step":
       switch (entry.state) {
         case "start":

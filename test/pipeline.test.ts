@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { Escalated } from "../src/pipeline/escalated.ts";
 import { pipeline, type Step } from "../src/pipeline/step.ts";
 import { RunStore } from "../src/ports/run-store.ts";
+import type { RunEvent } from "../src/run-event.ts";
 import { exercise } from "./harness.ts";
 
 const noop = (name: string, extra: Partial<Step> = {}): Step => ({
@@ -62,4 +63,32 @@ test("an escalated run records the reason before it fails", async () => {
   const { failed, recording } = await exercise(pipeline().step(escalating).build().run);
   assert.equal(failed, true);
   assert.ok(recording.log.some((line) => line === "escalated: gate still red after 3 iterations"));
+});
+
+test("a resumed run shows the step list with the finished steps already done", async () => {
+  const built = pipeline()
+    .step(noop("spec", { once: true }))
+    .step(noop("review", { once: true }))
+    .step(noop("review"))
+    .build();
+  const { recording } = await exercise(built.run, { state: { completed: ["spec", "review"] } });
+
+  assert.deepEqual(recording.log.slice(0, 2), ["resuming after spec, review", "steps: spec, review, review"]);
+  const run = recording.events.find((entry): entry is Extract<RunEvent, { kind: "run" }> =>
+    typeof entry !== "string" && entry.kind === "run",
+  );
+  assert.deepEqual(
+    run?.steps,
+    [
+      { name: "spec", done: true },
+      { name: "review", done: true },
+      { name: "review", done: false },
+    ],
+    "done is decided per index, so the review loop is not marked done by the review stage",
+  );
+});
+
+test("a fresh run names its steps but has nothing to resume after", async () => {
+  const { recording } = await exercise(pipeline().step(noop("one")).step(noop("two")).build().run);
+  assert.equal(recording.log[0], "steps: one, two");
 });

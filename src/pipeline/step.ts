@@ -97,7 +97,13 @@ const body = (
 ): Effect.Effect<void, StepError, StepServices> =>
   Effect.gen(function* () {
     const done = store.get().completed;
-    if (done.length > 0) yield* journal.log(`resuming after ${done.join(", ")}`);
+    // `done` is decided per index, never by name: a pipeline has two steps
+    // called `review` and only the `once` one is finished by a resume.
+    yield* journal.log({
+      kind: "run",
+      completed: done,
+      steps: steps.map((step) => ({ name: step.name, done: Boolean(step.once && done.includes(step.name)) })),
+    });
     const of = steps.length;
     for (const [index, step] of steps.entries()) {
       const at = index + 1;
