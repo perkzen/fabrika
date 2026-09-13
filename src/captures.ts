@@ -99,7 +99,14 @@ const block = (content: string) => {
   return `${wrap}\n${content}\n${wrap}`;
 };
 
-const pairs = (shot: Shot, kind: CaptureFile["kind"]) => {
+/** One file name as the two halves have it; a side is absent when only the other wrote it. */
+type Pair = {
+  readonly name: string;
+  readonly before: CaptureFile | undefined;
+  readonly after: CaptureFile | undefined;
+};
+
+const pairs = (shot: Shot, kind: CaptureFile["kind"]): ReadonlyArray<Pair> => {
   const of = (files: ReadonlyArray<CaptureFile> | undefined) => (files ?? []).filter((file) => file.kind === kind);
   const before = of(shot.before);
   const after = of(shot.after);
@@ -111,7 +118,7 @@ const pairs = (shot: Shot, kind: CaptureFile["kind"]) => {
   }));
 };
 
-const textBlock = (capture: string, pair: ReturnType<typeof pairs>[number]) =>
+const textBlock = (capture: string, pair: Pair) =>
   [
     `**${capture} — \`${pair.name}\`**`,
     "",
@@ -120,7 +127,7 @@ const textBlock = (capture: string, pair: ReturnType<typeof pairs>[number]) =>
     pair.after ? `After:\n\n${block(pair.after.content)}` : `After: ${GONE}`,
   ].join("\n");
 
-const linkLine = (capture: string, pair: ReturnType<typeof pairs>[number]) => {
+const linkLine = (capture: string, pair: Pair) => {
   const cell = (file: CaptureFile | undefined, label: string, missing: string) =>
     file ? `[${label}](${file.content})` : missing;
   return `**${capture} — \`${pair.name}\`**: ${cell(pair.before, "before", NEW)} · ${cell(pair.after, "after", GONE)}`;
