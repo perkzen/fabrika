@@ -117,3 +117,15 @@ test("a posted body still holding a host path is put back", async () => {
   assert.ok(words.recording.prs[0]!.body.includes("## Before / After"));
   assert.deepEqual(words.recording.edited, [], "a text-only section has no host path to look for");
 });
+
+test("a resumed run that already opened the pull request asks nothing", async () => {
+  const { failed, recording } = await exercise(openPullRequest.run, {
+    ...withCapture,
+    captures: [framed],
+    state: { prNumber: 7, branch: "domen-perko/feat/FAB-1/a-thing" },
+  });
+
+  assert.equal(failed, false);
+  assert.deepEqual(recording.prs, [], "no second pull request");
+  assert.deepEqual(recording.captures, [], "and no second capture, so the run costs nothing it already paid");
+});
