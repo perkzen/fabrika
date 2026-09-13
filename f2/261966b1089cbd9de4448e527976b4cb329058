@@ -1,0 +1,22 @@
+.fabrika/tickets/sync-screen.md
+  s_a164a8145e831e::t_3af973d8abcbe4 101-102
+  s_a164a8145e831e::t_8696b5a8d9607c 13-14,62-67,71-80,106-112,160-163,171-176,185-186,197-203
+  s_a164a8145e831e::t_08b2aed0d28a4c 38-42,68-70
+  s_a164a8145e831e::t_16628d80ce861a 1-12,15-37,43-61,81-100,103-105,113-159,164-170,177-184,187-196,204-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f2261966b1089cbd9de4448e527976b4cb329058",
+  "prompts": {},
+  "sessions": {
+    "s_a164a8145e831e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bd3db06-c77d-4df6-8a9f-4b57619290d2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
