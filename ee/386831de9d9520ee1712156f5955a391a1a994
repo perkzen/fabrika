@@ -1,0 +1,21 @@
+src/captures.ts
+  s_1b56e5ccbe00e1::t_80b8117c185218 75-80,83
+test/captures.test.ts
+  s_1b56e5ccbe00e1::t_9f7ead99ddbe5d 201-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ee386831de9d9520ee1712156f5955a391a1a994",
+  "prompts": {},
+  "sessions": {
+    "s_1b56e5ccbe00e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42f78db9-a428-495a-b458-f648bd735cb5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
