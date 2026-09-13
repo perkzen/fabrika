@@ -1,0 +1,21 @@
+src/adapters/git-workspace.ts
+  s_f917e12f3bd57e::t_fc8ffb7317f852 20-35,111
+test/domain.test.ts
+  s_f917e12f3bd57e::t_242579b4e38511 9,209-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f88f9e087028928cbef5dd739ae3479e29682e4e",
+  "prompts": {},
+  "sessions": {
+    "s_f917e12f3bd57e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc19324b-0581-4f09-9f9c-80c183c5316e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
