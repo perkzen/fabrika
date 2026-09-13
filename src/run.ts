@@ -8,9 +8,9 @@ import * as fsPrompts from "./adapters/fs-prompts.ts";
 import * as ghForge from "./adapters/gh-forge.ts";
 import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
+import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import type { Config } from "./config.ts";
-import { Captures } from "./ports/captures.ts";
 import type { Credential } from "./infra/claude.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -23,9 +23,11 @@ export { Escalated } from "./pipeline/escalated.ts";
 /**
  * Where a run keeps what it must not lose: state, logs and raw transcripts
  * outside the target repo, the worktree outside it as well. Both are keyed by
- * repository and ticket, so two tickets never share either.
+ * repository and ticket, so two tickets never share either. The capture cache
+ * is keyed by repository and base sha instead, so ten tickets cut from one
+ * base share it.
  */
-const home = (kind: "runs" | "worktrees", repoRoot: string, identifier: string) =>
+const home = (kind: "runs" | "worktrees" | "captures", repoRoot: string, identifier: string) =>
   Effect.map(Path.Path, (path) => path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), identifier));
 
 /**
@@ -64,8 +66,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       config.review.provider === "cubic" ? cubicReviewer.layer.pipe(Layer.provide(foundation)) : noReviewer.layer;
     const ports = Layer.mergeAll(
       foundation,
-      // Scaffolding: the real adapter lands with the capture commands.
-      Layer.succeed(Captures)({ take: () => Effect.succeed([]) }),
+      shellCaptures
+        .layer({ cacheRoot: yield* home("captures", repoRoot, ""), install: config.install })
+        .pipe(Layer.provide(foundation)),
       reviewer,
       ghForge.layer({ base: gitWorkspace.baseBranch(config.base) }).pipe(Layer.provide(Layer.merge(foundation, reviewer))),
       shellGate.layer(config.gate).pipe(Layer.provide(foundation)),
