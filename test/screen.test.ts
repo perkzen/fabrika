@@ -49,7 +49,7 @@ const keyboard = () => {
 /** Opt-in rather than a default: the whole-scrollback assertions belong to the tests that are about them. */
 const open = (
   out: ReturnType<typeof terminal>,
-  extra: { input?: ReturnType<typeof keyboard>; worktree?: string } = {},
+  extra: { input?: ReturnType<typeof keyboard>; worktree?: string; open?: () => void } = {},
 ) =>
   openScreen({
     stream: out.stream,
@@ -59,6 +59,7 @@ const open = (
     input: (extra.input ?? keyboard()) as unknown as NodeJS.ReadStream,
     kill: () => {},
     worktree: extra.worktree,
+    open: extra.open,
   });
 
 const WORKTREE = "/Users/x/.fabrika/worktrees/fabrika/FAB-6";
@@ -243,6 +244,41 @@ test("a key moves the view and nothing else, and the next frame shows it", (t) =
   t.mock.timers.tick(80);
   assert.doesNotMatch(out.chunks.at(-1)!, /Read src\/cli\.ts/);
 
+  presenter.end();
+});
+
+test("o opens the worktree once, and the run comes to exactly what it would have anyway", () => {
+  const go = (pressed?: string) => {
+    const out = terminal({ columns: 80, rows: 12 });
+    const keys = keyboard();
+    let opened = 0;
+    const presenter = open(out, { input: keys, worktree: WORKTREE, open: () => void (opened += 1) });
+
+    presenter.show(RUN);
+    presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+    if (pressed !== undefined) keys.emit("data", pressed);
+    presenter.show(RESULT);
+    presenter.end();
+    return { opened, exit: out.text().slice(out.text().lastIndexOf("\x1b[?1049l")) };
+  };
+
+  const touched = go("o");
+  const untouched = go();
+  assert.equal(touched.opened, 1, "one press is one editor, and nothing was spawned to find that out");
+  assert.equal(untouched.opened, 0);
+  assert.equal(touched.exit, untouched.exit, "a run whose operator pressed o ends the way one nobody touched does");
+});
+
+test("o on a screen with no opener does nothing, and no key press writes anything by itself", () => {
+  const out = terminal();
+  const keys = keyboard();
+  const presenter = open(out, { input: keys, worktree: WORKTREE });
+
+  presenter.show(RUN);
+  const settled = out.text();
+  keys.emit("data", "o");
+
+  assert.equal(out.text(), settled, "draws happen on the timer, so a key writes nothing synchronously");
   presenter.end();
 });
 

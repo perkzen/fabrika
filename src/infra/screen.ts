@@ -15,6 +15,12 @@ export type ScreenOptions = ConsoleOptions & {
   readonly input?: NodeJS.ReadStream;
   /** How `Ctrl-C` is raised, injected so a test can press it without signalling the test runner. */
   readonly kill?: () => void;
+  /**
+   * What `o` does — already bound to the worktree, and injected so a test
+   * presses it without spawning anything. Its presence is also what decides
+   * whether the keys row names the key at all.
+   */
+  readonly open?: () => void;
 };
 
 const ALTERNATE_ON = "\x1b[?1049h";
@@ -95,6 +101,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
       // this does, and `runMain` interrupts the fiber. A `process.exit` here
       // would preempt the finalisers that clean up the MCP temp files.
       if (key === "interrupt") kill();
+      // Not `press`'s business either: it is pure and returns a view, and an
+      // editor is not a view.
+      else if (key === "open") options.open?.();
       else view = press(key, view, tree, size());
     }
     dirty = true;
