@@ -1,0 +1,41 @@
+src/pipeline/sweep.ts
+  s_02a5e3901f78aa::t_de12f03efeb44a 218
+src/adapters/git-workspace.ts
+  ai_agent 208
+test/domain.test.ts
+  ai_agent 7,102-123,145,163,269-356
+src/run.ts
+  ai_agent 10,14-16,46-54,56,74-76,91-98
+test/sweep.test.ts
+  s_02a5e3901f78aa::t_de12f03efeb44a 311
+docs/internals.md
+  ai_agent 21-22,27,30,34-36,42,89-92,157-163,282-304
+src/pipeline/steps/pull-request.ts
+  ai_agent 2-4,15-77,84-85,110-131,135-139
+test/harness.ts
+  ai_agent 3,5,9,41-50,63-68,85-89,108-112,138-139,188,190-193,212-218,225,244,269-279,281-292
+src/ports/workspace.ts
+  ai_agent 67-71
+src/adapters/file-journal.ts
+  ai_agent 4,9,15,36-39,41,44
+src/adapters/gh-forge.ts
+  ai_agent 1,135-160,222-223,246-264,278-280,283-284,288-306
+src/paths.ts
+  s_02a5e3901f78aa::t_b4c1bfc85ea5fb 28-29,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cae2bb31ced694aade1d3be8a3cfa937f5013a8f",
+  "prompts": {},
+  "sessions": {
+    "s_02a5e3901f78aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a6db9e6-4731-4402-b29e-f18d21d3134e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
