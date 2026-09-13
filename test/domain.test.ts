@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { classify } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
-import { asProposal } from "../src/configure.ts";
+import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
 const ticket: Ticket = { identifier: "PAR-12", title: "Add a new export button", description: "", type: "feat" };
@@ -107,4 +107,37 @@ test("a proposal keeps cubic and normalises anything else to none, without losin
     assert.deepEqual(proposal?.gate, [{ name: "compile", run: "tsc" }], "a correctly-read gate survives the guess");
     assert.equal(proposal?.base, "origin/main");
   }
+});
+
+test("a proposal becomes the config init writes, and only the fields it proposed move", () => {
+  const config = asConfig({
+    base: "origin/trunk",
+    install: "pnpm i --frozen-lockfile",
+    gate: [{ name: "compile", run: "tsc" }],
+    provider: "cubic",
+    notes: ["read off the repo"],
+  });
+
+  assert.equal(config.base, "origin/trunk");
+  assert.equal(config.install, "pnpm i --frozen-lockfile");
+  assert.deepEqual(config.gate, [{ name: "compile", run: "tsc" }]);
+  assert.equal(config.review.provider, "cubic");
+  // The proposal names one field of `review`; the merge must not cost the
+  // other three, which no caller of `init` would notice until a run timed out
+  // on the wrong deadline.
+  assert.equal(config.review.requireScore, CONFIG_TEMPLATE.review.requireScore);
+  assert.equal(config.review.maxRounds, CONFIG_TEMPLATE.review.maxRounds);
+  assert.equal(config.review.timeoutMinutes, CONFIG_TEMPLATE.review.timeoutMinutes);
+  assert.deepEqual(config.stages, CONFIG_TEMPLATE.stages, "the stages are shipped, never proposed");
+  assert.deepEqual(config.deny, CONFIG_TEMPLATE.deny);
+});
+
+test("a repo that needs no install step gets a config with no install key at all", () => {
+  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", notes: [] });
+  assert.equal(config.install, undefined);
+  assert.equal(JSON.parse(JSON.stringify(config)).install, undefined, "and `init` writes the file without it");
+});
+
+test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
+  assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
 });

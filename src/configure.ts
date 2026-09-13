@@ -1,7 +1,7 @@
 import { Effect, FileSystem } from "effect";
 import { fileURLToPath } from "node:url";
 import { runClaude, type Credential } from "./infra/claude.ts";
-import { CONFIG_TEMPLATE, type GateStep } from "./config.ts";
+import { CONFIG_TEMPLATE, type Config, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
 /** The four repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
@@ -103,6 +103,27 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
   const provider = r.provider === "cubic" ? "cubic" : "none";
   return { base, install: r.install, gate, provider, notes };
 };
+
+/**
+ * What `init` writes, from what the call proposed — or the neutral template
+ * when nothing usable came back, because `init` has a config to write either
+ * way. It lives beside `asProposal` that produced its input: the proposal's
+ * fields are declared, validated and applied in one place, so a fifth one is
+ * added here rather than in a merge the CLI keeps on the side.
+ *
+ * `review` is spread, not replaced — the call proposes one of its four fields
+ * and the other three are the template's.
+ */
+export const asConfig = (proposal: ConfigProposal | null): Config =>
+  proposal
+    ? {
+        ...CONFIG_TEMPLATE,
+        base: proposal.base,
+        install: proposal.install,
+        gate: proposal.gate,
+        review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
+      }
+    : CONFIG_TEMPLATE;
 
 const PROMPT = fileURLToPath(new URL("../prompts/configure.md", import.meta.url));
 

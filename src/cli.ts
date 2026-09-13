@@ -9,9 +9,8 @@ import { fileURLToPath } from "node:url";
 import * as fileTickets from "./adapters/file-tickets.ts";
 import * as linearTickets from "./adapters/linear-tickets.ts";
 import { runClaude } from "./infra/claude.ts";
-import type { Config } from "./config.ts";
-import { CONFIG_PATH, CONFIG_TEMPLATE, loadConfig } from "./config.ts";
-import { proposeConfig } from "./configure.ts";
+import { CONFIG_PATH, loadConfig } from "./config.ts";
+import { asConfig, proposeConfig } from "./configure.ts";
 import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
 import { openConsole, type Presenter } from "./infra/console.ts";
@@ -46,7 +45,7 @@ const configure = (presenter: Presenter) =>
     // The gate is whatever this repo already checks with, so it is read off
     // the repo rather than shipped: a step that does not exist here would go
     // red on an untouched checkout, and the agent would be handed "fix it"
-    // for code it never wrote. One structured call proposes the three
+    // for code it never wrote. One structured call proposes the four
     // repo-specific fields; the host is still the one that writes the file,
     // so a rejected answer cannot produce a config that will not load.
     yield* say("reading the repo: base branch, install command, and the checks CI enforces.");
@@ -62,15 +61,7 @@ const configure = (presenter: Presenter) =>
       Effect.catch((e) => rejected(`could not run the configure call (${String((e as { message?: unknown }).message ?? e).slice(0, 80)})`)),
     );
     for (const note of proposal?.notes ?? []) yield* say({ kind: "note", level: "detail", text: note });
-    const config: Config = proposal
-      ? {
-          ...CONFIG_TEMPLATE,
-          base: proposal.base,
-          install: proposal.install,
-          gate: proposal.gate,
-          review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
-        }
-      : CONFIG_TEMPLATE;
+    const config = asConfig(proposal);
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
     yield* fs.writeFileString(target, JSON.stringify(config, null, 2) + "\n");
     // `JSON.stringify` expands every array; prettier collapses the short ones,
