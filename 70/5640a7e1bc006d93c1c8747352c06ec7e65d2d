@@ -1,0 +1,9 @@
+src/infra/markdown.ts
+  ai_agent 36-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "705640a7e1bc006d93c1c8747352c06ec7e65d2d",
+  "prompts": {}
+}
