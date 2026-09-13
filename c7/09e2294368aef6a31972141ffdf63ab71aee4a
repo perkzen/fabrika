@@ -1,0 +1,27 @@
+README.md
+  s_1cde4c928ae324::t_e767c4521e814a 185-191
+src/config.ts
+  s_1cde4c928ae324::t_c8f2cba6b2218a 59-62,64
+src/captures.ts
+  s_1cde4c928ae324::t_c8f2cba6b2218a 237-246,269,277
+test/captures.test.ts
+  s_1cde4c928ae324::t_57dbaf71bce5d4 216,242-252
+test/pull-request.test.ts
+  s_1cde4c928ae324::t_57dbaf71bce5d4 228-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c709e2294368aef6a31972141ffdf63ab71aee4a",
+  "prompts": {},
+  "sessions": {
+    "s_1cde4c928ae324": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87070f0f-b70e-49b9-9432-c7d2a1b9cf99",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
