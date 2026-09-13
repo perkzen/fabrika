@@ -1,6 +1,6 @@
 /**
  * The pull request fabrika opens, as text: the title it carries and the
- * trailer that marks it, and how each is read back.
+ * trailer that says it is fabrika's, and how each is read back.
  *
  * Two facts travel from the run that opened a pull request to the sweep that
  * finds it weeks later, through nothing but the pull request itself: the
@@ -19,16 +19,16 @@
 export const titleOf = (identifier: string, title: string) => `${identifier}: ${title}`;
 
 /**
- * The sentence that marks a pull request as fabrika's. The rest of the trailer
- * is prose that may be reworded; this is the part that is load-bearing, so it
- * is matched on its own.
+ * The sentence in the trailer that says a pull request is fabrika's own. The
+ * rest of the trailer is prose that may be reworded; this is the part that is
+ * load-bearing, so it is matched on its own.
  */
-const MARKER = "Opened by fabrika";
+const OPENED_BY = "Opened by fabrika";
 
 /** The trailer every body fabrika writes ends with. */
-export const TRAILER = `${MARKER}. Draft until a human reviews.`;
+export const TRAILER = `${OPENED_BY}. Draft until a human reviews.`;
 
-export const openedByFabrika = (body: string) => body.includes(MARKER);
+export const openedByFabrika = (body: string) => body.includes(OPENED_BY);
 
 const TITLED = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*:\s*(.*)$/;
 
