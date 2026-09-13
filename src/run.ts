@@ -11,6 +11,7 @@ import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import type { Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
+import { keepAwake } from "./infra/keep-awake.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
 import { RunContext } from "./ports/run-context.ts";
@@ -75,6 +76,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       if (store.get().done) {
         return yield* journal.log(`already done: ${ticket.identifier} — remove ${runsDir} to rerun`);
       }
+      // After the short-circuit: only a run that is about to wait on something
+      // has any reason to hold the machine awake.
+      if (config.keepAwake) keepAwake(journal.write);
       yield* fabrikaPipeline(config).run;
     }).pipe(Effect.provide(ports));
   });

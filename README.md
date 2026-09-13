@@ -142,6 +142,23 @@ did not seek.
 A failed CI run is rerun once first, for flakes. The host never resolves a
 thread the agent did not address.
 
+### Keeping the machine awake
+
+A run is mostly waiting — on an agent call, on the reviewer, on CI — and a Mac
+that goes to sleep takes every one of those waits with it. Set `keepAwake` and
+the run holds the machine up for its own lifetime:
+
+```json
+{
+  "keepAwake": true
+}
+```
+
+macOS only: it is `caffeinate -dimsu` watching fabrika's own pid, so it stops
+the moment the run does, whether that is a clean finish, an escalation or a
+Ctrl-C. Off by default, because `.fabrika/config.json` is committed and this is
+one machine's preference. On anything but macOS it warns once and runs on.
+
 ### Principles
 
 - **Humans own both ends.** People write tickets and people merge PRs. No auto-merge, no writes to the ticket tracker.
@@ -199,7 +216,7 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 
 ## Where things live
 
-- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, denied tools, review settings
+- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, denied tools, review settings, `keepAwake`
 - `~/.fabrika/worktrees/<repo>/<ticket>/`: the worktree for a run
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
 - `~/.config/fabrika/.env`: secrets, kept out of every repo

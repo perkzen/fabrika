@@ -40,6 +40,13 @@ export const Config = Schema.Struct({
   }),
   /** How long to wait for the PR's checks after a push; defaults to the review timeout. */
   checks: Schema.optional(Schema.Struct({ timeoutMinutes: Schema.Number })),
+  /**
+   * Hold the machine awake for the length of a run, so a laptop that suspends
+   * does not take every open wait with it. macOS only (`caffeinate`), and off
+   * unless asked for: this file is committed, so it is one machine's
+   * preference living in every contributor's checkout.
+   */
+  keepAwake: Schema.optional(Schema.Boolean),
   maxIterations: Schema.Number,
 });
 export type Config = typeof Config.Type;

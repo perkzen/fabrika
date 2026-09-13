@@ -93,6 +93,17 @@ test("both providers decode and a third does not, so a typo fails at the start o
   assert.match(String(error), /\["review"\]\["provider"\]/);
 });
 
+test("keepAwake is optional, so every config written before it still loads", async () => {
+  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(without.keepAwake, undefined, "and the file `init` writes does not turn one machine's preference on for everyone");
+
+  const on = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, keepAwake: true })));
+  assert.equal(on.keepAwake, true);
+
+  const error = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, keepAwake: "yes" })).pipe(Effect.flip));
+  assert.match(String(error), /\["keepAwake"\]/, "a string fails at the start of the run, not hours in");
+});
+
 test("the config init falls back to is runnable on a repo with no review bot", async () => {
   const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
