@@ -67,3 +67,46 @@ test("a finished step's summary is the arithmetic of the events inside it", () =
     ],
   });
 });
+
+test("events are attributed to the open step, never to their stage field", () => {
+  const tree = script(
+    [0, RUN],
+    [1, "the branch is perkzen/feat/FAB-6"],
+    [2, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    // `stage` is the agent's label for one call — the review loop makes calls
+    // under `ci` and `cubic-gate` — so it says nothing about which step is open.
+    [3, { kind: "tool", stage: "ci", tool: "Bash", subject: "pnpm test" }],
+    [4, { kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 9, outcome: "done" }],
+    [5, { kind: "note", level: "info", text: "PR https://github.com/perkzen/fabrika/pull/7" }],
+  );
+
+  const [root] = tree.roots;
+  assert.deepEqual(
+    root!.children.map((step) => step.stream.length),
+    [0, 1, 0],
+    "the tool call is the open step's, whatever it calls its stage",
+  );
+  assert.deepEqual(
+    root!.stream.map(({ entry }) => (typeof entry === "string" ? entry : entry.kind)),
+    ["the branch is perkzen/feat/FAB-6", "note"],
+    "before the first start and after the last end there is no open step, so the events are the run's",
+  );
+  assert.equal(root!.children[1]!.summary.calls, 1);
+});
+
+test("a Skill tool call names an invoked skill, and the same skill twice is one", () => {
+  const tree = script(
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "tool", stage: "implement", tool: "Skill", subject: "fabrika:tdd" }],
+    [3, { kind: "tool", stage: "implement", tool: "Bash", subject: "pnpm test" }],
+    [4, { kind: "tool", stage: "implement", tool: "Skill", subject: "fabrika:code-comments" }],
+    [5, { kind: "tool", stage: "implement", tool: "Skill", subject: "fabrika:tdd" }],
+    // An unknown tool has no subject to name, and a nameless skill is no skill.
+    [6, { kind: "tool", stage: "implement", tool: "Skill", subject: "" }],
+  );
+
+  const step = tree.roots[0]!.children[1]!;
+  assert.deepEqual(step.summary.skills, ["fabrika:tdd", "fabrika:code-comments"], "first-use order, deduplicated");
+  assert.equal(step.summary.calls, 5, "an invoked skill is still a tool call");
+});

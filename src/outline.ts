@@ -173,7 +173,13 @@ const fold = (summary: Summary, entry: RunEvent | string): Summary => {
         ...summary,
         calls: summary.calls + 1,
         tools: counted(summary.tools, entry.tool),
-        skills: summary.skills,
+        // The skill the agent reached for is already the call's subject
+        // (`describeToolUse` returns `input.skill`), so an invoked skill needs
+        // no new event and no new field. A nameless one is no skill.
+        skills:
+          entry.tool === "Skill" && entry.subject && !summary.skills.includes(entry.subject)
+            ? [...summary.skills, entry.subject]
+            : summary.skills,
       };
     // A gate's `start` is its liveness, not its verdict; only the three
     // verdicts are what the step came to.
