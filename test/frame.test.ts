@@ -355,3 +355,34 @@ test("wrapping never splits a character in half, whatever column it lands on", (
     }
   }
 });
+
+test("a tab is a space by the time it reaches the terminal, because it costs more columns than it counts", () => {
+  const tree = script(
+    "FAB-6",
+    [0, { kind: "run", completed: [], steps: [{ name: "pre\tflight", done: false }, { name: "implement", done: false }, { name: "review", done: false }] }],
+    [0, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    // A fenced block is walked verbatim, and an agent reading a tab-indented
+    // repo puts one on screen every few minutes.
+    [1, { kind: "agent", stage: "implement", markdown: "```go\nfunc main() {\n\tfmt.Println(\"hi\")\n}\n```" }],
+  );
+  const lines = frame(tree, watching, { columns: 30, rows: 12 }, bare, { now: noon, spin: 0 });
+
+  assert.equal(lines.length, 12, "the frame is still exactly rows lines");
+  for (const line of lines) {
+    assert.ok(!line.includes("\t"), `"${line}" carries a tab, which the terminal widens to the next tab stop`);
+    assert.ok(line.length <= 29, `"${line}" is wider than columns - 1`);
+  }
+  assert.deepEqual(
+    lines.slice(1, 8),
+    [
+      "· 1/3 pre flight",
+      "▸ 2/3 implement",
+      "12:00:01 │   go",
+      "12:00:01 │   func main() {",
+      '12:00:01 │    fmt.Println("hi',
+      '")',
+      "12:00:01 │   }",
+    ],
+    "a tab is one column wherever it lands, and one in a code block still indents the line it is on",
+  );
+});

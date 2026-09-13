@@ -207,12 +207,25 @@ const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined 
  * garbage. A double-width character still costs one, the way ADR-0001's
  * truncation always has.
  */
+/**
+ * The two characters `scrub` keeps, as the one column a row counts them as.
+ *
+ * `scrub` keeps tab and newline because an event's text also goes to
+ * `log.txt`, and a file has tab stops and paragraphs. A row has neither: a
+ * terminal advances a tab to the next multiple of eight and starts a new
+ * physical line on a newline, so either one in an agent's code block or a
+ * config-written step name makes the frame taller than the `size.rows` the
+ * cursor arithmetic drew it as — permanently, because a wrap on the last row
+ * scrolls the alternate buffer out from under the next `HOME`.
+ */
+const flattened = (text: string): string => text.replace(/[\t\n]/g, " ");
+
 const wrap = (line: string, width: number): ReadonlyArray<string> => {
   if (width <= 0) return [""];
   const rows: Array<string> = [];
   let row = "";
   let used = 0;
-  for (const piece of line.match(/\x1b\[[0-9;]*m|[\s\S]/gu) ?? []) {
+  for (const piece of flattened(line).match(/\x1b\[[0-9;]*m|[\s\S]/gu) ?? []) {
     if (piece.startsWith("\x1b")) {
       row += piece;
       continue;
@@ -318,7 +331,7 @@ const row = (segments: ReadonlyArray<Segment>, width: number, dress: Styler): st
   let left = width;
   for (const segment of segments) {
     if (left <= 0) break;
-    const text = scrub(segment.text).slice(0, left);
+    const text = flattened(scrub(segment.text)).slice(0, left);
     left -= text.length;
     out.push(segment.style ? dress(segment.style, text) : text);
   }
