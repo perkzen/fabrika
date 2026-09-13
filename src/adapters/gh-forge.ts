@@ -1,4 +1,4 @@
-import { Duration, Effect, Layer } from "effect";
+import { Duration, Effect, Layer, Schema } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
@@ -54,19 +54,20 @@ export const classify = (rollup: Rollup["statusCheckRollup"], ignore: (name: str
   });
 
 /** One entry of the listing below; GitHub sends `state`, `mergeable` and `mergeStateStatus` uppercase. */
-type Listed = {
-  number: number;
-  url: string;
-  title: string;
-  body: string;
-  headRefName: string;
-  baseRefName: string;
-  state: string;
-  isDraft: boolean;
-  isCrossRepository: boolean;
-  mergeable: string;
-  mergeStateStatus?: string;
-};
+const Listed = Schema.Struct({
+  number: Schema.Number,
+  url: Schema.String,
+  title: Schema.String,
+  body: Schema.String,
+  headRefName: Schema.String,
+  baseRefName: Schema.String,
+  state: Schema.String,
+  isDraft: Schema.Boolean,
+  isCrossRepository: Schema.Boolean,
+  mergeable: Schema.String,
+  mergeStateStatus: Schema.optional(Schema.String),
+});
+type Listed = typeof Listed.Type;
 
 const LIST_FIELDS =
   "number,url,title,body,headRefName,baseRefName,state,isDraft,isCrossRepository,mergeable,mergeStateStatus";
@@ -102,6 +103,24 @@ const detailOf = (pr: Listed): PullRequestDetail => ({
   fork: pr.isCrossRepository,
   merge: mergeStateOf(pr.mergeable, pr.mergeStateStatus),
 });
+
+const decoded = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Array(Listed)));
+
+/**
+ * `gh pr list --json` output as pull requests. Decoded, not cast.
+ *
+ * The subprocess is a trust boundary and this is everything a sweep decides
+ * on — which tree it hard-resets, which key it writes under, which branch it
+ * pushes. A cast makes a row that is not a pull request a *defect* thrown
+ * inside `Effect.map`, which no `catch` recovers and which the sweep's
+ * per-pull-request isolation does not hold either: one strange row would take
+ * the whole sweep down where a failed listing stops it saying why.
+ */
+export const listing = (out: string): Effect.Effect<ReadonlyArray<PullRequestDetail>, FabrikaError> =>
+  decoded(out).pipe(
+    Effect.map((prs) => prs.map(detailOf)),
+    Effect.mapError(asFabrikaError("reading gh pr list")),
+  );
 
 export type ForgeOptions = {
   readonly repo: string;
@@ -184,7 +203,7 @@ export const layer = (options: ForgeOptions) =>
         "--state", "open",
         "--limit", "200",
         "--json", LIST_FIELDS,
-      ]).pipe(Effect.map((out) => (JSON.parse(out) as Array<Listed>).map(detailOf)));
+      ]).pipe(Effect.flatMap(listing));
 
       const rollup = (pr: number) =>
         gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,statusCheckRollup"]).pipe(

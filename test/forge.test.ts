@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Duration, Effect } from "effect";
-import { settle } from "../src/adapters/gh-forge.ts";
+import { FabrikaError } from "../src/errors.ts";
+import { listing, settle } from "../src/adapters/gh-forge.ts";
 import type { MergeState, PullRequestDetail } from "../src/ports/forge.ts";
 import { Journal } from "../src/ports/journal.ts";
 import { harness } from "./harness.ts";
@@ -103,4 +104,49 @@ test("a merge state GitHub never computes is answered as unknown, not waited on 
     "which the selection rule then reports as its own skip reason, rather than guessing either way",
   );
   assert.equal(calls(), 3, "the first listing and both refreshes, then it gives up");
+});
+
+/**
+ * `gh pr list` is a subprocess, so its output is a trust boundary: everything
+ * a sweep decides — which branch it hard-resets, which worktree key it writes
+ * under, which branch it pushes — is read off these rows.
+ */
+const ROW = {
+  number: 42,
+  url: "https://github.com/perkzen/fabrika/pull/42",
+  title: "FAB-5: Conflicted PRs pile up",
+  body: "Opened by fabrika. Draft until a human reviews.",
+  headRefName: "perkzen/feat/FAB-5/sync",
+  baseRefName: "main",
+  state: "OPEN",
+  isDraft: true,
+  isCrossRepository: false,
+  mergeable: "CONFLICTING",
+};
+
+test("a listing is read into pull requests with their merge state mapped", async () => {
+  const [pr] = await Effect.runPromise(listing(JSON.stringify([ROW])));
+
+  assert.deepEqual(pr, {
+    number: 42,
+    url: "https://github.com/perkzen/fabrika/pull/42",
+    title: "FAB-5: Conflicted PRs pile up",
+    body: "Opened by fabrika. Draft until a human reviews.",
+    branch: "perkzen/feat/FAB-5/sync",
+    base: "main",
+    state: "open",
+    draft: true,
+    fork: false,
+    merge: "conflicted",
+  });
+});
+
+test("output that is not a listing fails the listing, rather than taking the sweep down", async () => {
+  for (const out of ['gh: could not find any commits between main and feature\n[{"number":42}]', "[]x", "{}", '[{"number":42}]']) {
+    const error = await Effect.runPromise(Effect.flip(listing(out)));
+    assert.ok(
+      error instanceof FabrikaError,
+      `a sweep isolates one pull request's failure, but not a defect thrown inside it: ${out}`,
+    );
+  }
 });
