@@ -179,3 +179,34 @@ test("a repo that needs no install step gets a config with no install key at all
 test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
   assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
 });
+
+test("a glob whose match cost explodes is dropped before it can ever be matched", () => {
+  const base = { base: "origin/main", gate: [], provider: "none", notes: [] };
+  // `matchesGlob` expands braces eagerly: `{a,b}` twenty times over costs ~30s
+  // for one file, and `matchesAny` pays that per file per glob, on the skip
+  // check of every run. Nothing downstream can interrupt it — the work is
+  // synchronous — so the pattern must not survive the proposal.
+  const bomb = "{a,b}".repeat(20);
+
+  assert.deepEqual(asProposal({ ...base, source: [bomb] })?.source, ["src/**"], "the only entry is unusable");
+  assert.deepEqual(
+    asProposal({ ...base, source: ["src/**", bomb, "+(a|b)*", "!(vendor)/**", "a@(b|c)"] })?.source,
+    ["src/**"],
+    "brace and extglob syntax goes, the plain path glob stays",
+  );
+  assert.deepEqual(
+    asProposal({ ...base, source: ["lib/**", "packages/*/src/**", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"] })?.source,
+    ["lib/**", "packages/*/src/**", "app/**/*.ts", "src/main-2.ts", "a_b/?.ts"],
+    "a glob naming a path is what this field is for, and all of it survives",
+  );
+  assert.equal(asProposal({ ...base, source: Array(50).fill("src/**") })?.source.length, 20, "and the list is bounded");
+
+  // A gate step rejects a malformed `when` outright rather than dropping it,
+  // because a step whose filter was silently widened would run where the
+  // answer said it should not.
+  assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: [bomb] }] }), null);
+  assert.equal(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: ["x".repeat(201)] }] }), null);
+  assert.deepEqual(asProposal({ ...base, gate: [{ name: "compile", run: "tsc", when: ["src/**"] }] })?.gate, [
+    { name: "compile", run: "tsc", when: ["src/**"] },
+  ]);
+});

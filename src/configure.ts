@@ -36,7 +36,7 @@ export const CONFIG_SCHEMA = JSON.stringify({
       type: "array",
       items: { type: "string" },
       description:
-        "Globs naming where this repo's own source lives — the tree whose change makes an architecture pass worth paying for, e.g. src/** or packages/*/src/**; leave tests, docs, fixtures and generated output out",
+        "Globs naming where this repo's own source lives — the tree whose change makes an architecture pass worth paying for, e.g. src/** or packages/*/src/**; leave tests, docs, fixtures and generated output out. Plain path globs only: letters, digits, `_ . / - * ?`. No braces and no extglob",
     },
     provider: {
       type: "string",
@@ -64,16 +64,27 @@ export const CONFIG_SCHEMA = JSON.stringify({
 const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
 
 /**
- * A glob names no command, so it gets no `FORBIDDEN` check — only a bound,
- * because a path glob longer than this is not a path glob.
+ * A glob names no command, so it gets no `FORBIDDEN` check. It gets a shape
+ * instead: the characters a path takes, plus `*` and `?`. The brace and
+ * extglob syntax `matchesGlob` also accepts is what is being kept out —
+ * `{a,b}` twenty times over expands to a million alternatives and costs about
+ * thirty seconds for a single file, which `matchesAny` then pays per file per
+ * glob on a skip check every run. The work is synchronous, so no timeout
+ * downstream can take it back; the only place to stop it is here, where the
+ * model's answer comes in.
  */
+const PATH_GLOB = /^[A-Za-z0-9_.\/*?-]+$/;
+const isPathGlob = (raw: unknown): raw is string =>
+  typeof raw === "string" && raw.length <= 200 && PATH_GLOB.test(raw);
+
+/** Enough globs to name where source lives in a monorepo, and no more; also bounds the skip line in the log. */
+const MAX_GLOBS = 20;
+
 const sourceGlobs = (raw: unknown): ReadonlyArray<string> => {
-  const globs = Array.isArray(raw)
-    ? raw.filter((g): g is string => typeof g === "string").map((g) => g.trim()).filter((g) => g && g.length <= 200)
-    : [];
+  const globs = Array.isArray(raw) ? raw.map((g) => (typeof g === "string" ? g.trim() : g)).filter(isPathGlob) : [];
   // Rejecting the whole answer over this field would cost the gate, which is
   // the expensive part of the call; the template's own default stands in.
-  return globs.length > 0 ? globs : DEFAULT_SOURCE;
+  return globs.length > 0 ? globs.slice(0, MAX_GLOBS) : DEFAULT_SOURCE;
 };
 
 /**
@@ -91,7 +102,9 @@ const stepName = (raw: unknown): string =>
 const asStep = (raw: unknown): GateStep | null => {
   const s = raw as Partial<GateStep> | undefined;
   if (!s || typeof s.run !== "string" || !s.run.trim() || s.run.length > 300 || FORBIDDEN.test(s.run)) return null;
-  if (s.when !== undefined && (!Array.isArray(s.when) || !s.when.every((g) => typeof g === "string"))) return null;
+  // Dropped rather than rejected, like `source`, would widen the filter the
+  // answer asked for — so a step whose `when` does not hold up loses the step.
+  if (s.when !== undefined && (!Array.isArray(s.when) || s.when.length > MAX_GLOBS || !s.when.every(isPathGlob))) return null;
   const step = { name: stepName(s.name), run: s.run.trim() };
   return s.when ? { ...step, when: s.when } : step;
 };
