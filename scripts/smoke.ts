@@ -90,11 +90,14 @@ const program = Effect.gen(function* () {
   yield* check("--resume carries context across directories", b.text.includes("fabrika-smoke-ok"), b.text.slice(0, 80));
   yield* check("--plugin-dir loads on a resumed session", b.loadedSkills.includes("fabrika:tdd"));
 
-  // C: --json-schema with stream-json.
+  // C: --json-schema with stream-json, and --model on the same call — the only
+  // place the real binary is asked to accept the flag. An alias rather than a
+  // full name: `--help` lists the aliases and they outlive releases.
   const c = yield* runClaude({
     cwd,
     credential,
     rawLog,
+    model: "sonnet",
     jsonSchema: JSON.stringify({
       type: "object",
       properties: { ok: { type: "boolean" }, name: { type: "string" } },
@@ -104,7 +107,7 @@ const program = Effect.gen(function* () {
   });
   const structured = c.structured as { ok?: boolean; name?: string } | undefined;
   yield* check(
-    "--json-schema returns structured_output",
+    "--json-schema returns structured_output on a call that also sets --model",
     structured?.ok === true && structured?.name === "fabrika",
     JSON.stringify(c.structured ?? c.text.slice(0, 120)),
   );

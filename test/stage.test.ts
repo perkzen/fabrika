@@ -58,3 +58,22 @@ test("a stage limited to other ticket types is skipped, with the reason", async 
   const kept = await exercise(refactor.skip!, { state: { type: "feat" } });
   assert.equal(kept.exit, undefined);
 });
+
+test("a stage's model rides on every call in its session", async () => {
+  const opus: Stage = { ...implement, model: "opus" };
+  const { recording } = await exercise(codeStage(opus).run, {
+    gate: [{ name: "compile", command: "tsc", output: "boom" }, undefined],
+  });
+  assert.deepEqual(
+    recording.agent.map((call) => call.model),
+    ["opus", "opus"],
+    "the gate retry is the same conversation, so it cannot be a different model",
+  );
+
+  const { recording: unset } = await exercise(codeStage(implement).run, { gate: [undefined] });
+  assert.deepEqual(
+    unset.agent.map((call) => call.model),
+    [undefined],
+    "a stage that names none leaves the CLI's own default standing",
+  );
+});

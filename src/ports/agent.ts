@@ -27,6 +27,8 @@ export type AgentRequest = {
   readonly jsonSchema?: string;
   /** Defaults to the workspace; the naming call runs before one exists. */
   readonly cwd?: string;
+  /** Overrides the model every call otherwise takes; a configured stage names its own. */
+  readonly model?: string;
 };
 
 export type AgentReply = {

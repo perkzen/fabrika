@@ -362,9 +362,15 @@ pnpm smoke
 
 Spawns a few short `claude -p` runs and checks that a tool call executes, a
 deny rule holds under `--dangerously-skip-permissions`, `--resume` carries
-context across directories, `--json-schema` returns structured output, and the
-`fabrika:*` skills load on both fresh and resumed sessions. Run it before
-trusting anything else.
+context across directories, `--json-schema` returns structured output on a
+call that also sets `--model`, and the `fabrika:*` skills load on both fresh
+and resumed sessions. Run it before trusting anything else.
+
+`--model` is here for the half a test cannot reach. That fabrika *passes* the
+flag is covered in `test/claude.test.ts`, which spawns through a fake
+`ChildProcessSpawner` and reads the argv it was handed. That the real binary
+*accepts* the value is what only a real call can say, and this is the run that
+says it.
 
 ## Migrating an old config
 

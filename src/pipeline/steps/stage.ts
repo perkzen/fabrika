@@ -40,7 +40,7 @@ export const codeStage = (stage: Stage): Step => ({
     let next = yield* prompts.render(stage.prompt);
     for (let attempt = 1; attempt <= config.maxIterations; attempt++) {
       yield* journal.log(`stage ${stage.name} (${attempt}/${config.maxIterations})`);
-      yield* agent.ask({ stage: stage.name, prompt: next, systemPromptFile, mcp: stage.mcp });
+      yield* agent.ask({ stage: stage.name, prompt: next, systemPromptFile, mcp: stage.mcp, model: stage.model });
       if (yield* workspace.commitAll(`${stage.name}: uncommitted changes`)) {
         yield* journal.log(`  worktree dirty after ${stage.name}; committed leftovers`);
       }
