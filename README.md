@@ -29,19 +29,19 @@ flowchart LR
 
 ## Status
 
-Early. `init` and `run` work end to end up to the draft PR on a scratch repo,
-including resume from saved state. The six-stage pipeline and the automated
-review loop have not yet run on a real ticket. `sync` discovery and its dry run
-have been exercised against a real repository; its workers have not. Expect
-rough edges.
+Early, but it has built itself. Tickets FAB-1 through FAB-8 each went through
+the six stages to a draft PR, and all eight are merged into this repository;
+one of them took a second review round. `sync` has swept a conflicted pull
+request of its own — merged the base, resolved it, passed the gate and pushed.
+Expect rough edges on a repository that is not this one.
 
 ## Prerequisites
 
 - Node and [pnpm](https://pnpm.io)
 - The [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI, logged in (`claude auth login`)
 - The [GitHub CLI](https://cli.github.com) (`gh`), authenticated against the target repo
-- Only for `review.provider: "cubic"`: the [cubic](https://cubic.dev) review bot installed on the target repo. A repo without one sets `"none"`, which `init` does on its own, and its runs are decided by CI alone
-- Only to let a stage read Linear: the `linear-ro` MCP server registered once with `claude mcp add` (see [docs/internals.md](docs/internals.md)). fabrika itself holds no Linear key
+- Only for `review.provider: "cubic"`: the [cubic](https://cubic.dev) review bot on the target repo. Without one, `init` sets `"none"` and the runs are decided by CI alone
+- Only to let a stage read Linear: the `linear-ro` MCP server registered once with `claude mcp add` (see [docs/internals.md](docs/internals.md)). fabrika holds no Linear key
 
 ## Quick start
 
@@ -61,13 +61,6 @@ fabrika treats the current directory as the target repo. Its own skills ship
 inside the package and load through `--plugin-dir`, so the target repo needs
 nothing installed.
 
-To work on fabrika itself, clone it and run the CLI straight from source
-(Node strips the types, so there is no build step in the loop):
-
-```bash
-git clone https://github.com/perkzen/fabrika.git && cd fabrika && pnpm install && node src/cli.ts --help
-```
-
 Then, inside the repo you want to work on:
 
 ```bash
@@ -76,11 +69,11 @@ fabrika init
 
 This reads the repo before it writes `.fabrika/config.json`: the default
 branch, the install command from your lockfile, and the gate — the checks CI
-already enforces on a pull request, each one run once to prove it is green on
-an untouched checkout. It prints where every step came from and what it
-dropped, because a gate step that does not pass here would hand the agent
-"fix it" for code it never wrote. It runs those commands in your checkout, so
-expect it to install dependencies and leave whatever `build` normally leaves.
+already enforces on a pull request, each one run once in your checkout to prove
+it is green on untouched code, so expect it to install dependencies and leave
+whatever `build` leaves. It prints where every step came from and what it
+dropped, because a gate step that does not pass here would hand the agent "fix
+it" for code it never wrote.
 
 Read the gate, correct anything it guessed wrong, set the branch-name pattern
 (`{user}` in it is your `git config user.name`, kebab-cased), and commit the
@@ -121,6 +114,10 @@ Press enter for the whole run; clear what this ticket does not need. The row
 at the top of the list takes or clears all of them. What you settled on stays
 in scrollback as one line, and the run's own screen takes over from there.
 
+`--steps implement,security,pull-request` answers ahead of time and skips the
+question. Where there is no terminal to ask — a pipe, CI, a schedule — the
+whole pipeline runs.
+
 The last log line of a clean run is the PR URL. If the run stops, rerun the
 same command and it picks up where it left off.
 
@@ -148,8 +145,17 @@ branches. `--concurrency <n>` (default 2) is how many run at once. One line
 per pull request on your console, each worker's full log in its own
 `log.txt`, and the counts on the last line.
 
-Before trusting a real ticket to it, run `pnpm smoke` in the fabrika checkout.
-It proves the `claude` CLI behaviours the pipeline depends on.
+### Working on fabrika itself
+
+Clone it and run the CLI straight from source — Node strips the types, so
+there is no build step in the loop:
+
+```bash
+git clone https://github.com/perkzen/fabrika.git && cd fabrika && pnpm install && node src/cli.ts --help
+```
+
+Before trusting a real ticket to it, run `pnpm smoke` in that checkout: it
+proves the `claude` CLI behaviours the pipeline depends on.
 
 ## How it works
 
@@ -212,12 +218,8 @@ It is `pr.beforeAfter` in your config, on by default:
 Nothing else to declare. Each run reads its own diff and works out whether it
 changed a surface anyone looks at and what already renders it, so a branch that
 touched only logic, tests or docs adds nothing to the PR. That decision is one
-short agent call per run, made after the push.
-
-On by default means new configs. `fabrika init` writes the key, but a config
-written before this field existed does not have it and keeps the old behaviour
-— add the line by hand to turn it on. A repository with no user-visible surface
-never produces a section either way.
+short agent call per run, made after the push. A config written before this
+field existed keeps the old behaviour until you add the line by hand.
 
 Set `pr.capture` instead when the render is expensive enough to be worth
 pinning — a simulator boot, a full site build — and the named commands and
@@ -238,10 +240,10 @@ the run holds the machine up for its own lifetime:
 }
 ```
 
-macOS only: it is `caffeinate -dimsu` watching fabrika's own pid, so it stops
-the moment the run does, whether that is a clean finish, an escalation or a
-Ctrl-C. Off by default, because `.fabrika/config.json` is committed and this is
-one machine's preference. On anything but macOS it warns once and runs on.
+macOS only: `caffeinate -dimsu` watching fabrika's own pid, so it stops the
+moment the run does — clean finish, escalation or Ctrl-C alike. Off by default,
+because `.fabrika/config.json` is committed and this is one machine's
+preference; elsewhere it warns once and runs on.
 
 ### Principles
 
