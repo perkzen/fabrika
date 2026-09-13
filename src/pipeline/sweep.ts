@@ -113,12 +113,20 @@ const failure = (pr: PullRequestDetail, placement: Placement | undefined, error:
   if (error._tag === "Escalated") {
     return { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement?.log };
   }
-  const failed: SyncOutcome = { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement?.log };
-  // The tree is left mid-merge and this is the failure an operator comes back
-  // to once the window resets, so the line has to say where it is.
-  return error._tag === "AgentRateLimited" && placement
-    ? { ...failed, worktree: placement.worktree, rateLimited: true }
-    : failed;
+  if (error._tag !== "AgentRateLimited") {
+    return { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement?.log };
+  }
+  // The flag is what stops the sweep handing out new work, so it is set off the
+  // error alone — naming the tree is the separate question of whether there is
+  // one, and the operator coming back once the window resets wants both.
+  return {
+    pr,
+    kind: "failed",
+    detail: `failed: ${because(error)}`,
+    log: placement?.log,
+    worktree: placement?.worktree,
+    rateLimited: true,
+  };
 };
 
 /** A worker that threw rather than failed; the tree stays wherever it left it. */
