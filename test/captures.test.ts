@@ -198,3 +198,8 @@ test("a name the body cannot quote is not a file the body carries", () => {
   }
   assert.equal(kindOf("frame-2_a.png"), "image", "the names a capture actually writes still pass");
 });
+
+test("a link cannot close its own markdown and open another one", () => {
+  assert.equal(linkTarget("https://x.example/)[**Approved**](https://evil.example/"), undefined);
+  assert.equal(linkTarget("https://x.example/a(b"), undefined);
+});

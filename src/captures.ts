@@ -72,10 +72,15 @@ export const textContent = (raw: string): string => {
     : lines.join("\n");
 };
 
-/** A `.url`'s target, or `undefined`: a `javascript:` or `file://` target in a body a human clicks is the injection this exists for. */
+/**
+ * A `.url`'s target, or `undefined`: a `javascript:` or `file://` target in a
+ * body a human clicks is the injection this exists for. Parentheses are out
+ * for the same reason — `https://x/)[**Approved**](https://evil/` would close
+ * the link the target sits inside and open a second one.
+ */
 export const linkTarget = (raw: string): string | undefined => {
   const first = scrub(raw).split("\n")[0]?.trim() ?? "";
-  return /^https:\/\/\S+$/.test(first) ? first.slice(0, URL_CHARS) : undefined;
+  return /^https:\/\/[^\s()]+$/.test(first) ? first.slice(0, URL_CHARS) : undefined;
 };
 
 const NEW = "_(new on this branch)_";
