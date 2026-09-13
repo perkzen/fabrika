@@ -109,6 +109,23 @@ export const layer = (options: ForgeOptions) =>
 
       let attaches: boolean | undefined;
 
+      /**
+       * A pull request body reaches `gh` through a file, never an argument:
+       * a body has no length limit there, and `--attach` matches an image to
+       * the body by a path an argv-length limit would truncate.
+       */
+      const withBodyFile = <A, E>(body: string, use: (file: string) => Effect.Effect<A, E>) =>
+        Effect.scoped(
+          Effect.gen(function* () {
+            const dir = yield* fs
+              .makeTempDirectoryScoped({ prefix: "fabrika-pr-" })
+              .pipe(Effect.mapError(asFabrikaError("pr body file")));
+            const file = path.join(dir, "body.md");
+            yield* fs.writeFileString(file, body).pipe(Effect.mapError(asFabrikaError("pr body file")));
+            return yield* use(file);
+          }),
+        );
+
       const rollup = (pr: number) =>
         gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,statusCheckRollup"]).pipe(
           Effect.map((out) => {
@@ -122,13 +139,8 @@ export const layer = (options: ForgeOptions) =>
         urlOf: (pr: number) => `https://github.com/${repo}/pull/${pr}`,
 
         open: (input: NewPullRequest) =>
-          Effect.scoped(
+          withBodyFile(input.body, (bodyFile) =>
             Effect.gen(function* () {
-              const dir = yield* fs
-                .makeTempDirectoryScoped({ prefix: "fabrika-pr-" })
-                .pipe(Effect.mapError(asFabrikaError("pr body file")));
-              const bodyFile = path.join(dir, "body.md");
-              yield* fs.writeFileString(bodyFile, input.body).pipe(Effect.mapError(asFabrikaError("pr body file")));
               const out = yield* gh(createArgs(repo, options.base, input, bodyFile));
               const number = /\/pull\/(\d+)/.exec(out)?.[1];
               return number
@@ -154,15 +166,8 @@ export const layer = (options: ForgeOptions) =>
         body: (pr: number) => gh(["pr", "view", String(pr), "-R", repo, "--json", "body", "--jq", ".body"]),
 
         editBody: (pr: number, body: string) =>
-          Effect.scoped(
-            Effect.gen(function* () {
-              const dir = yield* fs
-                .makeTempDirectoryScoped({ prefix: "fabrika-pr-" })
-                .pipe(Effect.mapError(asFabrikaError("pr body file")));
-              const bodyFile = path.join(dir, "body.md");
-              yield* fs.writeFileString(bodyFile, body).pipe(Effect.mapError(asFabrikaError("pr body file")));
-              yield* gh(["pr", "edit", String(pr), "-R", repo, "--body-file", bodyFile]);
-            }),
+          withBodyFile(body, (bodyFile) =>
+            gh(["pr", "edit", String(pr), "-R", repo, "--body-file", bodyFile]).pipe(Effect.asVoid),
           ),
 
         // One wait for the whole poll loop. The per-poll `(2 pending)`
