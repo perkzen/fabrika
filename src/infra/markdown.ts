@@ -33,9 +33,10 @@ const inline = (tokens: ReadonlyArray<Token> | undefined, style: Styler, fallbac
         case "text":
           return "tokens" in token && token.tokens ? inline(token.tokens, style, token.text) : token.text;
         default:
-          // Whatever we have no opinion about arrives as the text it was
-          // written as, which is worse than rendering it and better than
-          // dropping it.
+          // Its own text, never its markdown: a link arrives as its label
+          // and loses its href, which is what the spec asked for
+          // ("everything else falls through as its text"). The archive is
+          // where the raw form survives.
           return "text" in token && typeof token.text === "string" ? token.text : (token.raw ?? "");
       }
     })
