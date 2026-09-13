@@ -50,6 +50,9 @@ export const elapsed = (seconds: number): string => {
   return whole < 60 ? `${whole}s` : `${Math.floor(whole / 60)}m ${whole % 60}s`;
 };
 
+/** When something happened, as the surface writing it says: `14:03:09`, local, 24-hour. */
+export const stamp = (at: number): string => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
+
 /**
  * A run event as ANSI-free, unstamped text lines — one element per physical
  * line, because each surface stamps every line it writes. A bare string is

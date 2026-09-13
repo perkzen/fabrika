@@ -1,6 +1,6 @@
 import { styleText } from "node:util";
 import { renderMarkdown } from "./markdown.ts";
-import { elapsed, plain, type RunEvent } from "../run-event.ts";
+import { elapsed, plain, stamp, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
 export type Presenter = {
@@ -30,8 +30,6 @@ const HEARTBEAT_MS = 60_000;
 const MESSAGE_LINES = 20;
 /** Marks the agent's own lines, so its speech is never mistaken for the run's. */
 const GUTTER = "│ ";
-
-const stamp = (at: number) => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
 
 /**
  * A run is either fully dressed or fully plain, never partly: one verdict out
