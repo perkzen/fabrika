@@ -359,9 +359,13 @@ pnpm smoke
 
 Spawns a few short `claude -p` runs and checks that a tool call executes, a
 deny rule holds under `--dangerously-skip-permissions`, `--resume` carries
-context across directories, `--json-schema` returns structured output, and the
-`fabrika:*` skills load on both fresh and resumed sessions. Run it before
-trusting anything else.
+context across directories, `--json-schema` returns structured output on the
+model `--model` asked for, and the `fabrika:*` skills load on both fresh and
+resumed sessions. Run it before trusting anything else.
+
+`--model` is here and nowhere else: the only seam below the `Agent` port is
+`ChildProcessSpawner`, so no test can read a spawned process's argv, and the
+config's `model` reaching the flag is confirmed by this run or by none.
 
 ## Migrating an old config
 
