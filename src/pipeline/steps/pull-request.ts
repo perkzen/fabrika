@@ -4,7 +4,7 @@ import { Journal } from "../../ports/journal.ts";
 import { RunContext } from "../../ports/run-context.ts";
 import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
-import { titleOf, TRAILER } from "../../stamp.ts";
+import { titleOf, TRAILER } from "../../pull-request.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
 import { syncWithBase } from "../sync.ts";

@@ -97,13 +97,12 @@ _Avoid_: status, CI run, test.
 
 ### Syncing conflicted pull requests
 
-**Stamp**:
-The two facts fabrika writes into a pull request it opens and reads back
-later: the ticket identifier in its title, and the trailer in its body that
-says the pull request is fabrika's. It is everything a sweep knows about the
-run that opened one.
-_Avoid_: marker, tag, signature — *trailer* is the body half of it, not the
-whole.
+**Trailer**:
+The line fabrika ends every pull-request body it writes with, and the only
+thing that says a pull request is its own rather than one the operator wrote
+by hand. A sweep reads it to say whose each reported line is.
+_Avoid_: footer, signature, marker, stamp — *stamp* is the timestamp a surface
+puts on a line.
 
 **Sweep**:
 One invocation that lists the operator's open pull requests, picks the

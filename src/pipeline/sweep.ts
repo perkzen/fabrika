@@ -4,7 +4,7 @@ import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Workspace } from "../ports/workspace.ts";
-import { identified, openedByFabrika } from "../stamp.ts";
+import { identified, openedByFabrika } from "../pull-request.ts";
 import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
 import { syncWithBase, type SyncServices } from "./sync.ts";

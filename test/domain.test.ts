@@ -9,7 +9,7 @@ import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { checkedOut } from "../src/adapters/git-workspace.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
 import { home } from "../src/paths.ts";
-import { identified, openedByFabrika, titleOf, TRAILER } from "../src/stamp.ts";
+import { identified, openedByFabrika, titleOf, TRAILER } from "../src/pull-request.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -194,7 +194,7 @@ test("a pull request fabrika opened reads back as the ticket it was opened for",
   );
 });
 
-test("a title nobody stamped carries no identifier", () => {
+test("a title fabrika did not write carries no identifier", () => {
   assert.equal(identified("fix: a thing"), null);
   assert.equal(identified("2026-05-01: a dated title"), null, "an identifier starts with a letter");
   assert.deepEqual(identified("ENG-42:no space"), { identifier: "ENG-42", title: "no space" });

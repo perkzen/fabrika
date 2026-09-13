@@ -1,5 +1,6 @@
 /**
- * What fabrika writes into a pull request it opens, and how that is read back.
+ * The pull request fabrika opens, as text: the title it carries and the
+ * trailer that marks it, and how each is read back.
  *
  * Two facts travel from the run that opened a pull request to the sweep that
  * finds it weeks later, through nothing but the pull request itself: the
