@@ -17,7 +17,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge both the PR and the review loop use |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
-| `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, Linear, a spec file, the run directory |
+| `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
@@ -180,7 +180,7 @@ code. The keys in `state.sessions`:
 | `branch` | the naming call |
 | the stage name | the stage and its gate-failure retries |
 | `merge-<round>` | resolving a base merge, and the repair pass after it |
-| `round-<round>` | one review round: cubic threads, CI fixes, the repair pass |
+| `round-<round>` | one review round: review threads, CI fixes, the repair pass |
 
 A stage that assumes it remembers an earlier one is a bug in its prompt — the
 inputs have to be named as paths.
@@ -189,16 +189,24 @@ inputs have to be named as paths.
 
 After the draft PR opens, each round:
 
-1. waits for a cubic review of the pushed commit
-2. reads open review threads, and the PR's checks for that commit
+1. waits for the configured reviewer's review of the pushed commit — immediate
+   under `review.provider: "none"`, which reviews nothing
+2. reads open review threads (none under `"none"`), and the PR's checks for that commit
 3. reruns a failed Actions run once, for flakes
 4. hands threads and failed-step logs to the agent, which fixes or disputes each one
 5. posts the replies, resolves only threads the agent addressed, merges the base branch again, runs the gate, pushes
 
-Done means: the cubic score equals `review.requireScore`, no threads are open,
-and no check on the pushed commit is failing. After `review.maxRounds` rounds
-the run escalates. Merging (never rebasing) keeps pushed commits in place so
-cubic's per-commit reviews stay valid.
+Done depends on the provider. Under `"cubic"`: the score equals
+`review.requireScore`, no threads are open, and no check on the pushed commit
+is failing. Under `"none"`: no check on the pushed commit is failing — there is
+no verdict to satisfy, so the loop neither waits for one nor claims one in the
+done line. After `review.maxRounds` rounds the run escalates either way.
+Merging (never rebasing) keeps pushed commits in place so cubic's per-commit
+reviews stay valid.
+
+The loop reads `Reviewer.scores` rather than the config field, so a third
+review bot is a new adapter and one more arm of the ternary in `src/run.ts`.
+ADR-0002 records why the port carries inert stubs instead of being split.
 
 ## Tests
 
@@ -208,9 +216,11 @@ pnpm test
 
 `node --test` over `test/*.test.ts`, no test dependency. The tests run the
 real steps against `test/harness.ts` — every port in memory — so they cover
-the gate-retry loop, the review loop's done condition, the rule that a thread
-is resolved only when a commit touched its file, and the one-rerun-per-flake
-behaviour, in milliseconds and with no network.
+the gate-retry loop, the review loop's done condition under both providers —
+including a round with no reviewer, which runs the shipped no-reviewer adapter
+rather than a double — the rule that a thread is resolved only when a commit
+touched its file, and the one-rerun-per-flake behaviour, in milliseconds and
+with no network.
 
 ## Smoke test
 
