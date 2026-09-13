@@ -4,6 +4,7 @@ import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Workspace } from "../ports/workspace.ts";
+import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
 
 /**
@@ -75,6 +76,33 @@ const counts = (outcomes: ReadonlyArray<SyncOutcome>) => {
   return `sync: ${of("synced")} synced, ${of("clean")} already clean, ${of("escalated")} escalated, ${of("failed")} failed, ${of("skipped")} skipped`;
 };
 
+/** What a worker's failure says on one line; `Escalated` has its own, richer form. */
+const because = (error: Exclude<StepError, Escalated>) => {
+  switch (error._tag) {
+    case "FabrikaError":
+      return error.message;
+    case "AgentRateLimited":
+      return "usage limit hit";
+    // The auth probe has already run, so an unauthorized agent mid-sweep is
+    // as unexpected as any other failure.
+    case "AgentUnauthorized":
+      return `claude cannot authenticate: ${error.message}`;
+    case "AgentFailed":
+      return `the agent call failed (exit ${error.exitCode})`;
+  }
+};
+
+/**
+ * A worker's failure as a value. The conversion is the sweep's, not the
+ * worker factory's: left as a failure, the first one would take the whole
+ * fan-out down, and a test that hands over a pre-converted worker would
+ * exercise nothing but its own fixture.
+ */
+const failure = (pr: PullRequestDetail, placement: Placement, error: StepError): SyncOutcome =>
+  error._tag === "Escalated"
+    ? { pr, kind: "escalated", detail: `escalated: ${error.reason}`, worktree: error.worktree, log: placement.log }
+    : { pr, kind: "failed", detail: `failed: ${because(error)}`, log: placement.log };
+
 const targetOf = (pr: PullRequestDetail): SyncTarget => ({ number: pr.number, url: pr.url, branch: pr.branch });
 
 /**
@@ -109,7 +137,7 @@ const select = (
 
 export const sweep = (
   options: SweepOptions,
-): Effect.Effect<SweepResult, FabrikaError | StepError, Forge | Journal | Workspace> =>
+): Effect.Effect<SweepResult, FabrikaError, Forge | Journal | Workspace> =>
   Effect.gen(function* () {
     const forge = yield* Forge;
     const journal = yield* Journal;
@@ -151,10 +179,15 @@ export const sweep = (
         Effect.gen(function* () {
           const target = targetOf(pr);
           const placement = yield* options.place(target);
-          const { pushed } = yield* options.worker(target, placement);
-          const outcome: SyncOutcome = pushed
-            ? { pr, kind: "synced", detail: `synced: pushed ${pushed.slice(0, 7)}`, log: placement.log }
-            : { pr, kind: "clean", detail: "already clean: base had not moved" };
+          const outcome = yield* options.worker(target, placement).pipe(
+            Effect.match({
+              onSuccess: ({ pushed }): SyncOutcome =>
+                pushed
+                  ? { pr, kind: "synced", detail: `synced: pushed ${pushed.slice(0, 7)}`, log: placement.log }
+                  : { pr, kind: "clean", detail: "already clean: base had not moved" },
+              onFailure: (error) => failure(pr, placement, error),
+            }),
+          );
           outcomes.push(outcome);
           yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
         }),
@@ -162,5 +195,6 @@ export const sweep = (
     ).pipe(waitFor(journal, `syncing ${selected.length} pull request(s)`));
 
     yield* journal.log(counts(outcomes));
-    return { outcomes, exitCode: 0 };
+    const needsAHuman = outcomes.some((outcome) => outcome.kind === "escalated" || outcome.kind === "failed");
+    return { outcomes, exitCode: needsAHuman ? 2 : 0 };
   });

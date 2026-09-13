@@ -1,7 +1,9 @@
 import { Effect } from "effect";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sweep, type Placement, type SyncTarget } from "../src/pipeline/sweep.ts";
+import { FabrikaError } from "../src/errors.ts";
+import { Escalated } from "../src/pipeline/escalated.ts";
+import { sweep, type Placement, type SweepOptions, type SyncTarget } from "../src/pipeline/sweep.ts";
 import type { PullRequestDetail } from "../src/ports/forge.ts";
 import { exercise } from "./harness.ts";
 
@@ -132,5 +134,67 @@ test("a dry run reports the selection and calls no worker", async () => {
     "  #43 [yours] fix: being worked on — would sync branch-43 into origin/main",
     "  #42 [yours] FAB-5: Conflicted PRs pile up — would sync branch-42 into origin/main",
     "dry run: 2 would be synced, 7 skipped; nothing changed",
+  ]);
+});
+
+const twoConflicted: ReadonlyArray<PullRequestDetail> = [
+  pullRequest({ number: 42, title: "FAB-5: Conflicted PRs pile up" }),
+  pullRequest({ number: 40, title: "fix: thing" }),
+];
+
+/** Concurrency 1 so the order the lines land in is the sweep's, not the scheduler's. */
+const oneAtATime = (worker: SweepOptions["worker"]): SweepOptions => ({
+  base: "origin/main",
+  concurrency: 1,
+  dryRun: false,
+  place: (target) => Effect.succeed(placement(target)),
+  worker,
+});
+
+test("one worker's escalation leaves the others alone and sets the exit code", async () => {
+  const { exit, failed, recording } = await exercise(
+    sweep(
+      oneAtATime((target, where) =>
+        target.number === 40
+          ? Effect.fail(
+              new Escalated({
+                reason: "merge left conflicts in src/a.ts",
+                worktree: where.worktree,
+                prUrl: target.url,
+              }),
+            )
+          : Effect.succeed({ pushed: "9f1c2ab3d4e5f6" }),
+      ),
+    ),
+    { pullRequests: twoConflicted },
+  );
+
+  assert.equal(failed, false, "a worker's failure is a value; the fan-out is not taken down by it");
+  assert.equal((exit as { exitCode: number }).exitCode, 2);
+  assert.deepEqual(recording.log.slice(-4), [
+    "  #42 [yours] FAB-5: Conflicted PRs pile up — synced: pushed 9f1c2ab — log: /runs/pr-42/log.txt",
+    "  #40 [yours] fix: thing — escalated: merge left conflicts in src/a.ts — worktree: /worktrees/pr-40 — log: /runs/pr-40/log.txt",
+    "waited 0s for syncing 2 pull request(s)",
+    "sync: 1 synced, 0 already clean, 1 escalated, 0 failed, 0 skipped",
+  ]);
+});
+
+test("a worker that failed outside an escalation reads as failed", async () => {
+  const { exit, recording } = await exercise(
+    sweep(
+      oneAtATime((target) =>
+        target.number === 40
+          ? Effect.fail(new FabrikaError({ message: "git fetch origin: boom" }))
+          : Effect.succeed({ pushed: "9f1c2ab3d4e5f6" }),
+      ),
+    ),
+    { pullRequests: twoConflicted },
+  );
+
+  assert.equal((exit as { exitCode: number }).exitCode, 2);
+  assert.deepEqual(recording.log.slice(-3), [
+    "  #40 [yours] fix: thing — failed: git fetch origin: boom — log: /runs/pr-40/log.txt",
+    "waited 0s for syncing 2 pull request(s)",
+    "sync: 1 synced, 0 already clean, 0 escalated, 1 failed, 0 skipped",
   ]);
 });
