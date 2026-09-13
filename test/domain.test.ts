@@ -110,6 +110,29 @@ test("keepAwake is optional, so every config written before it still loads", asy
   assert.match(String(error), /\["keepAwake"\]/, "a string fails at the start of the run, not hours in");
 });
 
+test("model is optional at both levels and any string passes", async () => {
+  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(without.model, undefined, "a repo that never mentions models reads as one");
+  assert.deepEqual(without.stages.map((stage) => stage.model), without.stages.map(() => undefined));
+  assert.equal(JSON.parse(JSON.stringify(CONFIG_TEMPLATE)).model, undefined, "and `init` writes no key");
+
+  // An alias and a full model name alike: the CLI is the authority on which is which.
+  for (const model of ["sonnet", "claude-fable-5"]) {
+    const config = await Effect.runPromise(
+      decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, model, stages: [{ name: "spec", prompt: "spec.md", model }] })),
+    );
+    assert.equal(config.model, model);
+    assert.equal(config.stages[0]!.model, model);
+  }
+
+  const top = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, model: 5 })).pipe(Effect.flip));
+  assert.match(String(top), /\["model"\]/);
+  const staged = await Effect.runPromise(
+    decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, stages: [{ name: "spec", prompt: "spec.md", model: 5 }] })).pipe(Effect.flip),
+  );
+  assert.match(String(staged), /\["stages"\]\[0\]\["model"\]/, "and says which stage, not just which field");
+});
+
 test("notify is optional on the same terms", async () => {
   const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(without.notify, undefined);

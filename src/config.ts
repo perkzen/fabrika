@@ -56,6 +56,8 @@ export const Config = Schema.Struct({
   previewPrefix: Schema.optional(Schema.String),
   install: Schema.optional(Schema.String),
   gate: Schema.Array(GateStep),
+  /** The model every agent call takes unless a stage names its own; the CLI's own default when absent. */
+  model: Schema.optional(Schema.String),
   stages: Schema.Array(Stage),
   /** Permission rules the Claude subprocess is denied; the runner does its own pushing, PR opening and merging. */
   deny: Schema.Array(Schema.String),
