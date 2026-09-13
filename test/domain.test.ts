@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
-import { classify } from "../src/adapters/gh-forge.ts";
+import { attachesFrom, classify, createArgs } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { CONFIG_TEMPLATE, decodeConfig } from "../src/config.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
@@ -138,4 +138,31 @@ test("a repo that needs no install step gets a config with no install key at all
 
 test("a rejected proposal writes the template untouched, so init always has a config to write", () => {
   assert.deepEqual(asConfig(null), CONFIG_TEMPLATE);
+});
+
+test("gh is asked for the right things", () => {
+  // 2.93.0 is this host's; --attach arrived in 2.99.0.
+  assert.equal(attachesFrom("gh version 2.93.0 (2026-08-12)\nhttps://github.com/cli/cli/releases/tag/v2.93.0"), false);
+  assert.equal(attachesFrom("gh version 2.99.0 (2026-09-01)"), true);
+  assert.equal(attachesFrom("gh version 3.0.1 (2026-11-02)"), true);
+  assert.equal(attachesFrom(""), false, "a gh that cannot be interrogated is one that must not be handed --attach");
+
+  assert.deepEqual(
+    createArgs(
+      "perkzen/fabrika",
+      "main",
+      { branch: "a-branch", title: "FAB-4: a thing", body: "in the file", draft: true, attachments: ["/a/one.png", "/a/two.png"] },
+      "/tmp/body.md",
+    ),
+    [
+      "pr", "create", "-R", "perkzen/fabrika",
+      "--head", "a-branch",
+      "--base", "main",
+      "--title", "FAB-4: a thing",
+      "--body-file", "/tmp/body.md",
+      "--draft",
+      "--attach", "/a/one.png",
+      "--attach", "/a/two.png",
+    ],
+  );
 });
