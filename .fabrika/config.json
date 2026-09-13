@@ -1,0 +1,79 @@
+{
+  "base": "origin/main",
+  "branch": "{user}/{type}/{ticket}/{slug}",
+  "previewPrefix": "preview/",
+  "install": "pnpm install --frozen-lockfile",
+  "gate": [
+    {
+      "name": "compile",
+      "run": "pnpm compile"
+    },
+    {
+      "name": "build",
+      "run": "pnpm build"
+    },
+    {
+      "name": "test",
+      "run": "pnpm test"
+    }
+  ],
+  "stages": [
+    {
+      "name": "spec",
+      "prompt": "spec.md",
+      "system": "plan.system.md"
+    },
+    {
+      "name": "plan",
+      "prompt": "plan.md",
+      "system": "plan.system.md"
+    },
+    {
+      "name": "implement",
+      "prompt": "implement.md",
+      "system": "implement.system.md",
+      "gate": true
+    },
+    {
+      "name": "refactor",
+      "prompt": "refactor.md",
+      "system": "implement.system.md",
+      "gate": true,
+      "only": [
+        "feat"
+      ]
+    },
+    {
+      "name": "security",
+      "prompt": "security.md",
+      "system": "implement.system.md",
+      "gate": true
+    },
+    {
+      "name": "review",
+      "prompt": "review.md",
+      "system": "implement.system.md",
+      "gate": true
+    }
+  ],
+  "deny": [
+    "Bash(git push:*)",
+    "Bash(gh pr merge:*)",
+    "Bash(gh pr review:*)",
+    "Bash(gh api graphql:*)"
+  ],
+  "pr": {
+    "draft": true,
+    "emptyCommit": true
+  },
+  "review": {
+    "provider": "none",
+    "requireScore": 5,
+    "maxRounds": 3,
+    "timeoutMinutes": 25
+  },
+  "checks": {
+    "timeoutMinutes": 30
+  },
+  "maxIterations": 4
+}
