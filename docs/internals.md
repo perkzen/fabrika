@@ -14,7 +14,7 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
 | `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
-| `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes |
+| `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes. The driver ends every step it starts and owns the run's `result` line, so the PR URL is the last stdout line of a clean run |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
@@ -25,8 +25,13 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
 | `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
-| `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
-| `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp`, `elapsed` and `gateOver` live here, so both surfaces read one definition |
+| `src/outline.ts` | The step tree: a root per run, a node per step, and each step's summary folded out of the events that happened inside it. Pure — no `effect`, no terminal — so a screen is a function of a scripted event list |
+| `src/infra/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
+| `src/infra/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow`, the run's progress and whatever is blocking it, drawn once so the console and the screen cannot drift |
+| `src/infra/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
+| `src/infra/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
+| `src/infra/keys.ts` | `decode`, `press` and `follow` — a keystroke and a view in, a view out. Pure, so the keyboard is tested without a terminal |
 | `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
@@ -56,6 +61,25 @@ with one adapter in production and an in-memory one in the tests; nothing in
 Built on [Effect](https://effect.website) 4.x (release candidate), whose core
 package carries the filesystem, path and CLI modules; subprocesses come from
 `effect/unstable/process` and the Node bindings from `@effect/platform-node`.
+
+## What a run looks like
+
+An interactive `fabrika run` is a **screen**: the terminal's alternate buffer,
+with one line per step from `preflight` to `review`, the running step unfolded
+under its line, and a finished step's line carrying how long it took, what it
+cost, how many tool calls it made and by which tool, which skills it invoked
+and each gate command's verdict. The keys are `↑↓` (or `k`/`j`) to move the
+selection, space or enter to fold and unfold it, `PgUp`/`PgDn` to scroll the
+open window, `Esc` to go back to following the running step, and `Ctrl-C` to
+interrupt the run. They are optional: a run whose operator went home has the
+same outcome, the same exit code and the same last line. Leaving the screen —
+on every exit path — writes the folded outline and the result line to plain
+scrollback.
+
+A pipe, `NO_COLOR`, `TERM=dumb`, CI and `fabrika init` get the scrolling log
+instead, unchanged but for one `step refactor: done (8m 53s)` line per step.
+`log.txt` is the same, plain, stamped and uncapped. ADR-0004 records why the
+screen is hand-rolled rather than built on a framework.
 
 ## Exit codes
 

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import type { FabrikaError } from "../errors.ts";
 import type { AgentError } from "../ports/agent.ts";
 import { Agent } from "../ports/agent.ts";
@@ -39,7 +39,14 @@ export type StepError = Escalated | FabrikaError | AgentError;
  */
 export type Step = {
   readonly name: string;
-  readonly run: Effect.Effect<void, StepError, StepServices>;
+  /**
+   * What the step does, and — for the one step that decides the run is over —
+   * the result line it came to. The driver logs that line after the last
+   * step's `end`, because the piped contract is that the PR URL is the last
+   * stdout line of a clean run: a step logging it itself would put it above
+   * its own end. Every other step returns nothing and is untouched.
+   */
+  readonly run: Effect.Effect<string | void, StepError, StepServices>;
   /**
    * A reason to skip this run's step, or `undefined` to run it. A skipped
    * step is not recorded as completed: the reason is re-evaluated next time,
@@ -76,11 +83,18 @@ export type PipelineBuilder = {
   readonly build: () => Pipeline;
 };
 
+/**
+ * Runs the steps and says how the run went.
+ *
+ * The result line is the driver's on both paths — it already owned the
+ * escalated one — so there is one rule rather than two, and on both paths the
+ * order is `step … end` then `result`.
+ */
 const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepServices> =>
   Effect.gen(function* () {
     const store = yield* RunStore;
     const journal = yield* Journal;
-    yield* body(steps, store, journal).pipe(
+    const result = yield* body(steps, store, journal).pipe(
       // Every `new Escalated` in the repo leaves through here, so this is the
       // one place the reason has to be written down; it is re-raised so
       // cli.ts still owns the stderr block and the exit code.
@@ -90,13 +104,16 @@ const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepS
           .pipe(Effect.andThen(Effect.fail(error))),
       ),
     );
+    // A pipeline built without the review step has no result line, which is
+    // what it has always had.
+    if (result !== undefined) yield* journal.log({ kind: "result", outcome: "done", text: result });
   });
 
 const body = (
   steps: ReadonlyArray<Step>,
   store: RunStore,
   journal: Journal,
-): Effect.Effect<void, StepError, StepServices> =>
+): Effect.Effect<string | undefined, StepError, StepServices> =>
   Effect.gen(function* () {
     const done = store.get().completed;
     // `done` is decided per index, never by name: a pipeline has two steps
@@ -109,6 +126,7 @@ const body = (
       steps: steps.map((step) => ({ name: step.name, done: Boolean(step.once && done.includes(step.name)) })),
     });
     const of = steps.length;
+    let result: string | undefined;
     for (const [index, step] of steps.entries()) {
       const at = index + 1;
       if (step.once && store.get().completed.includes(step.name)) {
@@ -121,9 +139,42 @@ const body = (
         continue;
       }
       yield* journal.log({ kind: "step", name: step.name, at, of, state: "start" });
-      yield* step.run;
+      const said = yield* timed(step, at, of, journal);
+      if (typeof said === "string") result = said;
       if (step.once) yield* store.update((state) => void state.completed.push(step.name));
     }
+    return result;
+  });
+
+/**
+ * One step, run and timed, with its `end` emitted on every exit — success,
+ * failure and interruption alike — so a run that escalates never leaves a
+ * step stuck at running.
+ *
+ * Suspended, because the clock has to be read when the step runs rather than
+ * where the effect was built: a step run twice is timed twice.
+ */
+const timed = (
+  step: Step,
+  at: number,
+  of: number,
+  journal: Journal,
+): Effect.Effect<string | void, StepError, StepServices> =>
+  Effect.suspend(() => {
+    const started = Date.now();
+    return step.run.pipe(
+      Effect.onExit((exit) =>
+        journal.log({
+          kind: "step",
+          name: step.name,
+          at,
+          of,
+          state: "end",
+          seconds: (Date.now() - started) / 1000,
+          outcome: Exit.isSuccess(exit) ? "done" : "failed",
+        }),
+      ),
+    );
   });
 
 export const pipeline = (steps: ReadonlyArray<Step> = []): PipelineBuilder => ({

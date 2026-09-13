@@ -25,6 +25,16 @@ const fidelity: ReadonlyArray<[string, RunEvent | string, ReadonlyArray<string>]
     ["resuming after spec, plan", "steps: spec, implement"],
   ],
   [
+    "pipeline/step.ts — a step that ended cleanly",
+    { kind: "step", name: "refactor", at: 5, of: 9, state: "end", seconds: 533, outcome: "done" },
+    ["step refactor: done (8m 53s)"],
+  ],
+  [
+    "pipeline/step.ts — a step that ended badly",
+    { kind: "step", name: "review", at: 9, of: 9, state: "end", seconds: 41, outcome: "failed" },
+    ["step review: failed (41s)"],
+  ],
+  [
     "adapters/shell-gate.ts — a gate step starting",
     { kind: "gate", name: "compile", at: 1, of: 2, command: "tsc --noEmit", state: "start" },
     ["gate compile: tsc --noEmit"],
@@ -45,7 +55,7 @@ const fidelity: ReadonlyArray<[string, RunEvent | string, ReadonlyArray<string>]
     ["gate docs: skipped (no matching changes)"],
   ],
   [
-    "pipeline/steps/review.ts — the done: line",
+    "pipeline/step.ts — the done: line the driver writes",
     {
       kind: "result",
       outcome: "done",

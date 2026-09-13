@@ -6,11 +6,16 @@ import { Journal } from "../ports/journal.ts";
 import type { RunEvent } from "../run-event.ts";
 
 /** The fan-out both forms share; `null` builds the archive alone. */
-const journal = (file: string, consoleOptions: ConsoleOptions | null, extra: ReadonlyArray<Presenter> = []) =>
+const journal = (
+  file: string,
+  consoleOptions: ConsoleOptions | null,
+  extra: ReadonlyArray<Presenter> = [],
+  open: (options: ConsoleOptions) => Presenter = openConsole,
+) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
       const surfaces = [
-        ...(consoleOptions ? [openConsole(consoleOptions)] : []),
+        ...(consoleOptions ? [open(consoleOptions)] : []),
         openArchive({ file, now: consoleOptions?.now }),
         ...extra,
       ];
@@ -37,11 +42,21 @@ const journal = (file: string, consoleOptions: ConsoleOptions | null, extra: Rea
  * `extra` is how a run adds one it decided on — the notifier, when the config
  * asks for it. Which surfaces exist is the composition root's call, not this
  * layer's: it only fans out to whatever it was given.
+ *
+ * `open` is which console it is: the scrollback one, or the screen an
+ * interactive run gets. A parameter rather than a different `consoleOptions`
+ * type, so this layer keeps building the shared clock and the archive label
+ * and every existing call site is untouched.
  */
-export const layer = (file: string, consoleOptions?: ConsoleOptions, extra: ReadonlyArray<Presenter> = []) =>
+export const layer = (
+  file: string,
+  consoleOptions?: ConsoleOptions,
+  extra: ReadonlyArray<Presenter> = [],
+  open: (options: ConsoleOptions) => Presenter = openConsole,
+) =>
   // The label, not the path: the elision line points at `log.txt`, which is
   // what the operator calls it, not a line of absolute path.
-  journal(file, consoleOptions ?? { stream: process.stdout, archive: basename(file) }, extra);
+  journal(file, consoleOptions ?? { stream: process.stdout, archive: basename(file) }, extra, open);
 
 /**
  * The archive by itself, for a sweep's worker: the sweep owns the only

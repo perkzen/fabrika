@@ -18,8 +18,16 @@ export type RunEvent =
       readonly name: string;
       readonly at: number;
       readonly of: number;
-      readonly state: "start" | "skipped" | "already-done";
+      readonly state: "start" | "end" | "skipped" | "already-done";
       readonly reason?: string;
+      /** `end` only: how long the step took. */
+      readonly seconds?: number;
+      /**
+       * `end` only. A step can fail as an escalation, as a usage limit or as
+       * a platform error; which of them it was is the `result` event's to
+       * say, not a step line's.
+       */
+      readonly outcome?: "done" | "failed";
     }
   | {
       readonly kind: "gate";
@@ -43,6 +51,14 @@ export type RunEvent =
   | { readonly kind: "cost"; readonly stage: string; readonly usd: number }
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
+
+/**
+ * Whether a gate event leaves the run with nothing to say it is on: the gate
+ * failed, or its last command is behind it. Every live surface asks this, so
+ * asking it in one place is what stops the two of them drifting apart.
+ */
+export const gateOver = (entry: Extract<RunEvent, { kind: "gate" }>): boolean =>
+  entry.state === "fail" || (entry.at === entry.of && entry.state !== "start");
 
 /** How long something took, read the way an operator says it: `12s`, `4m 12s`. */
 export const elapsed = (seconds: number): string => {
@@ -94,6 +110,8 @@ const render = (entry: RunEvent | string): ReadonlyArray<string> => {
       switch (entry.state) {
         case "start":
           return [`step ${entry.at}/${entry.of}: ${entry.name}`];
+        case "end":
+          return [`step ${entry.name}: ${entry.outcome} (${elapsed(entry.seconds ?? 0)})`];
         case "skipped":
           return [`${entry.name}: skipped (${entry.reason})`];
         case "already-done":

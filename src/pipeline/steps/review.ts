@@ -99,15 +99,12 @@ export const reviewRounds: Step = {
         // before the artifacts are kept and the worktree is gone turns a
         // failure in either into one no resume will ever retry.
         yield* store.update((state) => void (state.done = true));
-        yield* journal.log({
-          kind: "result",
-          outcome: "done",
-          // Both wordings end with the URL: the last line of stdout is the piped contract.
-          text: reviewer.scores
-            ? `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`
-            : `done: no review bot, checks green — ready for human review: ${url}`,
-        });
-        return;
+        // Returned rather than logged: the driver writes it after this step's
+        // `end`, so the URL stays the last line of stdout. Both wordings end
+        // with it, because that is the piped contract.
+        return reviewer.scores
+          ? `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`
+          : `done: no review bot, checks green — ready for human review: ${url}`;
       }
       if (reviewer.scores && threads.length === 0 && failed.length === 0) {
         // Nothing the agent can act on, and the next round would find the same review; with no score to fall short of, `scores: false` cannot get here.

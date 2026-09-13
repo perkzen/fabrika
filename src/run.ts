@@ -11,9 +11,11 @@ import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
+import { isInteractive } from "./infra/console.ts";
 import { keepAwake } from "./infra/keep-awake.ts";
 import { notifierApp } from "./infra/notifier-app.ts";
 import { openNotifier } from "./infra/notifier.ts";
+import { openScreen } from "./infra/screen.ts";
 import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -53,7 +55,16 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const notifier = app?.bin ? [openNotifier({ title: `Fabrika ${ticket.identifier}`, bin: app.bin })] : [];
 
     const foundation = Layer.mergeAll(
-      fileJournal.layer(path.join(runsDir, "log.txt"), undefined, notifier),
+      // A run an operator is watching gets the screen; a pipe, `NO_COLOR`,
+      // `TERM=dumb` and CI get the scrollback console the default supplies.
+      fileJournal.layer(
+        path.join(runsDir, "log.txt"),
+        undefined,
+        notifier,
+        isInteractive(process.stdout)
+          ? (options) => openScreen({ ...options, ticket: ticket.identifier, input: process.stdin })
+          : undefined,
+      ),
       fileRunStore.layer(runsDir),
       fsPrompts.layer({
         identifier: ticket.identifier,

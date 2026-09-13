@@ -39,6 +39,7 @@ const scripted = (presenter: { show: (event: RunEvent) => void }) => {
   presenter.show({ kind: "cost", stage: "implement", usd: 0.42 });
   presenter.show({ kind: "wait", state: "end", subject: "implement agent", seconds: 9 });
   presenter.show({ kind: "note", level: "warn", text: "the reviewer never answered" });
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 2, state: "end", seconds: 533, outcome: "done" });
   presenter.show({ kind: "result", outcome: "done", text: "done: ready for human review" });
 };
 
