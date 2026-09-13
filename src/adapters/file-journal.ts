@@ -16,14 +16,23 @@ import type { RunEvent } from "../run-event.ts";
  *
  * They share one clock, so the file and the console never disagree about when
  * the same event happened.
+ *
+ * `null` is the archive alone, for a sweep's workers: the sweep owns the only
+ * console, and a presenter over a discarding stream would still build a live
+ * region, a frame timer and a cursor hide for nobody. It is tested with
+ * `=== null` rather than `??`, because `null ?? default` is the default — six
+ * workers would each open a console on stdout and fight over it.
  */
-export const layer = (file: string, consoleOptions?: ConsoleOptions) =>
+export const layer = (file: string, consoleOptions?: ConsoleOptions | null) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
       // The label, not the path: the elision line points at `log.txt`, which is
       // what the operator calls it, not a line of absolute path.
-      const options = consoleOptions ?? { stream: process.stdout, archive: basename(file) };
-      const surfaces = [openConsole(options), openArchive({ file, now: options.now })];
+      const options = consoleOptions === null ? null : (consoleOptions ?? { stream: process.stdout, archive: basename(file) });
+      const surfaces = [
+        ...(options ? [openConsole(options)] : []),
+        openArchive({ file, now: options?.now }),
+      ];
       // The layer owns their lifetime: the live region is cleared and the
       // cursor restored before `cli.ts` writes anything to stderr.
       yield* Effect.addFinalizer(() => Effect.sync(() => surfaces.forEach((surface) => surface.end())));
