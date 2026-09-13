@@ -1,0 +1,23 @@
+src/cli.ts
+  s_275e3a26e070ce::t_0254948b7aa28b 66-72,85
+test/domain.test.ts
+  s_275e3a26e070ce::t_bd0b7fa3ac9df1 100-110
+src/configure.ts
+  s_275e3a26e070ce::t_3c922875b58b7b 7,12,33-38,45,98-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a641d3ddfae36c96c03d2b6212d66d4129123950",
+  "prompts": {},
+  "sessions": {
+    "s_275e3a26e070ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bef34747-bedc-4cca-a6ca-9a0f2283cbb8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
