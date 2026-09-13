@@ -1,0 +1,21 @@
+test/claude.test.ts
+  s_1d8c4ebd1d39e5::t_7ee14484199dcb 1-21
+src/infra/claude.ts
+  s_1d8c4ebd1d39e5::t_00ca2d050012c5 260-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f49e53678f82ed015bbce3eca3aaa1e54111826c",
+  "prompts": {},
+  "sessions": {
+    "s_1d8c4ebd1d39e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7724d9d8-6dc3-405b-8dbe-a65f880f0165",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
