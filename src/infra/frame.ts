@@ -1,7 +1,8 @@
+import { display } from "./lines.ts";
 import type { Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
 import type { Node, StepState, Tree } from "../outline.ts";
-import { elapsed, scrub } from "../run-event.ts";
+import { elapsed, scrub, stamp } from "../run-event.ts";
 
 /**
  * What the operator has selected, unfolded and scrolled to — the step tree's
@@ -43,6 +44,13 @@ const FIELD = "  ";
 /** Past three tools the list stops naming them and says how many it left out. */
 const TOOLS = 3;
 
+/** Fewer rows than this and the footer is the first thing to go. */
+const FOOTER_AT = 12;
+/** A window of one or two rows tells nobody anything; below the floor it is not drawn at all. */
+const WINDOW = 3;
+/** The keys, named once, because keys nobody can discover are keys nobody uses. */
+const KEYS = "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  Ctrl-C interrupt";
+
 /** How a gate verdict reads in a summary — the same three words the gate's own line uses. */
 const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
 
@@ -61,12 +69,93 @@ type Segment = { readonly style?: Style; readonly text: string };
 export const frame = (tree: Tree, view: View, size: Size, dress: Styler, _clock: Clock): ReadonlyArray<string> => {
   const width = Math.max(size.columns - 1, 0);
   const root = tree.roots.at(-1);
-  const lines: Array<string> = [];
-  if (root) {
-    lines.push(row(header(root, tree.label), width, dress));
-    for (const step of root.children) lines.push(row(outlineRow(step), width, dress));
+  if (!root) return blank(size.rows);
+
+  const footer = size.rows >= FOOTER_AT;
+  const spare = Math.max(size.rows - 1 - (footer ? 1 : 0), 0);
+  const open = root.children.find((child) => child.key === view.opened);
+  // The window shrinks before the outline does, and is not drawn at all when
+  // it cannot have its floor: under five rows the outline is the thing needed.
+  const height = open && spare >= WINDOW + 1 ? Math.max(WINDOW, spare - root.children.length) : 0;
+
+  const drawn = root.children.slice(view.top, view.top + (spare - height));
+  const body: Array<string> = [];
+  for (const step of drawn) {
+    body.push(row(outlineRow(step), width, dress));
+    if (open && step.key === open.key) body.push(...windowRows(open, height, width, view, dress));
   }
-  return [...lines.slice(0, size.rows), ...Array<string>(Math.max(size.rows - lines.length, 0)).fill("")];
+  // The open step's own row can be scrolled out of the outline; its window is
+  // still owed the rows the budget gave it.
+  if (open && height > 0 && !drawn.includes(open)) body.push(...windowRows(open, height, width, view, dress));
+
+  return [
+    row(header(root, tree.label), width, dress),
+    ...[...body, ...blank(spare)].slice(0, spare),
+    ...(footer ? [row([{ style: "dim", text: KEYS }], width, dress)] : []),
+  ];
+};
+
+const blank = (rows: number): ReadonlyArray<string> => Array<string>(Math.max(rows, 0)).fill("");
+
+/**
+ * The open step's own stream, stamped per physical line, wrapped, and showing
+ * the last `height` rows offset by `view.scroll`.
+ *
+ * Rendered from the tail backwards and stopped as soon as it has the rows it
+ * needs: a frame is drawn twelve times a second while a wait is open, and a
+ * step's stream reaches thousands of entries, so walking all of them — and
+ * re-lexing every markdown message — is what would make the screen stutter.
+ */
+const windowRows = (
+  step: Node,
+  height: number,
+  width: number,
+  view: View,
+  dress: Styler,
+): ReadonlyArray<string> => {
+  const wanted = height + view.scroll;
+  const rendered: Array<string> = [];
+  for (let index = step.stream.length - 1; index >= 0 && rendered.length < wanted; index -= 1) {
+    const entry = step.stream[index]!;
+    const at = dress("dim", stamp(entry.at));
+    rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${at} ${line}`, width)));
+  }
+  const end = Math.max(rendered.length - view.scroll, 0);
+  const shown = rendered.slice(Math.max(end - height, 0), end);
+  // Top-aligned when the stream is shorter than the window, the way a terminal
+  // fills a buffer it has not used up.
+  return [...shown, ...blank(height - shown.length)];
+};
+
+/**
+ * A line broken into rows of at most `width` display columns.
+ *
+ * Widths are counted ignoring SGR runs, because the escapes this repo emits
+ * occupy no columns; a run left open at a break simply continues onto the next
+ * row, which is what a terminal does with SGR state. Window rows are wrapped
+ * rather than cut, because a window exists to read agent prose and a cut
+ * sentence defeats it.
+ */
+const wrap = (line: string, width: number): ReadonlyArray<string> => {
+  if (width <= 0) return [""];
+  const rows: Array<string> = [];
+  let row = "";
+  let used = 0;
+  for (const piece of line.match(/\x1b\[[0-9;]*m|[\s\S]/g) ?? []) {
+    if (piece.startsWith("\x1b")) {
+      row += piece;
+      continue;
+    }
+    if (used === width) {
+      rows.push(row);
+      row = "";
+      used = 0;
+    }
+    row += piece;
+    used += 1;
+  }
+  rows.push(row);
+  return rows;
 };
 
 /**
