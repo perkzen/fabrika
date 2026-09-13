@@ -11,11 +11,13 @@ with one adapter in production and an in-memory one in the tests; nothing in
 
 | Path | Role |
 | --- | --- |
-| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>`; auth probe; exit codes |
+| `src/cli.ts` | `fabrika init` / `fabrika run <ticket>` / `fabrika run --file <spec>` / `fabrika sync`; auth probe; exit codes |
 | `src/run.ts` | The composition root: which adapter is behind each port, then run the pipeline |
+| `src/sweep.ts` | The sweep's composition root: one console, a forge with no worktree, and a layer graph per pull request |
 | `src/pipeline/step.ts` | The `Step` type, the builder that orders steps, and the driver that runs them and resumes |
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
-| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge both the PR and the review loop use |
+| `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
+| `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
 | `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
 | `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
@@ -53,7 +55,7 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Clean run; the last log line is the PR URL |
+| 0 | Clean run; the last log line is the PR URL, or for `sync` the counts line |
 | 1 | Configuration or CLI error |
 | 2 | Escalated: a human needs to look. The worktree and PR (if any) are left in place; rerun to resume |
 | 3 | Claude usage limit hit; state is saved, rerun once the window resets |
@@ -181,9 +183,48 @@ code. The keys in `state.sessions`:
 | the stage name | the stage and its gate-failure retries |
 | `merge-<round>` | resolving a base merge, and the repair pass after it |
 | `round-<round>` | one review round: review threads, CI fixes, the repair pass |
+| `sync-<base tip>` | one sweep's merge of a pull request, keyed by the first 7 characters of the base's tip |
 
 A stage that assumes it remembers an earlier one is a bug in its prompt — the
 inputs have to be named as paths.
+
+`sync-<base tip>` is the sweep's, and it is read off the live base after the
+fetch rather than off the pull request: it cannot collide with a round
+counter, and it changes exactly when the thing being merged changes. A retried
+sweep against an unmoved base lands in the session that already saw the
+conflict; one months later does not.
+
+## Sweeping conflicted pull requests
+
+`fabrika sync` is one **sweep**: a single `gh pr list` names every open pull
+request you authored with its **merge state**, and the conflicted ones that
+target the configured base and whose branch is not checked out anywhere on
+this machine are handed to bounded-concurrency **sync workers**. Everything
+else is reported with the rule that skipped it, first match wins:
+
+1. not open — `closed` / `already merged`
+2. headed from a fork — nothing here can push to it
+3. targets another branch
+4. merge state unknown — GitHub would not compute it
+5. not conflicted (`behind` or `clean`)
+6. the branch is checked out somewhere, with where
+
+A worker checks the branch out **as the forge has it** — a fetch and a hard
+reset, ADR-0004 — installs, merges the base through the same `syncWithBase`
+a run uses, gates, pushes and removes its tree. No review rounds and no forge
+call: the reviewer has already ruled, and a merge commit is not a new
+implementation. An escalation leaves its worktree exactly as an escalated run
+does.
+
+Rule 6 and the hard reset are load-bearing for each other: the reset is safe
+only because a branch checked out on this machine never reaches a worker.
+
+The sweep owns the only console — one line per pull request, the counts last
+— and each worker's journal is its `log.txt` alone, appended to the original
+run's log when the scan of `~/.fabrika/runs/<repo>/*/state.json` found one.
+The usage limit is the one failure that stops the sweep: workers already in
+flight run to their own outcomes, workers not yet started report
+`usage limit hit — not started`, and the exit code is 3.
 
 ## Review loop details
 
