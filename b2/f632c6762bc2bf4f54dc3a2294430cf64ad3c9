@@ -1,0 +1,19 @@
+CONTEXT.md
+  s_308d2d8350c5ae::t_5bb23d111e279c 100-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b2f632c6762bc2bf4f54dc3a2294430cf64ad3c9",
+  "prompts": {},
+  "sessions": {
+    "s_308d2d8350c5ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24631257-edaa-4519-8b11-0e1baaf358c9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
