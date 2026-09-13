@@ -99,7 +99,8 @@ pipeline on the test harness's in-memory ports — no `git`, `gh` or `claude`,
 nothing under `~/.fabrika` — with a scripted agent, a gate that goes red
 once, a skipped stage and a reviewer that opens one thread before signing
 off, paced like a run; `pnpm rehearse --fast` is the same run in seconds.
-It is `scripts/rehearse.ts`, and it does not ship.
+On macOS it ends with the notification a run ends with, through the same
+bundle. It is `scripts/rehearse.ts`, and it does not ship.
 
 ## Exit codes
 

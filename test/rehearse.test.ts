@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { NodeServices } from "@effect/platform-node";
 import { Effect } from "effect";
 import { rehearse } from "../scripts/rehearse.ts";
 
@@ -16,7 +17,9 @@ const sink = () => {
 test("a rehearsal runs the whole pipeline to done on ports that touch nothing", async () => {
   const out = sink();
   const dir = mkdtempSync(join(tmpdir(), "fabrika-rehearsal-test-"));
-  await Effect.runPromise(rehearse({ stream: out.stream, speed: 0, dir }));
+  // `notify` off: a test posts nothing, and the effect still names the
+  // filesystem the notifier would need, so it is provided.
+  await Effect.runPromise(rehearse({ stream: out.stream, speed: 0, dir }).pipe(Effect.provide(NodeServices.layer)));
 
   const lines = out.text().trimEnd().split("\n");
   assert.match(lines.at(-1)!, /^\d\d:\d\d:\d\d done: cubic 5\/5, no open threads, checks green — ready for human review: https:\/\/github\.com\/perkzen\/fabrika\/pull\/7$/, "the piped contract holds: the PR URL is the last line");
