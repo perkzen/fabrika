@@ -14,10 +14,9 @@ export type AgentOptions = {
   /** Permission rules every call is denied; the host does its own pushing and merging. */
   readonly deny: ReadonlyArray<string>;
   /**
-   * What a call runs on unless it names its own model. Held here rather than
-   * threaded through every step, so a call site that knows nothing about
-   * models — the naming call, a review round, a base merge — still spends what
-   * the repository says it spends (ADR-0005).
+   * What a call runs on unless it names its own model. Held here, not threaded
+   * through every step, so a call site that knows nothing about models still
+   * spends what the repository says it spends (ADR-0005).
    */
   readonly model?: string;
 };
