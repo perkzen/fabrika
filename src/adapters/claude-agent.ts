@@ -65,6 +65,7 @@ export const layer = (options: AgentOptions) =>
             const result = yield* runClaudeWithFallback({
               cwd: request.cwd ?? options.defaultCwd,
               prompt: request.prompt,
+              model: request.model,
               credentials: options.credentials,
               resume: store.get().sessions[key] ?? null,
               systemPromptFile: request.systemPromptFile,
