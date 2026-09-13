@@ -1,0 +1,19 @@
+docs/adr/0001-terminal-output-without-a-ui-framework.md
+  s_b64f1c7145f1eb::t_d45b00f59167a4 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8f3d9d8bce92e2f3f2b0bcaf3ecd94cee8fc532a",
+  "prompts": {},
+  "sessions": {
+    "s_b64f1c7145f1eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6ccd21d-ded6-48c7-9ec7-403e051e7032",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
