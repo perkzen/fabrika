@@ -114,6 +114,11 @@ test("the exit scrollback carries the worktree between the outline and the resul
   presenter.show(RUN);
   presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
   presenter.show(RESULT);
+  assert.doesNotMatch(
+    out.text().split("\x1b[?1049h")[0]!,
+    /worktree:/,
+    "the inner console the screen leaves behind on mount never saw a run event, so primary scrollback keeps none",
+  );
   presenter.end();
 
   const left = out.text().slice(out.text().lastIndexOf("\x1b[?1049l"));

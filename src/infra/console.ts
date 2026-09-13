@@ -59,6 +59,12 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let drawn = 0;
   let hidden = false;
   let ended = false;
+  /**
+   * Armed by the `run` event, the way `openNotifier` is: a rerun that
+   * short-circuits before the pipeline emits one has no tree worth naming,
+   * and neither has the inner console a screen leaves behind on mount.
+   */
+  let started = false;
   /** Whether the worktree has been named already. A run says where its tree is once. */
   let wrote = false;
   /**
@@ -170,7 +176,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
    * through a pipe alike, with no second rendering path.
    */
   const worktreeLine = () => {
-    if (wrote || options.worktree === undefined) return;
+    if (!started || wrote || options.worktree === undefined) return;
     // Before `show`, which is about to call back in here: the flag is what
     // makes the line exactly one.
     wrote = true;
@@ -179,9 +185,12 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
 
   const show = (entry: RunEvent | string) => {
     if (ended) return;
-    // Above the result and never below it: the piped contract is that a clean
-    // run's last stdout line is the pull request's URL.
-    if (typeof entry !== "string" && entry.kind === "result") worktreeLine();
+    if (typeof entry !== "string") {
+      if (entry.kind === "run") started = true;
+      // Above the result and never below it: the piped contract is that a
+      // clean run's last stdout line is the pull request's URL.
+      if (entry.kind === "result") worktreeLine();
+    }
     const at = stamp(now());
     const block = display(entry, dress, { cap: MESSAGE_LINES, archive: options.archive })
       .map((line) => `${dress("dim", at)} ${line}\n`)
@@ -199,6 +208,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
 
   const end = () => {
     if (ended) return;
+    // Before `ended`, which `show` early-returns on, and before the pipe's
+    // return below: a run that stopped without a verdict — a Ctrl-C, a usage
+    // limit, a crash — is the one that most needs to say where its tree is.
+    worktreeLine();
     ended = true;
     disarm();
     if (!interactive) return;

@@ -88,6 +88,41 @@ test("the worktree is the line above the result, so the result is still the last
   );
 });
 
+test("a run that stopped without a verdict still says where its tree is, last", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon, worktree: "/abs/FAB-7" });
+  presenter.show({ kind: "run", completed: [], steps: [{ name: "implement", done: false }] });
+  presenter.show({ kind: "step", name: "implement", at: 1, of: 1, state: "start" });
+  // Ctrl-C, a usage limit, a crash: the journal's finaliser releases the
+  // surfaces and no result event was ever emitted.
+  presenter.end();
+
+  assert.equal(
+    out.text().trimEnd().split("\n").at(-1),
+    "12:00:00 worktree: /abs/FAB-7",
+    "the way out of an interrupted run is the line the operator needs most",
+  );
+});
+
+test("a run is told where its tree is exactly once, whichever way it ended", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon, worktree: "/abs/FAB-7" });
+  scripted(presenter);
+  presenter.end();
+
+  assert.equal(out.text().match(/worktree:/g)?.length, 1, "the result's line and end()'s are the same line");
+});
+
+test("a run that never started names no worktree, however the surface was built", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon, worktree: "/abs/FAB-7" });
+  // The `already done: …` short-circuit: no run event, so no run.
+  presenter.show("already done: FAB-7 — remove ~/.fabrika/runs/fabrika/FAB-7 to rerun");
+  presenter.end();
+
+  assert.doesNotMatch(out.text(), /worktree:/);
+});
+
 test("a plain console emits no escape bytes at all", () => {
   const out = sink();
   const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
