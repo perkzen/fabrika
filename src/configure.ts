@@ -4,11 +4,12 @@ import { runClaude, type Credential } from "./infra/claude.ts";
 import { CONFIG_TEMPLATE, type GateStep } from "./config.ts";
 import type { RunEvent } from "./run-event.ts";
 
-/** The three repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
+/** The four repo-specific fields of `.fabrika/config.json`, plus what the call wants recorded. */
 export type ConfigProposal = {
   readonly base: string;
   readonly install: string | undefined;
   readonly gate: ReadonlyArray<GateStep>;
+  readonly provider: "cubic" | "none";
   readonly notes: ReadonlyArray<string>;
 };
 
@@ -29,13 +30,19 @@ export const CONFIG_SCHEMA = JSON.stringify({
         required: ["name", "run"],
       },
     },
+    provider: {
+      type: "string",
+      enum: ["cubic", "none"],
+      description:
+        "The review bot this repo already has, as evidence off its own pull requests: cubic when a review by cubic-dev-ai[bot] is there, none otherwise",
+    },
     notes: {
       type: "array",
       items: { type: "string" },
       description: "One line per decision: where each step came from, what was verified, what a human should check",
     },
   },
-  required: ["base", "gate", "notes"],
+  required: ["base", "gate", "provider", "notes"],
 });
 
 /**
@@ -88,7 +95,13 @@ export const asProposal = (raw: unknown): ConfigProposal | null => {
     gate.push({ ...step, name });
   }
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string") : [];
-  return { base, install: r.install, gate, notes };
+  // Normalised like `stepName`, and for the same reason: throwing a
+  // correctly-read gate away over this field costs more than guessing it. The
+  // asymmetry runs this way too — `"none"` on a repo that has cubic loses a
+  // signal the human still sees on the PR, where `"cubic"` on a repo that has
+  // no bot is a guaranteed escalation.
+  const provider = r.provider === "cubic" ? "cubic" : "none";
+  return { base, install: r.install, gate, provider, notes };
 };
 
 const PROMPT = fileURLToPath(new URL("../prompts/configure.md", import.meta.url));

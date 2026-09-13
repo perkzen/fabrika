@@ -97,3 +97,14 @@ test("the config init falls back to is runnable on a repo with no review bot", a
   const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
 });
+
+test("a proposal keeps cubic and normalises anything else to none, without losing the rest of it", () => {
+  const base = { base: "origin/main", gate: [{ name: "compile", run: "tsc" }], notes: [] };
+  assert.equal(asProposal({ ...base, provider: "cubic" })?.provider, "cubic");
+  for (const provider of ["none", "cubic-dev-ai", "Cubic", undefined, 5, null]) {
+    const proposal = asProposal({ ...base, provider });
+    assert.equal(proposal?.provider, "none", String(provider));
+    assert.deepEqual(proposal?.gate, [{ name: "compile", run: "tsc" }], "a correctly-read gate survives the guess");
+    assert.equal(proposal?.base, "origin/main");
+  }
+});

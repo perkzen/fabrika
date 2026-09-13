@@ -63,7 +63,13 @@ const configure = (presenter: Presenter) =>
     );
     for (const note of proposal?.notes ?? []) yield* say({ kind: "note", level: "detail", text: note });
     const config: Config = proposal
-      ? { ...CONFIG_TEMPLATE, base: proposal.base, install: proposal.install, gate: proposal.gate }
+      ? {
+          ...CONFIG_TEMPLATE,
+          base: proposal.base,
+          install: proposal.install,
+          gate: proposal.gate,
+          review: { ...CONFIG_TEMPLATE.review, provider: proposal.provider },
+        }
       : CONFIG_TEMPLATE;
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
     yield* fs.writeFileString(target, JSON.stringify(config, null, 2) + "\n");
@@ -76,6 +82,7 @@ const configure = (presenter: Presenter) =>
     yield* say(`wrote ${CONFIG_PATH}`);
     if (!proposal) {
       yield* say("`gate` is empty — fill in the commands this repo checks with before running a ticket.");
+      yield* say("`review.provider` is `none` — set it to `cubic` if this repo has the cubic review bot.");
     }
     yield* say("read the gate before you commit the file: it is what every code stage must pass.");
     yield* say("edit: branch, and the mcp names each stage may use.");
