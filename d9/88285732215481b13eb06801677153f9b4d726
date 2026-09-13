@@ -1,0 +1,19 @@
+docs/adr/0003-a-when-skip-requires-positive-evidence.md
+  s_bf4911fe24be20::t_ae146ca413a8e6 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d988285732215481b13eb06801677153f9b4d726",
+  "prompts": {},
+  "sessions": {
+    "s_bf4911fe24be20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "742ddbc8-07e7-487e-bc14-705efe103ed2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
