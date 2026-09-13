@@ -1,0 +1,19 @@
+src/adapters/file-run-store.ts
+  s_2dce6a23c4037d::t_f1b0081880641d 102,106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "14f3bd875edc85ba2f720e1cc430b65d8dc24a8d",
+  "prompts": {},
+  "sessions": {
+    "s_2dce6a23c4037d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b618fc98-e02b-497e-a3a9-5f701bb582ba",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
