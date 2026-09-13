@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -20,11 +21,16 @@ const BASE = "a1b2c3d4e5f6";
  * cache hit and none of them checks a `git worktree` out: what is under test
  * is what the adapter decides, not what git does.
  */
-const take = async (captures: ReadonlyArray<CaptureStep>, seed: (cache: (capture: string) => string) => void) => {
+const take = async (
+  captures: ReadonlyArray<CaptureStep>,
+  seed: (cache: (capture: string) => string) => void,
+  /** A real repository and a real sha make the base half an actual checkout. */
+  base: { repoRoot: string; sha: string } = { repoRoot: "/repo", sha: BASE },
+) => {
   const root = mkdtempSync(join(tmpdir(), "fabrika-captures-"));
   const cacheRoot = join(root, "cache");
   const cacheFor = (capture: string) => {
-    const dir = join(cacheRoot, BASE, capture);
+    const dir = join(cacheRoot, base.sha, capture);
     mkdirSync(dir, { recursive: true });
     return dir;
   };
@@ -32,10 +38,10 @@ const take = async (captures: ReadonlyArray<CaptureStep>, seed: (cache: (capture
 
   const dir = join(root, "worktree");
   mkdirSync(dir, { recursive: true });
-  const world = harness({ dir, runs: join(root, "run") });
+  const world = harness({ dir, runs: join(root, "run"), repoRoot: base.repoRoot });
 
   const shots = await Effect.runPromise(
-    Effect.flatMap(Captures, (port) => port.take(captures, BASE)).pipe(
+    Effect.flatMap(Captures, (port) => port.take(captures, base.sha)).pipe(
       Effect.provide(
         shellCaptures
           .layer({ cacheRoot, install: undefined })
@@ -43,7 +49,7 @@ const take = async (captures: ReadonlyArray<CaptureStep>, seed: (cache: (capture
       ),
     ),
   );
-  return { shots, log: world.recording.log, dir };
+  return { shots, log: world.recording.log, dir, cacheRoot };
 };
 
 /** `printf` over `echo -n`: portable across the `sh` a host happens to have. */
@@ -104,4 +110,28 @@ test("a capture's files are what the body can carry, in pairing order", async ()
     { name: "b.txt", kind: "text", content: "second" },
     { name: "link.url", kind: "link", content: "https://e.example" },
   ], "sorted by name so the two halves pair deterministically, and `notes.md` is not a file the body carries");
+});
+
+/** This repository, at its own HEAD: the only base a test can be sure checks out. */
+const here = { repoRoot: process.cwd(), sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim() };
+
+test("a base with no cached half is checked out, run, and kept for the next ticket", async () => {
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, here);
+
+  assert.deepEqual(shots[0]?.before, [{ name: "out.txt", kind: "text", content: "at the base" }], "the base half ran");
+  assert.ok(log.some((line) => line.includes(`capture console: base ${here.sha.slice(0, 7)} captured in`)));
+  assert.ok(!log.some((line) => line.includes("(from cache)")), "this ticket is the one that paid for it");
+  assert.equal(
+    readFileSync(join(cacheRoot, here.sha, "console", "out.txt"), "utf8"),
+    "at the base",
+    "and the next ticket cut from this base will find it already there",
+  );
+});
+
+test("a base command that fails leaves nothing in the cache to become a permanent hit", async () => {
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: "exit 1" }], () => {}, here);
+
+  assert.equal(shots[0]?.before, undefined);
+  assert.equal(existsSync(join(cacheRoot, here.sha, "console")), false, "the staged half was never promoted");
+  assert.ok(log.some((line) => line.includes("capture console: command failed (exit 1); no half")));
 });

@@ -52,6 +52,8 @@ export type Script = {
   readonly dir?: string;
   /** The run's own directory, for a real adapter that writes under it. */
   readonly runs?: string;
+  /** The repository a real adapter runs `git` in. */
+  readonly repoRoot?: string;
   readonly config?: Partial<Config>;
   readonly ticket?: Partial<Ticket>;
   readonly state?: Partial<RunState>;
@@ -188,7 +190,7 @@ export const harness = (script: Script = {}) => {
     }),
     Layer.succeed(Workspace)({
       dir: script.dir ?? "/worktree",
-      repoRoot: "/repo",
+      repoRoot: script.repoRoot ?? "/repo",
       artifactsDir: "/worktree/.fabrika/work",
       readArtifact: () => Effect.succeed(undefined),
       exists: Effect.succeed(script.worktreeExists ?? false),
