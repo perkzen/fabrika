@@ -1,0 +1,27 @@
+src/pipeline/steps/review.ts
+  ai_agent 65,98-101
+docs/internals.md
+  ai_agent 14,16,19-20,23,26,42,88,90,223,228-282,344-352
+src/run.ts
+  ai_agent 12,19,42-46,86,89-91
+src/adapters/file-journal.ts
+  ai_agent 8-29,57-71
+test/review.test.ts
+  s_dbfb78034ae50a::t_456c5df9ac0a7f 31-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "46f763d6b0be5d1d592fa8755360218aa6ee1ded",
+  "prompts": {},
+  "sessions": {
+    "s_dbfb78034ae50a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "199bf284-c9e9-424c-9abf-8c70d17344b4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
