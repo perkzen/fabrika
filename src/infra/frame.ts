@@ -1,7 +1,7 @@
 import type { Styler } from "./markdown.ts";
 import type { Style } from "./console.ts";
 import type { Node, StepState, Tree } from "../outline.ts";
-import { scrub } from "../run-event.ts";
+import { elapsed, scrub } from "../run-event.ts";
 
 /**
  * What the operator has selected, unfolded and scrolled to — the step tree's
@@ -37,6 +37,14 @@ const MARKERS: Record<StepState, string> = {
   skipped: "–",
   "already-done": "✔",
 };
+
+/** Summary fields are joined by two spaces, and each is omitted when it has nothing to say. */
+const FIELD = "  ";
+/** Past three tools the list stops naming them and says how many it left out. */
+const TOOLS = 3;
+
+/** How a gate verdict reads in a summary — the same three words the gate's own line uses. */
+const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
 
 /** A piece of a row and how it is dressed, so a row can be cut by its text and styled after. */
 type Segment = { readonly style?: Style; readonly text: string };
@@ -82,10 +90,57 @@ const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> =
   ];
 };
 
+/**
+ * One step, as the operator reads it: what state it is in, where it is, what
+ * it is called, and — once it has finished — what it came to.
+ *
+ * The fields are in one order and the row is cut from the right, so the
+ * marker, the position, the name and the state survive any terminal.
+ */
 const outlineRow = (step: Node): ReadonlyArray<Segment> => [
   { text: `${MARKERS[step.state]} ${step.at}/${step.of} ` },
-  { style: "bold", text: step.name },
+  { style: nameStyle(step.state), text: step.name },
+  ...summary(step),
 ];
+
+/** A failed step is the one line worth reading; a skipped or resumed one recedes. */
+const nameStyle = (state: StepState): Style =>
+  state === "failed" ? ["bold", "red"] : state === "skipped" || state === "already-done" ? "dim" : "bold";
+
+/** What a step came to: a rollup once it has finished, a reason if it never ran, nothing yet otherwise. */
+const summary = (step: Node): ReadonlyArray<Segment> => {
+  const { seconds, usd, calls, tools, skills, gates, reason } = step.summary;
+  if (step.state === "skipped") return [{ style: "dim", text: `${FIELD}skipped${reason ? ` (${reason})` : ""}` }];
+  if (step.state === "already-done") return [{ style: "dim", text: `${FIELD}already done` }];
+  if (step.state !== "done" && step.state !== "failed") return [];
+  return [
+    ...(seconds === undefined ? [] : [{ text: `${FIELD}${elapsed(seconds)}` }]),
+    ...(usd === undefined ? [] : [{ text: `${FIELD}$${usd.toFixed(2)}` }]),
+    ...(calls === 0 ? [] : [{ text: `${FIELD}${calls} calls (${named(tools)})` }]),
+    ...(skills.length === 0 ? [] : [{ text: `${FIELD}${skills.join(", ")}` }]),
+    ...verdicts(gates),
+  ];
+};
+
+const named = (tools: Node["summary"]["tools"]): string => {
+  const left = tools.length - TOOLS;
+  return [...tools.slice(0, TOOLS).map((seen) => `${seen.tool} ${seen.count}`), ...(left > 0 ? [`+${left} more`] : [])].join(", ");
+};
+
+/** Each gate command's verdict and time, the failed one still bold red at this grain. */
+const verdicts = (gates: Node["summary"]["gates"]): ReadonlyArray<Segment> =>
+  gates.length === 0
+    ? []
+    : [
+        { text: `${FIELD}gate: ` },
+        ...gates.flatMap((gate, index): ReadonlyArray<Segment> => [
+          ...(index === 0 ? [] : [{ text: ", " }]),
+          {
+            style: gate.state === "fail" ? (["bold", "red"] satisfies Style) : undefined,
+            text: `${gate.name} ${VERDICTS[gate.state]}${gate.seconds === undefined ? "" : ` ${gate.seconds}s`}`,
+          },
+        ]),
+      ];
 
 /**
  * Cut by the text and dressed after, never the other way round: slicing a
