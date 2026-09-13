@@ -1,0 +1,25 @@
+src/infra/editor.ts
+  s_f7bd20fddd438b::t_7721b6e4f2eb03 1-25
+src/infra/notifier.ts
+  s_f7bd20fddd438b::t_7721b6e4f2eb03 2
+test/editor.test.ts
+  s_f7bd20fddd438b::t_93c1cccedc0ce3 1-22
+src/infra/shell.ts
+  s_f7bd20fddd438b::t_7721b6e4f2eb03 1-4,11-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e3caf466c4ba4c9567bf6a247ce5f5c0235970fa",
+  "prompts": {},
+  "sessions": {
+    "s_f7bd20fddd438b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1cdde28-f99f-497a-a25e-bb83e1c647ce",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
