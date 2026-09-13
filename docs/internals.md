@@ -75,9 +75,9 @@ open window, `Esc` to go back to following the running step, `o` to open the
 worktree — whose path is the header's second row — in `FABRIKA_EDITOR`, and
 `Ctrl-C` to interrupt the run. They are optional: a run whose operator went
 home has the same outcome, the same exit code and the same last line, and one
-who pressed `o` has an editor open beside a run that is otherwise identical. Leaving the screen —
-on every exit path — writes the folded outline, the worktree's absolute path
-and the result line to plain scrollback.
+who pressed `o` has an editor open beside a run that is otherwise identical.
+Leaving the screen — on every exit path — writes the folded outline, the
+worktree's absolute path and the result line to plain scrollback.
 
 A pipe, `NO_COLOR`, `TERM=dumb`, CI and `fabrika init` get the scrolling log
 instead, unchanged but for one `step refactor: done (8m 53s)` line per step.

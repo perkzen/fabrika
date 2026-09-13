@@ -66,10 +66,10 @@ export const layer = (options: CapturesOptions) =>
       const command = (capture: CaptureStep, cwd: string, into: string) =>
         Effect.gen(function* () {
           const result = yield* spawned(
-            // `false`: the point is what the child does *not* have, and an
-            // inherited environment cannot be merged down to less than itself.
-            // A capture renders a surface and then has its output published on
-            // a pull request, so it must not be holding a key when it prints.
+            // `false`: a capture's output is published on a pull request, so
+            // it is the one child that must not be holding a key when it
+            // prints — and an inherited environment cannot be merged down to
+            // less than itself.
             sh(cwd, capture.run, { ...withoutSecrets(process.env), FABRIKA_CAPTURE_DIR: into }, false),
           ).pipe(
             Effect.timeoutOption(Duration.minutes(capture.timeoutMinutes ?? DEFAULT_CAPTURE_MINUTES)),
