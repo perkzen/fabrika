@@ -82,3 +82,17 @@ test("a tool call and a cost read as the sub-lines they are", () => {
   assert.deepEqual(plain({ kind: "tool", stage: "implement", tool: "MysteryTool", subject: "" }), ["  MysteryTool"]);
   assert.deepEqual(plain({ kind: "cost", stage: "implement", usd: 1.5 }), ["  (implement: $1.50)"]);
 });
+
+/**
+ * The two poll loops that became a wait. The start lines are what they wrote
+ * once a poll; gh-forge's parenthetical is the one converted call site whose
+ * plain rendering is deliberately not byte-identical.
+ */
+test("a wait's start line is what the poll loop wrote per poll", () => {
+  assert.deepEqual(plain({ kind: "wait", state: "start", subject: "cubic-dev-ai review of abc1234", deadlineMinutes: 25 }), [
+    "waiting for cubic-dev-ai review of abc1234",
+  ]);
+  assert.deepEqual(plain({ kind: "wait", state: "start", subject: "checks on abc1234", deadlineMinutes: 20 }), [
+    "waiting for checks on abc1234",
+  ]);
+});

@@ -128,9 +128,16 @@ export const layer = Layer.effect(Reviewer)(
       decisionSchema: DECISION_SCHEMA,
       prompts: { threads: "cubic.md", system: "cubic.system.md" },
 
-      await: (pr: number, commits: ReadonlyArray<string>, timeoutMinutes: number) =>
-        Effect.gen(function* () {
-          const deadline = Date.now() + timeoutMinutes * 60_000;
+      // One wait for the whole poll loop, not a line per poll: the
+      // repetition an operator needs is the presenter's job now, which is
+      // what lets a terminal animate it and a pipe heartbeat it.
+      await: (pr: number, commits: ReadonlyArray<string>, timeoutMinutes: number) => {
+        const subject = `${BOT} review of ${commits.map((sha) => sha.slice(0, 7)).join("/")}`;
+        let started = Date.now();
+        return Effect.gen(function* () {
+          started = Date.now();
+          yield* journal.log({ kind: "wait", state: "start", subject, deadlineMinutes: timeoutMinutes });
+          const deadline = started + timeoutMinutes * 60_000;
           while (true) {
             const review = yield* latest(pr, commits);
             if (review) {
@@ -141,10 +148,16 @@ export const layer = Layer.effect(Reviewer)(
               } satisfies Review;
             }
             if (Date.now() >= deadline) return undefined;
-            yield* journal.log(`waiting for ${BOT} review of ${commits.map((sha) => sha.slice(0, 7)).join("/")}`);
             yield* Effect.sleep(POLL);
           }
-        }),
+        }).pipe(
+          Effect.ensuring(
+            Effect.suspend(() =>
+              journal.log({ kind: "wait", state: "end", subject, seconds: (Date.now() - started) / 1000 }),
+            ),
+          ),
+        );
+      },
 
       reply: (threadId: string, body: string) =>
         mutation(

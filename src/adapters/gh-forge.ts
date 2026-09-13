@@ -108,9 +108,15 @@ export const layer = (options: ForgeOptions) =>
             }),
           ),
 
-        settledChecks: (pr: number, sha: string, timeoutMinutes: number) =>
-          Effect.gen(function* () {
-            const started = Date.now();
+        // One wait for the whole poll loop. The per-poll `(2 pending)`
+        // parenthetical goes with it: it was poll state, and the presenter
+        // has no way to know it.
+        settledChecks: (pr: number, sha: string, timeoutMinutes: number) => {
+          const subject = `checks on ${sha.slice(0, 7)}`;
+          let started = Date.now();
+          return Effect.gen(function* () {
+            started = Date.now();
+            yield* journal.log({ kind: "wait", state: "start", subject, deadlineMinutes: timeoutMinutes });
             const deadline = started + timeoutMinutes * 60_000;
             while (true) {
               const current = yield* rollup(pr);
@@ -118,13 +124,16 @@ export const layer = (options: ForgeOptions) =>
               const graceOver = Date.now() - started > Duration.toMillis(EMPTY_ROLLUP_GRACE);
               if (settled && (current.checks.length > 0 || graceOver)) return current.checks;
               if (Date.now() >= deadline) return undefined;
-              const pending = current.checks.filter((check) => check.state === "pending").length;
-              yield* journal.log(
-                `waiting for checks on ${sha.slice(0, 7)} (${current.sha === sha ? `${pending} pending` : "head not updated yet"})`,
-              );
               yield* Effect.sleep(POLL);
             }
-          }),
+          }).pipe(
+            Effect.ensuring(
+              Effect.suspend(() =>
+                journal.log({ kind: "wait", state: "end", subject, seconds: (Date.now() - started) / 1000 }),
+              ),
+            ),
+          );
+        },
 
         failureLog: (check: Check) =>
           check.job
