@@ -40,9 +40,18 @@ export const layer = (options: WorkspaceOptions) =>
       const spawned = <A, E>(effect: Effect.Effect<A, E, ChildProcessSpawner.ChildProcessSpawner>) =>
         Effect.provideService(effect, ChildProcessSpawner.ChildProcessSpawner, spawner);
 
-      /** In the worktree, failing with the command that failed and its output. */
+      /**
+       * In the worktree, failing with the command that failed and its output.
+       *
+       * `core.quotePath=false` because the paths this reads back are matched
+       * against a stage's `when` globs: git would otherwise print `src/caf\303\251.ts`
+       * for `src/café.ts`, quotes and all, which no `src/**` matches — and a
+       * filter that misses is a stage or a gate step silently skipped.
+       */
       const git = (argv: ReadonlyArray<string>, cwd = dir) =>
-        spawned(run(cwd, ["git", ...argv])).pipe(Effect.mapError(asFabrikaError(`git ${argv[0]}`)));
+        spawned(run(cwd, ["git", "-c", "core.quotePath=false", ...argv])).pipe(
+          Effect.mapError(asFabrikaError(`git ${argv[0]}`)),
+        );
       const lines = (out: string) => out.split("\n").filter(Boolean);
 
       const excludeWorkDir = Effect.gen(function* () {
