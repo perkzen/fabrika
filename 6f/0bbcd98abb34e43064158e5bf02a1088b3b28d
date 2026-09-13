@@ -1,0 +1,19 @@
+docs/adr/0003-a-sweep-hands-out-pull-requests-not-tickets.md
+  s_26dd3598839fd0::t_a306bf276384eb 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6f0bbcd98abb34e43064158e5bf02a1088b3b28d",
+  "prompts": {},
+  "sessions": {
+    "s_26dd3598839fd0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7173c38-634a-4075-9cfd-2ea8e8f812b4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
