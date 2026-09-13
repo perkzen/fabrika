@@ -1,0 +1,24 @@
+src/adapters/file-journal.ts
+  s_f917e12f3bd57e::t_2b948cbc9857fd 36,39-42,44-49,51
+  s_f917e12f3bd57e::t_0670d50c9f66fa 8-23,37-38
+src/sweep.ts
+  s_f917e12f3bd57e::t_2b948cbc9857fd 33-35,103
+test/journal.test.ts
+  s_f917e12f3bd57e::t_3dac5cab86a75c 47,55,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a34a60b9859621f7b1c5321049bddc0007d985e4",
+  "prompts": {},
+  "sessions": {
+    "s_f917e12f3bd57e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc19324b-0581-4f09-9f9c-80c183c5316e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
