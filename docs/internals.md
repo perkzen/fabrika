@@ -24,10 +24,13 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
 | `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
-| `src/infra/` | The subprocess helper, the Claude CLI wrapper and MCP resolution — implementation details of the adapters |
+| `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
+| `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
+| `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
 | `src/paths.ts` | The one place that resolves the package root, so the lookup works from `src/` and from `dist/` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
