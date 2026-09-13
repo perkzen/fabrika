@@ -80,8 +80,11 @@ const stepName = (raw: unknown): string =>
   (typeof raw === "string" ? raw : "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "check";
+    .slice(0, 40)
+    // Trimmed after the cut, not before: a 41st character makes the cut land
+    // on a hyphen, and a capture name with one on the end is a config the
+    // schema will not load.
+    .replace(/^-+|-+$/g, "") || "check";
 
 /** Names only reach the log and the escalation line, but two `check` steps there would be unreadable. */
 const unique = <S extends { readonly name: string }>(steps: ReadonlyArray<S>): Array<S> => {

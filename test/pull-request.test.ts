@@ -143,4 +143,8 @@ test("a base sha that is not one is no base at all", async () => {
   assert.equal(failed, false);
   assert.deepEqual(recording.captures, [], "no command ran against a base nobody can name");
   assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+  assert.ok(
+    recording.log.some((line) => line.includes("captures: no section")),
+    "and the operator is told, as every other missing half on this branch is",
+  );
 });

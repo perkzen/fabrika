@@ -209,3 +209,23 @@ test("a capture name is a plain label, because the host makes a directory out of
     await Effect.runPromise(decodeConfig(withCapture(name)).pipe(Effect.flip));
   }
 });
+
+test("every name a proposal can produce is one the config can be loaded with", async () => {
+  // `init` writes what `asConfig` returns and `run` decodes it back, so a
+  // name the normaliser emits and the schema rejects is a config fabrika
+  // writes and then refuses to start on.
+  const proposal = asProposal({
+    base: "origin/main",
+    gate: [],
+    provider: "none",
+    notes: [],
+    capture: [
+      { name: `${"x".repeat(39)} frame`, run: "true" },
+      { name: "Console   frame", run: "true" },
+      { name: "!!!", run: "true" },
+    ],
+  });
+
+  const config = await Effect.runPromise(decodeConfig(JSON.stringify(asConfig(proposal))));
+  assert.deepEqual(config.pr.capture?.map((capture) => capture.name), ["x".repeat(39), "console-frame", "check"]);
+});

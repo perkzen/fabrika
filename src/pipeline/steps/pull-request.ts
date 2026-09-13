@@ -29,7 +29,7 @@ const composeBody = (link: string, description: string, section: string | undefi
 const captureSection = (
   captures: ReadonlyArray<CaptureStep>,
   headSha: string,
-): Effect.Effect<Section | undefined, never, Captures | Forge | Workspace> =>
+): Effect.Effect<Section | undefined, never, Captures | Forge | Journal | Workspace> =>
   Effect.gen(function* () {
     if (captures.length === 0) return undefined;
     const workspace = yield* Workspace;
@@ -42,7 +42,10 @@ const captureSection = (
     // A sha, or nothing: `git rev-parse` can warn on stderr and still exit
     // zero, and the adapter interleaves the two. The captures make a directory
     // of this string and empty it recursively, and print it into the body.
-    if (!/^[0-9a-f]{7,64}$/.test(baseSha)) return undefined;
+    if (!/^[0-9a-f]{7,64}$/.test(baseSha)) {
+      yield* Effect.flatMap(Journal, (journal) => journal.log("captures: no section — the base did not resolve to a commit"));
+      return undefined;
+    }
     const shots = yield* (yield* Captures).take(applicable, baseSha);
     if (shots.length === 0) return undefined;
     // Read only now: `attaches` shells out to `gh --version`, and a run with
