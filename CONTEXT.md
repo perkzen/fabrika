@@ -29,6 +29,13 @@ animates.
 _Avoid_: renderer, reporter, writer — *render* stays the verb (render
 markdown, render a line), so the noun has to be something else.
 
+**Archive**:
+The run's own uncapped copy of itself, `log.txt` — every event, plain and
+stamped, kept whether or not anyone is watching the console. It is the
+surface an elided console line points at.
+_Avoid_: log file, transcript — *transcript* is the agent's raw stream-json,
+which is a different file.
+
 **Plain rendering**:
 A run event as ANSI-free text lines, unstamped — the timestamp belongs to the
 surface that writes them. It is what `log.txt` always receives, and what a
