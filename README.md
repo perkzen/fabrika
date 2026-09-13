@@ -21,7 +21,7 @@ flowchart LR
     A --> SE[security]
     SE --> R[review]
     R --> M["merge base<br/>open draft PR"]
-    M --> L["review loop<br/>bot threads + CI checks"]
+    M --> L["review loop<br/>reviewer findings + CI checks"]
     L --> H["Human reviews<br/>and merges"]
 ```
 
