@@ -94,3 +94,31 @@ One signal the forge reports on the pushed commit — a CI job or a commit
 status. The reviewer's own check is not one: `owns` takes it out before the
 loop can wait on the signal the loop is producing.
 _Avoid_: status, CI run, test.
+
+### Syncing conflicted pull requests
+
+**Sweep**:
+One invocation that lists the operator's open pull requests, picks the
+conflicted ones and syncs each. It ends when they are all handled — a sweep is
+a pass over the repository, never a process that stays alive watching it.
+_Avoid_: watcher, daemon, monitor, poller — what invokes a sweep on a schedule
+is the operator's, not fabrika's.
+
+**Sync worker**:
+One pull request's share of a sweep: its own worktree, run directory, gate and
+agent session, run alongside a bounded number of others. It is a layer graph,
+not a Claude sub-agent, and it shares nothing with its siblings.
+_Avoid_: job, task, sub-agent, thread.
+
+**Merge state**:
+What the forge says about a pull request against its base: conflicted, behind,
+clean, or unknown because GitHub has not finished computing it. Only
+*conflicted* is a sweep's business.
+_Avoid_: mergeable, mergeStateStatus — those are the two GitHub fields the
+state is read off; conflict status.
+
+**Sync outcome**:
+What one worker produced, as a value: synced, already clean, escalated,
+failed, or skipped with the rule that skipped it. A worker never fails its
+sweep — the outcomes are collected and the worst one is the exit code.
+_Avoid_: result, status, error.
