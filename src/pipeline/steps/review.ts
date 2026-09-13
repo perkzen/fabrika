@@ -92,10 +92,13 @@ export const reviewRounds: Step = {
       yield* journal.log(`  ${verdict}${failed.length} failing check(s)`);
       const scoreOk = !reviewer.scores || (review.score !== null && review.score >= config.review.requireScore);
       if (scoreOk && threads.length === 0 && failed.length === 0) {
-        yield* store.update((state) => void (state.done = true));
         const kept = yield* store.archive(workspace.artifactsDir);
         if (kept) yield* journal.log(`artifacts: ${kept}`);
         yield* workspace.remove;
+        // Last, once the finishing has finished: a state that says `done`
+        // before the artifacts are kept and the worktree is gone turns a
+        // failure in either into one no resume will ever retry.
+        yield* store.update((state) => void (state.done = true));
         yield* journal.log({
           kind: "result",
           outcome: "done",

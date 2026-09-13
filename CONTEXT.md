@@ -129,3 +129,25 @@ What one worker produced, as a value: synced, already clean, escalated,
 failed, or skipped with the rule that skipped it. A worker never fails its
 sweep — the outcomes are collected and the worst one is the exit code.
 _Avoid_: result, status, error.
+
+### Showing the change
+
+**Capture**:
+A named command in the committed config that renders one user-visible surface
+to files, run by the host in a checkout. fabrika never looks inside what it
+writes, so the same contract serves a simulator screen, a browser page, a
+window and a terminal frame.
+_Avoid_: screenshot — an image is one of the three kinds a capture may write;
+snapshot, visual test.
+
+**Shot**:
+One capture's two halves: the files it wrote at the base, and the files it
+wrote on the branch. Either half may be absent, which is how a capture that is
+new on the branch and one that produced nothing are both said.
+_Avoid_: pair, comparison, result.
+
+**Before / After**:
+The pull-request body section that carries each capture twice — the same
+surface rendered at the base and on the branch, side by side — for the half of
+a change a diff cannot show.
+_Avoid_: visual diff, preview, comparison.

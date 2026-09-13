@@ -308,7 +308,7 @@ test("a worker merges the branch as the forge has it, not as the tree left it", 
   );
   assert.deepEqual(
     recording.agent.map((call) => call.session ?? call.stage),
-    ["sync-b45e7ea"],
+    ["sync-a1b2c3d"],
     "the session is named after the base tip, so a retry against an unmoved base lands in the conversation that saw the conflict",
   );
 });

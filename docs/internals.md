@@ -18,23 +18,28 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/pipeline/fabrika.ts` | The run fabrika ships: preflight, branch, workspace, the configured stages, PR, review |
 | `src/pipeline/steps/` | One file per step; `sync.ts` is the base-merge the PR step, the review loop and a sweep's worker all use |
 | `src/pipeline/sweep.ts` | Which pull requests a sweep touches, what their outcomes add up to, and one worker's share of it |
-| `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
-| `src/adapters/` | Claude, git worktree, shell gate, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
+| `src/ports/` | `Agent`, `Workspace`, `Gate`, `Forge`, `Captures`, `Reviewer`, `TicketSource`, `Prompts`, `RunStore`, `Journal`, `RunContext` |
+| `src/adapters/` | Claude, git worktree, shell gate, shell captures, `gh`, cubic, no-reviewer, Linear, a spec file, the run directory |
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific; the two halves of `base` |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
 | `src/pull-request.ts` | The title and the trailer fabrika writes into a pull request it opens, and how a sweep reads both back |
+| `src/captures.ts` | The `Shot` and `CaptureFile` types and `beforeAfter()`, the pure rendering of the PR body's Before / After section — every shape it can take is reachable from a plain call |
 | `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
 | `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
-| `src/infra/` | The subprocess helper, the Claude CLI wrapper and MCP resolution — implementation details of the adapters |
+| `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
+| `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
+| `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
 | `src/paths.ts` | The paths fabrika resolves: the package's own, so the lookup works from `src/` and from `dist/`, and the operator's `~/.fabrika` |
 | `prompts/` | Stage prompts and per-stage system prompts, `{{title}}`-style substitution |
 | `skills/` | The `fabrika:*` skills each stage prompt names; `.claude-plugin/plugin.json` is the manifest |
 | `test/harness.ts` | Every port in memory, so a step can be exercised with no repository, no GitHub and no agent |
 | `scripts/smoke.ts` | CLI behaviour checks against the real `claude` (see below) |
+| `scripts/capture-console.ts` | This repo's own capture: a fixture of run events replayed through the console presenter (see below) |
 
 ### Changing a piece of it
 
@@ -81,10 +86,10 @@ path working by failing the typecheck on syntax Node cannot strip.
 
 ## Configuring a repo
 
-`fabrika init` writes the template in `src/config.ts`, but `base`, `install`
-and `gate` are left neutral there and filled in by one structured call that
-applies the `fabrika:configure` skill. They are the fields that cannot be
-shipped: a gate step naming a script the target repo does not have goes red on
+`fabrika init` writes the template in `src/config.ts`, but `base`, `install`,
+`gate` and `capture` are left neutral there and filled in by one structured
+call that applies the `fabrika:configure` skill. They are the fields that
+cannot be shipped: a gate step naming a script the target repo does not have goes red on
 an untouched checkout, and the runner hands that failure to the agent as
 "fix it" for code it never wrote — so the agent spends `maxIterations`
 inventing a way to make a command that should not be there pass.
@@ -148,6 +153,13 @@ Each run keeps its state and logs outside the target repo, in
 - `log.txt`: the human-readable log
 - one raw `stream-json` file per agent call
 - `work/`: a copy of the worktree's `.fabrika/work/` made when the run finishes
+
+One directory more is keyed by base commit rather than by ticket, because that
+is what its contents depend on:
+
+- `~/.fabrika/captures/<repo>/<base sha>/<capture>/`: the base half of a
+  capture, so ten tickets cut from one base pay for one run of it. Nothing
+  evicts it; deleting it costs the next run a recapture and nothing else.
 
 Rerunning the same command resumes from that state. On escalation the worktree
 is left in place for a human.
@@ -266,6 +278,30 @@ reviews stay valid.
 The loop reads `Reviewer.scores` rather than the config field, so a third
 review bot is a new adapter and one more arm of the ternary in `src/run.ts`.
 ADR-0002 records why the port carries inert stubs instead of being split.
+
+## Before / After on the pull request
+
+A **capture** is a named command in `pr.capture`, shaped like a gate step and
+gated by the same globs against the branch's diff. The host runs it twice — in
+a detached checkout of the base and in the run's own worktree — with
+`FABRIKA_CAPTURE_DIR` pointing at an empty directory, and reads back whatever
+files it wrote. fabrika never looks inside one, which is why a simulator
+screen, a browser page and a terminal frame need no change here.
+
+Kinds are decided by extension: `.png` `.jpg` `.jpeg` `.gif` `.webp` are
+uploaded with the pull request and shown side by side, `.txt` is scrubbed,
+capped and fenced, `.url` becomes a link, and anything else is ignored. The
+uploading is `gh pr create --attach`, which arrived in `gh` 2.99.0; an older
+`gh` drops the images and says so, because a capture may never fail a run —
+a non-zero exit, a timeout, an overrun cap or an empty directory all end as a
+missing half and today's body. ADR-0003 records why the images are attachments
+rather than anything committed.
+
+This repo's own capture is `scripts/capture-console.ts`, once `pr.capture`
+names it — nothing in `.fabrika/config.json` does yet. It replays a fixture
+of run events through the console presenter rather than running a ticket, and
+writes a PNG through whatever `freeze`-class tool is on `PATH`, or a `.txt`
+when there is none.
 
 ## Tests
 

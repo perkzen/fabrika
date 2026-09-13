@@ -1,17 +1,18 @@
 import { Effect, Layer } from "effect";
 import { basename } from "node:path";
 import { openArchive } from "../infra/archive.ts";
-import { openConsole, type ConsoleOptions } from "../infra/console.ts";
+import { openConsole, type ConsoleOptions, type Presenter } from "../infra/console.ts";
 import { Journal } from "../ports/journal.ts";
 import type { RunEvent } from "../run-event.ts";
 
 /** The fan-out both forms share; `null` builds the archive alone. */
-const journal = (file: string, consoleOptions: ConsoleOptions | null) =>
+const journal = (file: string, consoleOptions: ConsoleOptions | null, extra: ReadonlyArray<Presenter> = []) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
       const surfaces = [
         ...(consoleOptions ? [openConsole(consoleOptions)] : []),
         openArchive({ file, now: consoleOptions?.now }),
+        ...extra,
       ];
       // The layer owns their lifetime: the live region is cleared and the
       // cursor restored before `cli.ts` writes anything to stderr.
@@ -32,11 +33,15 @@ const journal = (file: string, consoleOptions: ConsoleOptions | null) =>
  *
  * They share one clock, so the file and the console never disagree about when
  * the same event happened.
+ *
+ * `extra` is how a run adds one it decided on — the notifier, when the config
+ * asks for it. Which surfaces exist is the composition root's call, not this
+ * layer's: it only fans out to whatever it was given.
  */
-export const layer = (file: string, consoleOptions?: ConsoleOptions) =>
+export const layer = (file: string, consoleOptions?: ConsoleOptions, extra: ReadonlyArray<Presenter> = []) =>
   // The label, not the path: the elision line points at `log.txt`, which is
   // what the operator calls it, not a line of absolute path.
-  journal(file, consoleOptions ?? { stream: process.stdout, archive: basename(file) });
+  journal(file, consoleOptions ?? { stream: process.stdout, archive: basename(file) }, extra);
 
 /**
  * The archive by itself, for a sweep's worker: the sweep owns the only

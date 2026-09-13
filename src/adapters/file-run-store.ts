@@ -91,10 +91,12 @@ export const layer = (directory: string) =>
           Effect.gen(function* () {
             if (!(yield* fs.exists(from))) return undefined;
             const target = path.join(directory, "work");
-            yield* fs.makeDirectory(target, { recursive: true });
-            for (const name of yield* fs.readDirectory(from)) {
-              yield* fs.copyFile(path.join(from, name), path.join(target, name));
-            }
+            // `cp -r` over the whole directory, not a `copyFile` per entry: an
+            // agent is free to write a subdirectory of its own beside the
+            // stage files, and `copyFile` refuses a directory source. Copying
+            // is overwriting, so a retried archive is the later snapshot
+            // rather than a merge of two.
+            yield* fs.copy(from, target, { overwrite: true });
             return target;
           }).pipe(Effect.mapError(asFabrikaError(`copying ${from}`))),
         update: (change: (state: RunState) => void) => Effect.suspend(() => (change(state), save)),

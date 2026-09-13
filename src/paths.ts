@@ -25,7 +25,8 @@ export const PLUGIN_DIR = PACKAGE_ROOT;
  * transcripts outside the target repo, the worktree outside it as well. Both
  * are keyed by repository and key — a ticket identifier for a run, a pull
  * request's key for a sweep's worker — so two of either never share a
- * directory.
+ * directory. The capture cache is keyed by repository and base sha instead,
+ * so ten tickets cut from one base share it.
  *
  * A plain join over a `Path` the caller already holds, so a sweep can resolve
  * a path inside a callback that must have no requirements of its own. It lives
@@ -33,5 +34,5 @@ export const PLUGIN_DIR = PACKAGE_ROOT;
  * are siblings, and the second importing the first would say one is built on
  * the other.
  */
-export const home = (path: Path.Path, kind: "runs" | "worktrees", repoRoot: string, key: string) =>
+export const home = (path: Path.Path, kind: "runs" | "worktrees" | "captures", repoRoot: string, key: string) =>
   path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), key);

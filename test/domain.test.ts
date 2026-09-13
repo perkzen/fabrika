@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { NodePath } from "@effect/platform-node";
 import { Effect, Path } from "effect";
-import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
+import { attachesFrom, classify, createArgs, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { checkedOut } from "../src/adapters/git-workspace.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
@@ -99,6 +99,28 @@ test("both providers decode and a third does not, so a typo fails at the start o
   assert.match(String(error), /\["review"\]\["provider"\]/);
 });
 
+test("keepAwake is optional, so every config written before it still loads", async () => {
+  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(without.keepAwake, undefined, "and the file `init` writes does not turn one machine's preference on for everyone");
+
+  const on = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, keepAwake: true })));
+  assert.equal(on.keepAwake, true);
+
+  const error = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, keepAwake: "yes" })).pipe(Effect.flip));
+  assert.match(String(error), /\["keepAwake"\]/, "a string fails at the start of the run, not hours in");
+});
+
+test("notify is optional on the same terms", async () => {
+  const without = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  assert.equal(without.notify, undefined);
+
+  const on = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: true })));
+  assert.equal(on.notify, true);
+
+  const error = await Effect.runPromise(decodeConfig(JSON.stringify({ ...CONFIG_TEMPLATE, notify: 1 })).pipe(Effect.flip));
+  assert.match(String(error), /\["notify"\]/);
+});
+
 test("the config init falls back to is runnable on a repo with no review bot", async () => {
   const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
   assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
@@ -120,6 +142,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
     base: "origin/trunk",
     install: "pnpm i --frozen-lockfile",
     gate: [{ name: "compile", run: "tsc" }],
+    capture: [],
     provider: "cubic",
     notes: ["read off the repo"],
   });
@@ -137,7 +160,7 @@ test("a proposal becomes the config init writes, and only the fields it proposed
 });
 
 test("a repo that needs no install step gets a config with no install key at all", () => {
-  const config = asConfig({ base: "origin/main", install: undefined, gate: [], provider: "none", notes: [] });
+  const config = asConfig({ base: "origin/main", install: undefined, gate: [], capture: [], provider: "none", notes: [] });
   assert.equal(config.install, undefined);
   assert.equal(JSON.parse(JSON.stringify(config)).install, undefined, "and `init` writes the file without it");
 });
@@ -242,4 +265,93 @@ test("a detached worktree is on no branch, and one worktree is still a listing",
     { branch: "main", path: "/repo" },
   ]);
   assert.deepEqual(checkedOut(""), [], "a listing that came back empty skips nothing rather than everything");
+});
+
+test("gh is asked for the right things", () => {
+  // 2.93.0 is this host's; --attach arrived in 2.99.0.
+  assert.equal(attachesFrom("gh version 2.93.0 (2026-08-12)\nhttps://github.com/cli/cli/releases/tag/v2.93.0"), false);
+  assert.equal(attachesFrom("gh version 2.99.0 (2026-09-01)"), true);
+  assert.equal(attachesFrom("gh version 3.0.1 (2026-11-02)"), true);
+  assert.equal(attachesFrom(""), false, "a gh that cannot be interrogated is one that must not be handed --attach");
+
+  assert.deepEqual(
+    createArgs(
+      "perkzen/fabrika",
+      "main",
+      { branch: "a-branch", title: "FAB-4: a thing", body: "in the file", draft: true, attachments: ["/a/one.png", "/a/two.png"] },
+      "/tmp/body.md",
+    ),
+    [
+      "pr", "create", "-R", "perkzen/fabrika",
+      "--head", "a-branch",
+      "--base", "main",
+      "--title", "FAB-4: a thing",
+      "--body-file", "/tmp/body.md",
+      "--draft",
+      "--attach", "/a/one.png",
+      "--attach", "/a/two.png",
+    ],
+  );
+});
+
+test("a proposed capture is validated like a gate step", () => {
+  const answer = { base: "origin/main", gate: [], provider: "none", notes: [] };
+
+  assert.equal(asProposal({ ...answer, capture: [{ name: "x", run: "git push origin main" }] }), null, "one bad run rejects the answer");
+
+  const proposal = asProposal({
+    ...answer,
+    capture: [
+      { name: "Console frame", run: "node scripts/capture-console.ts", when: ["src/**"], timeoutMinutes: 4 },
+      { name: "console-frame", run: "node scripts/capture-cli.ts" },
+    ],
+  });
+  assert.deepEqual(proposal?.capture.map((capture) => capture.name), ["console-frame", "console-frame-2"]);
+  assert.deepEqual(proposal?.capture[0]?.when, ["src/**"]);
+  assert.equal(proposal?.capture[0]?.timeoutMinutes, 4);
+  assert.equal(proposal?.capture[1]?.timeoutMinutes, undefined);
+
+  const config = asConfig(proposal);
+  assert.equal(config.pr.draft, CONFIG_TEMPLATE.pr.draft, "the template's pr fields survive a proposed capture");
+  assert.equal(config.pr.emptyCommit, CONFIG_TEMPLATE.pr.emptyCommit);
+  assert.deepEqual(config.pr.capture?.map((capture) => capture.name), ["console-frame", "console-frame-2"]);
+
+  assert.equal(asConfig(asProposal(answer)).pr.capture, undefined, "a repo with nothing to capture gets no key at all");
+});
+
+test("a capture name is a plain label, because the host makes a directory out of it and then empties it", async () => {
+  const withCapture = (name: string) =>
+    JSON.stringify({ ...CONFIG_TEMPLATE, pr: { ...CONFIG_TEMPLATE.pr, capture: [{ name, run: "true" }] } });
+
+  const config = await Effect.runPromise(decodeConfig(withCapture("console-frame-2")));
+  assert.equal(config.pr.capture?.[0]?.name, "console-frame-2", "what `configure` proposes still decodes");
+
+  // `~/.fabrika/captures/<repo>/<sha>/<name>` is removed and remade every run;
+  // a name that climbs out of it takes the recursive delete with it.
+  const error = await Effect.runPromise(decodeConfig(withCapture("../../../..")).pipe(Effect.flip));
+  assert.match(String(error), /\["pr"\]\["capture"\]\[0\]\["name"\]/, "and says which capture is wrong");
+
+  for (const name of ["with space", "Caps", "back`tick", "pipe|d", ""]) {
+    await Effect.runPromise(decodeConfig(withCapture(name)).pipe(Effect.flip));
+  }
+});
+
+test("every name a proposal can produce is one the config can be loaded with", async () => {
+  // `init` writes what `asConfig` returns and `run` decodes it back, so a
+  // name the normaliser emits and the schema rejects is a config fabrika
+  // writes and then refuses to start on.
+  const proposal = asProposal({
+    base: "origin/main",
+    gate: [],
+    provider: "none",
+    notes: [],
+    capture: [
+      { name: `${"x".repeat(39)} frame`, run: "true" },
+      { name: "Console   frame", run: "true" },
+      { name: "!!!", run: "true" },
+    ],
+  });
+
+  const config = await Effect.runPromise(decodeConfig(JSON.stringify(asConfig(proposal))));
+  assert.deepEqual(config.pr.capture?.map((capture) => capture.name), ["x".repeat(39), "console-frame", "check"]);
 });

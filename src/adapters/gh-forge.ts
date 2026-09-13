@@ -1,4 +1,4 @@
-import { Duration, Effect, Layer, Schema } from "effect";
+import { Duration, Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { exec, run } from "../infra/shell.ts";
@@ -132,6 +132,32 @@ export const listing = (out: string): Effect.Effect<ReadonlyArray<PullRequestDet
     Effect.mapError(asFabrikaError("reading gh pr list")),
   );
 
+/**
+ * `gh pr create --attach` arrived in 2.99.0. An older `gh` handed an unknown
+ * flag fails the whole create, and a capture may never fail a run.
+ */
+export const attachesFrom = (version: string): boolean => {
+  const match = /(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) return false;
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  return major > 2 || (major === 2 && minor >= 99);
+};
+
+/**
+ * The body goes in a file rather than an argument — it has no length limit
+ * there — and each attachment is matched to the body by its absolute path, so
+ * the paths passed here are the paths the body must already carry.
+ */
+export const createArgs = (repo: string, base: string, input: NewPullRequest, bodyFile: string): ReadonlyArray<string> => [
+  "pr", "create", "-R", repo,
+  "--head", input.branch,
+  "--base", base,
+  "--title", input.title,
+  "--body-file", bodyFile,
+  ...(input.draft ? ["--draft"] : []),
+  ...input.attachments.flatMap((path) => ["--attach", path]),
+];
+
 export type ForgeOptions = {
   readonly repo: string;
   /** The branch PRs target, without the remote. */
@@ -193,6 +219,8 @@ export const layer = (options: ForgeOptions) =>
   Layer.effect(Forge)(
     Effect.gen(function* () {
       const journal = yield* Journal;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const { repo, cwd } = options;
       // The reviewer reports itself as a check on the PR. The review loop owns
@@ -215,6 +243,25 @@ export const layer = (options: ForgeOptions) =>
         "--json", LIST_FIELDS,
       ]).pipe(Effect.flatMap(listing));
 
+      let attaches: boolean | undefined;
+
+      /**
+       * A pull request body reaches `gh` through a file, never an argument:
+       * a body has no length limit there, and `--attach` matches an image to
+       * the body by a path an argv-length limit would truncate.
+       */
+      const withBodyFile = <A, E>(body: string, use: (file: string) => Effect.Effect<A, E>) =>
+        Effect.scoped(
+          Effect.gen(function* () {
+            const dir = yield* fs
+              .makeTempDirectoryScoped({ prefix: "fabrika-pr-" })
+              .pipe(Effect.mapError(asFabrikaError("pr body file")));
+            const file = path.join(dir, "body.md");
+            yield* fs.writeFileString(file, body).pipe(Effect.mapError(asFabrikaError("pr body file")));
+            return yield* use(file);
+          }),
+        );
+
       const rollup = (pr: number) =>
         gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,statusCheckRollup"]).pipe(
           Effect.map((out) => {
@@ -228,20 +275,35 @@ export const layer = (options: ForgeOptions) =>
         urlOf: (pr: number) => `https://github.com/${repo}/pull/${pr}`,
 
         open: (input: NewPullRequest) =>
-          gh([
-            "pr", "create", "-R", repo,
-            "--head", input.branch,
-            "--base", options.base,
-            "--title", input.title,
-            "--body", input.body,
-            ...(input.draft ? ["--draft"] : []),
-          ]).pipe(
-            Effect.flatMap((out) => {
+          withBodyFile(input.body, (bodyFile) =>
+            Effect.gen(function* () {
+              const out = yield* gh(createArgs(repo, options.base, input, bodyFile));
               const number = /\/pull\/(\d+)/.exec(out)?.[1];
               return number
-                ? Effect.succeed({ number: Number(number), url: `https://github.com/${repo}/pull/${number}` })
-                : Effect.fail(new FabrikaError({ message: `gh pr create returned no PR URL: ${out}` }));
+                ? { number: Number(number), url: `https://github.com/${repo}/pull/${number}` }
+                : yield* Effect.fail(new FabrikaError({ message: `gh pr create returned no PR URL: ${out}` }));
             }),
+          ),
+
+        // Read once: every body in a run is posted by the same `gh`.
+        attaches: Effect.suspend(() => {
+          if (attaches !== undefined) return Effect.succeed(attaches);
+          return gh(["--version"]).pipe(
+            Effect.orElseSucceed(() => ""),
+            Effect.tap((version) =>
+              attachesFrom(version)
+                ? Effect.void
+                : journal.log(`captures: images left out — ${version.split("\n")[0] || "gh"} has no --attach`),
+            ),
+            Effect.map((version) => (attaches = attachesFrom(version))),
+          );
+        }),
+
+        body: (pr: number) => gh(["pr", "view", String(pr), "-R", repo, "--json", "body", "--jq", ".body"]),
+
+        editBody: (pr: number, body: string) =>
+          withBodyFile(body, (bodyFile) =>
+            gh(["pr", "edit", String(pr), "-R", repo, "--body-file", bodyFile]).pipe(Effect.asVoid),
           ),
 
         // One wait for the whole poll loop. The per-poll `(2 pending)`

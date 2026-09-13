@@ -64,8 +64,11 @@ export interface Workspace {
   readonly commitAll: (message: string) => Effect.Effect<boolean, FabrikaError>;
   readonly emptyCommit: (message: string) => Effect.Effect<void, FabrikaError>;
   readonly head: Effect.Effect<string, FabrikaError>;
-  /** The base's tip after a fetch — the commit a merge would bring in. */
-  readonly baseHead: Effect.Effect<string, FabrikaError>;
+  /**
+   * The base's tip after a fetch — the commit a merge would bring in, and the
+   * one this branch is diffed against.
+   */
+  readonly baseSha: Effect.Effect<string, FabrikaError>;
   /** Commits on this branch that the base does not have. */
   readonly commitCount: Effect.Effect<number, FabrikaError>;
   /** Files this branch changes against the base. */

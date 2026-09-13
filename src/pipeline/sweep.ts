@@ -215,7 +215,7 @@ export const syncPullRequest = (
 
     // Read after `checkout` has fetched, so the key names the tip actually
     // being merged: it changes exactly when the thing being merged changes.
-    const base = yield* workspace.baseHead;
+    const base = yield* workspace.baseSha;
     const moved = yield* syncWithBase({ prUrl: target.url, session: `sync-${base.slice(0, 7)}` });
     if (!moved) {
       yield* workspace.remove;

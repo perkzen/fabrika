@@ -41,6 +41,8 @@ export type NewPullRequest = {
   readonly title: string;
   readonly body: string;
   readonly draft: boolean;
+  /** Absolute paths of images the body references; uploaded as the PR is opened. */
+  readonly attachments: ReadonlyArray<string>;
 };
 
 /**
@@ -61,6 +63,15 @@ export interface Forge {
   readonly repo: string;
   readonly urlOf: (pr: number) => string;
   readonly open: (input: NewPullRequest) => Effect.Effect<PullRequest, FabrikaError>;
+  /**
+   * Whether a body may carry images uploaded from disk. False for a `gh`
+   * without `--attach`, so the Before / After section is left out rather than
+   * posted with paths only this machine can open.
+   */
+  readonly attaches: Effect.Effect<boolean>;
+  /** The body as the forge actually posted it. */
+  readonly body: (pr: number) => Effect.Effect<string, FabrikaError>;
+  readonly editBody: (pr: number, body: string) => Effect.Effect<void, FabrikaError>;
   readonly settledChecks: (
     pr: number,
     sha: string,

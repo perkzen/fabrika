@@ -7,9 +7,13 @@ import * as fsPrompts from "./adapters/fs-prompts.ts";
 import * as ghForge from "./adapters/gh-forge.ts";
 import * as gitWorkspace from "./adapters/git-workspace.ts";
 import * as noReviewer from "./adapters/no-reviewer.ts";
+import * as shellCaptures from "./adapters/shell-captures.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
+import { keepAwake } from "./infra/keep-awake.ts";
+import { notifierApp } from "./infra/notifier-app.ts";
+import { openNotifier } from "./infra/notifier.ts";
 import { home } from "./paths.ts";
 import { fabrikaPipeline } from "./pipeline/fabrika.ts";
 import { Journal } from "./ports/journal.ts";
@@ -39,8 +43,17 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
     const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
     const runsDir = home(path, "runs", repoRoot, ticket.identifier);
 
+    // macOS only, both of them, and the run says so once rather than failing:
+    // a machine that sleeps or a notification that never arrives is a
+    // nuisance, not a wrong result.
+    const darwin = process.platform === "darwin";
+    // Built before the journal exists, because the journal is one of the
+    // surfaces it is built for; what it has to say is held and logged below.
+    const app = config.notify && darwin ? yield* notifierApp : undefined;
+    const notifier = app?.bin ? [openNotifier({ title: `Fabrika ${ticket.identifier}`, bin: app.bin })] : [];
+
     const foundation = Layer.mergeAll(
-      fileJournal.layer(path.join(runsDir, "log.txt")),
+      fileJournal.layer(path.join(runsDir, "log.txt"), undefined, notifier),
       fileRunStore.layer(runsDir),
       fsPrompts.layer({
         identifier: ticket.identifier,
@@ -58,6 +71,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       config.review.provider === "cubic" ? cubicReviewer.layer.pipe(Layer.provide(foundation)) : noReviewer.layer;
     const ports = Layer.mergeAll(
       foundation,
+      shellCaptures
+        .layer({ cacheRoot: home(path, "captures", repoRoot, ""), install: config.install })
+        .pipe(Layer.provide(foundation)),
       reviewer,
       ghForge
         .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
@@ -72,6 +88,14 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
       if (store.get().done) {
         return yield* journal.log(`already done: ${ticket.identifier} — remove ${runsDir} to rerun`);
       }
+      // After the short-circuit: only a run that is about to wait on something
+      // has any reason to hold the machine awake, and only one that starts is
+      // worth a notification when it ends.
+      if ((config.keepAwake || config.notify) && !darwin) {
+        yield* journal.log({ kind: "note", level: "warn", text: "keepAwake and notify are macOS-only — ignored here" });
+      }
+      if (config.keepAwake && darwin) keepAwake(journal.write);
+      if (app?.note) yield* journal.log({ kind: "note", level: "detail", text: app.note });
       yield* fabrikaPipeline(config).run;
     }).pipe(Effect.provide(ports));
   });

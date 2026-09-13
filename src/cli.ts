@@ -15,6 +15,7 @@ import { FabrikaError } from "./errors.ts";
 import { runTicket } from "./run.ts";
 import { runSweep } from "./sweep.ts";
 import { openConsole, type Presenter } from "./infra/console.ts";
+import { banner } from "./infra/banner.ts";
 import type { RunEvent } from "./run-event.ts";
 import { exec } from "./infra/shell.ts";
 
@@ -29,6 +30,7 @@ const credentials = [{ name: "default", env: {} }];
  */
 const init = Command.make("init", {}, () =>
   Effect.suspend(() => {
+    banner({ stream: process.stdout, version: VERSION });
     const presenter = openConsole({ stream: process.stdout });
     return configure(presenter).pipe(Effect.ensuring(Effect.sync(presenter.end)));
   }),
@@ -113,6 +115,7 @@ const run = Command.make(
   },
   ({ ticket, file }) =>
     Effect.gen(function* () {
+      banner({ stream: process.stdout, version: VERSION });
       if (Option.isSome(ticket) === Option.isSome(file)) {
         return yield* new FabrikaError({ message: "give exactly one of: a Linear identifier, or --file <spec.md>" });
       }

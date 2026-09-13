@@ -23,6 +23,27 @@ test("a clean round finishes the run and takes the worktree with it", async () =
   assert.ok(recording.log.some((line) => line.startsWith("done:")));
 });
 
+test("a run that cannot keep its artifacts is not recorded as done, so a resume finishes it", async () => {
+  const first = await exercise(reviewRounds.run, { ...open, reviews: [clean], checks: [[]], archiveFails: true });
+  assert.equal(first.failed, true);
+  assert.equal(first.recording.state().done, false, "the state a resume reads still has work in it");
+  assert.deepEqual(first.recording.removed, [], "and the worktree the artifacts are still in survives");
+  assert.ok(!first.recording.log.some((line) => line.startsWith("done:")), "nothing claimed a finished run");
+
+  // The resume the first half bought: the same clean verdict, now archived.
+  const { failed, recording } = await exercise(reviewRounds.run, {
+    ...open,
+    state: first.recording.state(),
+    reviews: [clean],
+    checks: [[]],
+  });
+  assert.equal(failed, false);
+  assert.equal(recording.state().round, 2, "a retry of the finishing, not a restart of the run");
+  assert.equal(recording.state().done, true);
+  assert.deepEqual(recording.removed, ["/worktree"]);
+  assert.ok(recording.log.some((line) => line.startsWith("done:")));
+});
+
 test("a score below the bar with nothing to act on escalates instead of waiting for the same verdict", async () => {
   const { exit, failed } = await exercise(reviewRounds.run, {
     ...open,

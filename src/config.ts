@@ -1,4 +1,5 @@
 import { Data, Effect, FileSystem, Path, Schema } from "effect";
+import { matchesGlob } from "node:path";
 
 export const Stage = Schema.Struct({
   name: Schema.String,
@@ -19,6 +20,32 @@ export const GateStep = Schema.Struct({
 });
 export type GateStep = typeof GateStep.Type;
 
+export const CaptureStep = Schema.Struct({
+  /**
+   * The same kebab-case label `configure` proposes, enforced here too: the
+   * host makes a directory of it under the capture cache and empties that
+   * directory before every run, so a name that is a path is a recursive
+   * delete somewhere nobody asked for — and the name is printed into the
+   * pull-request body, where a backtick or a pipe would be markdown.
+   */
+  name: Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
+  run: Schema.String,
+  /** Glob patterns; the capture runs only when a changed file matches one. */
+  when: Schema.optional(Schema.Array(Schema.String)),
+  /** Killed and its half dropped after this long; `DEFAULT_CAPTURE_MINUTES` when absent. */
+  timeoutMinutes: Schema.optional(Schema.Number),
+});
+export type CaptureStep = typeof CaptureStep.Type;
+
+/**
+ * Whether a step with these globs applies to a branch that changed these
+ * files. No globs means every branch. Lives beside the `when` field it
+ * interprets, so the gate and the captures share one matcher rather than two
+ * that can drift.
+ */
+export const applies = (when: ReadonlyArray<string> | undefined, changed: ReadonlyArray<string>): boolean =>
+  !when || changed.some((file) => when.some((glob) => matchesGlob(file, glob)));
+
 export const Config = Schema.Struct({
   base: Schema.String,
   /** Branch pattern; `{user}` (`git config user.name`, kebab-cased), `{type}`, `{ticket}` and `{slug}` are filled per run. */
@@ -30,7 +57,11 @@ export const Config = Schema.Struct({
   stages: Schema.Array(Stage),
   /** Permission rules the Claude subprocess is denied; the runner does its own pushing, PR opening and merging. */
   deny: Schema.Array(Schema.String),
-  pr: Schema.Struct({ draft: Schema.Boolean, emptyCommit: Schema.Boolean }),
+  pr: Schema.Struct({
+    draft: Schema.Boolean,
+    emptyCommit: Schema.Boolean,
+    capture: Schema.optional(Schema.Array(CaptureStep)),
+  }),
   review: Schema.Struct({
     /** `"none"` is a repo with no review bot: its rounds turn on the checks alone. */
     provider: Schema.Literals(["cubic", "none"]),
@@ -40,6 +71,20 @@ export const Config = Schema.Struct({
   }),
   /** How long to wait for the PR's checks after a push; defaults to the review timeout. */
   checks: Schema.optional(Schema.Struct({ timeoutMinutes: Schema.Number })),
+  /**
+   * Hold the machine awake for the length of a run, so a laptop that suspends
+   * does not take every open wait with it. macOS only (`caffeinate`), and off
+   * unless asked for: this file is committed, so it is one machine's
+   * preference living in every contributor's checkout.
+   */
+  keepAwake: Schema.optional(Schema.Boolean),
+  /**
+   * Post the run's outcome to Notification Center when it ends, however it
+   * ends, through a bundle built once per machine so the notification carries
+   * fabrika's own name and icon. macOS only, and off unless asked for, for the
+   * same reason as `keepAwake`: this file is committed.
+   */
+  notify: Schema.optional(Schema.Boolean),
   maxIterations: Schema.Number,
 });
 export type Config = typeof Config.Type;
@@ -95,7 +140,8 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "review", prompt: "review.md", system: "implement.system.md", gate: true },
   ],
   deny: ["Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr review:*)", "Bash(gh api graphql:*)"],
-  pr: { draft: true, emptyCommit: true },
+  // `capture` is present so `init` keeps the key in this position; `JSON.stringify` drops it.
+  pr: { draft: true, emptyCommit: true, capture: undefined },
   // What `init` writes when its configure call is rejected, and a fallback that escalates by construction is not a fallback.
   review: { provider: "none", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
   checks: { timeoutMinutes: 30 },
