@@ -112,26 +112,32 @@ test("a capture's files are what the body can carry, in pairing order", async ()
   ], "sorted by name so the two halves pair deterministically, and `notes.md` is not a file the body carries");
 });
 
-/** This repository, at its own HEAD: the only base a test can be sure checks out. */
-const here = { repoRoot: process.cwd(), sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim() };
+/**
+ * This repository, at its own HEAD: the only base a test can be sure checks
+ * out. Read inside the test rather than at import, so the tests above — which
+ * need no repository at all — still load and run where there is none.
+ */
+const here = () => ({ repoRoot: process.cwd(), sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim() });
 
 test("a base with no cached half is checked out, run, and kept for the next ticket", async () => {
-  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, here);
+  const base = here();
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: writes({ "out.txt": "at the base" }) }], () => {}, base);
 
   assert.deepEqual(shots[0]?.before, [{ name: "out.txt", kind: "text", content: "at the base" }], "the base half ran");
-  assert.ok(log.some((line) => line.includes(`capture console: base ${here.sha.slice(0, 7)} captured in`)));
+  assert.ok(log.some((line) => line.includes(`capture console: base ${base.sha.slice(0, 7)} captured in`)));
   assert.ok(!log.some((line) => line.includes("(from cache)")), "this ticket is the one that paid for it");
   assert.equal(
-    readFileSync(join(cacheRoot, here.sha, "console", "out.txt"), "utf8"),
+    readFileSync(join(cacheRoot, base.sha, "console", "out.txt"), "utf8"),
     "at the base",
     "and the next ticket cut from this base will find it already there",
   );
 });
 
 test("a base command that fails leaves nothing in the cache to become a permanent hit", async () => {
-  const { shots, log, cacheRoot } = await take([{ name: "console", run: "exit 1" }], () => {}, here);
+  const base = here();
+  const { shots, log, cacheRoot } = await take([{ name: "console", run: "exit 1" }], () => {}, base);
 
   assert.equal(shots[0]?.before, undefined);
-  assert.equal(existsSync(join(cacheRoot, here.sha, "console")), false, "the staged half was never promoted");
+  assert.equal(existsSync(join(cacheRoot, base.sha, "console")), false, "the staged half was never promoted");
   assert.ok(log.some((line) => line.includes("capture console: command failed (exit 1); no half")));
 });
