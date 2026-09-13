@@ -1,3 +1,5 @@
+import { scrub } from "./run-event.ts";
+
 /** One file a capture wrote, and how the body may carry it. */
 export type CaptureFile = {
   /** The file's name inside `FABRIKA_CAPTURE_DIR`; what the two halves pair on. */
@@ -33,11 +35,113 @@ export type Section = {
   readonly attachments: ReadonlyArray<string>;
 };
 
+/** A captured text file's height, as the console caps agent speech. */
+const MESSAGE_LINES = 20;
+const LINE_CHARS = 200;
+const URL_CHARS = 500;
+/** An order of magnitude inside GitHub's 65536-character body limit. */
+export const SECTION_CHARS = 20000;
+
+const IMAGES = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+/** A capture's file kind, by extension; `undefined` for a file the body cannot carry. */
+export const kindOf = (name: string): CaptureFile["kind"] | undefined => {
+  const at = name.lastIndexOf(".");
+  if (at <= 0) return undefined;
+  const extension = name.slice(at).toLowerCase();
+  if (IMAGES.has(extension)) return "image";
+  if (extension === ".txt") return "text";
+  if (extension === ".url") return "link";
+  return undefined;
+};
+
+/** Captured bytes are no more trusted than an agent's: scrubbed, then capped in both directions. */
+export const textContent = (raw: string): string => {
+  const lines = scrub(raw).split("\n").map((line) => line.slice(0, LINE_CHARS));
+  while (lines.length > 0 && lines.at(-1) === "") lines.pop();
+  const missing = lines.length - MESSAGE_LINES;
+  return missing > 0
+    ? [...lines.slice(0, MESSAGE_LINES), `… ${missing} more lines`].join("\n")
+    : lines.join("\n");
+};
+
+/** A `.url`'s target, or `undefined`: a `javascript:` or `file://` target in a body a human clicks is the injection this exists for. */
+export const linkTarget = (raw: string): string | undefined => {
+  const first = scrub(raw).split("\n")[0]?.trim() ?? "";
+  return /^https:\/\/\S+$/.test(first) ? first.slice(0, URL_CHARS) : undefined;
+};
+
+const NEW = "_(new on this branch)_";
+const GONE = "_(gone from this branch)_";
+
 const short = (sha: string) => sha.slice(0, 7);
 
-const names = (shot: Shot) => [...new Set([...(shot.before ?? []), ...(shot.after ?? [])].map((file) => file.name))];
+/** Longer than any run of backticks in the text, so a capture cannot break out of its own block. */
+const fence = (content: string) => {
+  const longest = Math.max(0, ...[...content.matchAll(/`+/g)].map((match) => match[0].length));
+  return "`".repeat(Math.max(3, longest + 1));
+};
 
-const find = (files: ReadonlyArray<CaptureFile> | undefined, name: string) => files?.find((file) => file.name === name);
+const block = (content: string) => {
+  const wrap = fence(content);
+  return `${wrap}\n${content}\n${wrap}`;
+};
+
+const pairs = (shot: Shot, kind: CaptureFile["kind"]) => {
+  const of = (files: ReadonlyArray<CaptureFile> | undefined) => (files ?? []).filter((file) => file.kind === kind);
+  const before = of(shot.before);
+  const after = of(shot.after);
+  const names = [...new Set([...before, ...after].map((file) => file.name))];
+  return names.map((name) => ({
+    name,
+    before: before.find((file) => file.name === name),
+    after: after.find((file) => file.name === name),
+  }));
+};
+
+const textBlock = (capture: string, pair: ReturnType<typeof pairs>[number]) =>
+  [
+    `**${capture} — \`${pair.name}\`**`,
+    "",
+    pair.before ? `Before:\n\n${block(pair.before.content)}` : `Before: ${NEW}`,
+    "",
+    pair.after ? `After:\n\n${block(pair.after.content)}` : `After: ${GONE}`,
+  ].join("\n");
+
+const linkLine = (capture: string, pair: ReturnType<typeof pairs>[number]) => {
+  const cell = (file: CaptureFile | undefined, label: string, missing: string) =>
+    file ? `[${label}](${file.content})` : missing;
+  return `**${capture} — \`${pair.name}\`**: ${cell(pair.before, "before", NEW)} · ${cell(pair.after, "after", GONE)}`;
+};
+
+/** One capture's markdown and the paths it references, or `undefined` when it has nothing to show. */
+const chunkOf = (shot: Shot, options: BeforeAfterOptions): Section | undefined => {
+  const attachments: Array<string> = [];
+  const parts: Array<string> = [];
+
+  const rows = options.images
+    ? pairs(shot, "image").map((pair) => {
+        for (const file of [pair.before, pair.after]) if (file) attachments.push(file.content);
+        const cell = (file: CaptureFile | undefined, label: string, missing: string) =>
+          file ? `![${label}](${file.content})` : missing;
+        return `| \`${pair.name}\` | ${cell(pair.before, "before", NEW)} | ${cell(pair.after, "after", GONE)} |`;
+      })
+    : [];
+
+  if (rows.length > 0) {
+    parts.push(
+      [
+        `| ${shot.capture} | Before (\`${short(options.baseSha)}\`) | After (\`${short(options.headSha)}\`) |`,
+        "| --- | --- | --- |",
+        ...rows,
+      ].join("\n"),
+    );
+  }
+  for (const pair of pairs(shot, "text")) parts.push(textBlock(shot.capture, pair));
+  for (const pair of pairs(shot, "link")) parts.push(linkLine(shot.capture, pair));
+
+  return parts.length === 0 ? undefined : { markdown: parts.join("\n\n"), attachments };
+};
 
 /**
  * The Before / After section, or `undefined` when nothing survives.
@@ -47,39 +151,26 @@ const find = (files: ReadonlyArray<CaptureFile> | undefined, name: string) => fi
  * than in the step or the adapter.
  */
 export const beforeAfter = (shots: ReadonlyArray<Shot>, options: BeforeAfterOptions): Section | undefined => {
+  const head = "## Before / After\n\nCaptured by the host from `pr.capture`, at the base and on this branch.\n\n";
+
   const attachments: Array<string> = [];
-  const blocks: Array<string> = [];
+  const chunks: Array<string> = [];
+  let length = head.length;
 
   for (const shot of shots) {
-    // A before-only comparison is not evidence, so half a shot is no shot.
-    if (!shot.after) continue;
-    const rows: Array<string> = [];
-    for (const name of names(shot)) {
-      const before = find(shot.before, name);
-      const after = find(shot.after, name);
-      if (after?.kind !== "image" || before?.kind !== "image") continue;
-      attachments.push(before.content, after.content);
-      rows.push(`| \`${name}\` | ![before](${before.content}) | ![after](${after.content}) |`);
-    }
-    if (rows.length === 0) continue;
-    blocks.push(
-      [
-        `| ${shot.capture} | Before (\`${short(options.baseSha)}\`) | After (\`${short(options.headSha)}\`) |`,
-        "| --- | --- | --- |",
-        ...rows,
-      ].join("\n"),
-    );
+    // A before-only comparison is not evidence, so half a shot is no shot —
+    // and a half that ran but wrote nothing is the same half.
+    if (!shot.after || shot.after.length === 0) continue;
+    const chunk = chunkOf(shot, options);
+    if (!chunk) continue;
+    // Dropped from the end rather than truncated: a half-written table is
+    // worse to read than a missing capture.
+    const cost = chunk.markdown.length + (chunks.length === 0 ? 0 : 2);
+    if (length + cost > SECTION_CHARS) break;
+    length += cost;
+    chunks.push(chunk.markdown);
+    attachments.push(...chunk.attachments);
   }
 
-  if (blocks.length === 0) return undefined;
-  return {
-    markdown: [
-      "## Before / After",
-      "",
-      "Captured by the host from `pr.capture`, at the base and on this branch.",
-      "",
-      ...blocks,
-    ].join("\n"),
-    attachments,
-  };
+  return chunks.length === 0 ? undefined : { markdown: head + chunks.join("\n\n"), attachments };
 };
