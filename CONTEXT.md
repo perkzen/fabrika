@@ -70,6 +70,15 @@ pipe and every plain verdict get a scrollback console instead.
 _Avoid_: TUI, full-screen mode, alternate buffer — that is the terminal
 facility a screen is drawn on, not the presenter.
 
+**Rehearsal**:
+The whole run on a stage set: the real pipeline, driver, journal and screen
+over the test harness's in-memory ports, with a scripted agent and timed
+waits, so the screen can be looked at and a pipeline change watched end to
+end without an agent bill. `pnpm rehearse`; a script, never a command the
+CLI ships.
+_Avoid_: demo, dry run — a dry run implies the real ports with side effects
+off, and these are not the real ports; mock mode, simulation.
+
 **Step tree**:
 A run as its shape rather than its stream: a root per run, a node per step,
 and under each node the events that happened while it was open. It is a pure
@@ -79,10 +88,19 @@ _Avoid_: model, state — *view* is separately what the operator has selected
 and folded, which is not the tree.
 
 **Outline**:
-The step tree folded: one line per step carrying its position, name, state
-and, once the step has finished, its summary. It is what a screen shows by
-default and what is written to plain scrollback when a run leaves one.
+The step tree folded: one line per step carrying its state, its title and
+what there is to say about it — what it will do while pending, how long it
+has been going while running, its summary once finished. The position is the
+header's, not the row's. It is what a screen shows by default and what is
+written to plain scrollback when a run leaves one.
 _Avoid_: step list, overview, tree view.
+
+**Title**:
+What a row calls a step — `Implement`, `Pull request`, `Review loop` — where
+the step's *name* is what the run calls it: the name keys the completed list,
+the config and every plain line, and is never renamed for a reader. A title
+travels on the `run` event and is only ever read.
+_Avoid_: label, display name, pretty name.
 
 **Summary**:
 What a finished step came to, rolled up from the events that happened inside

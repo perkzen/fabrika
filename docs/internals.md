@@ -65,21 +65,36 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 ## What a run looks like
 
 An interactive `fabrika run` is a **screen**: the terminal's alternate buffer,
-with one line per step from `preflight` to `review`, the running step unfolded
-under its line, and a finished step's line carrying how long it took, what it
-cost, how many tool calls it made and by which tool, which skills it invoked
-and each gate command's verdict. The keys are `↑↓` (or `k`/`j`) to move the
-selection, space or enter to fold and unfold it, `PgUp`/`PgDn` to scroll the
-open window, `Esc` to go back to following the running step, and `Ctrl-C` to
-interrupt the run. They are optional: a run whose operator went home has the
-same outcome, the same exit code and the same last line. Leaving the screen —
-on every exit path — writes the folded outline and the result line to plain
-scrollback.
+with a header carrying the ticket, the progress bar, the step the run is on
+and what the run has taken so far in time and money, then one line per step
+from `Preflight` to `Review loop`. A step's line is its title and, after it,
+what there is to say: a pending step says what it will do (`agent · gate`),
+the running step says how long it has been at it and is unfolded under its
+line, and a finished step says how long it took, what it cost, how many tool
+calls it made and by which tool, which skills it invoked and each gate
+command's verdict — time and cost in columns, so the rows read as a table.
+Steps are titled by the pipeline (`title` on a `Step`; a stage's is its name
+capitalised) and named by the run: the name is what the completed list, the
+config and every plain line say, and a title never replaces it.
+
+The keys are `↑↓` (or `k`/`j`) to move the selection, space or enter to fold
+and unfold it, `PgUp`/`PgDn` to scroll the open window, `Esc` to go back to
+following the running step, and `Ctrl-C` to interrupt the run. They are
+optional: a run whose operator went home has the same outcome, the same exit
+code and the same last line. Leaving the screen — on every exit path — writes
+the folded outline and the result line to plain scrollback.
 
 A pipe, `NO_COLOR`, `TERM=dumb`, CI and `fabrika init` get the scrolling log
 instead, unchanged but for one `step refactor: done (8m 53s)` line per step.
 `log.txt` is the same, plain, stamped and uncapped. ADR-0004 records why the
 screen is hand-rolled rather than built on a framework.
+
+To look at any of it without a ticket, `pnpm rehearse` runs the whole
+pipeline on the test harness's in-memory ports — no `git`, `gh` or `claude`,
+nothing under `~/.fabrika` — with a scripted agent, a gate that goes red
+once, a skipped stage and a reviewer that opens one thread before signing
+off, paced like a run; `pnpm rehearse --fast` is the same run in seconds.
+It is `scripts/rehearse.ts`, and it does not ship.
 
 ## Exit codes
 
@@ -326,8 +341,8 @@ a non-zero exit, a timeout, an overrun cap or an empty directory all end as a
 missing half and today's body. ADR-0003 records why the images are attachments
 rather than anything committed.
 
-This repo's own capture is `scripts/capture-console.ts`, once `pr.capture`
-names it — nothing in `.fabrika/config.json` does yet. It replays a fixture
+This repo's own capture is `scripts/capture-console.ts`, named `console` in
+`pr.capture` and gated to the files that render the console. It replays a fixture
 of run events through the console presenter rather than running a ticket, and
 writes a PNG through whatever `freeze`-class tool is on `PATH`, or a `.txt`
 when there is none.

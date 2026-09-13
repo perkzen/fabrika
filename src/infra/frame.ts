@@ -24,12 +24,13 @@ export type View = {
 export type Size = { readonly columns: number; readonly rows: number };
 
 /**
- * How a step's state reads at a glance. Already-done borrows done's tick and
- * is dimmed instead, and the running step's `▸` is what it falls back to when
- * there is no clock to spin: see `marker`.
+ * How a step's state reads at a glance: a hollow ring for what has not
+ * happened, a tick for what has, a cross for what broke. Already-done borrows
+ * done's tick and is dimmed instead, and the running step's `▸` is what it
+ * falls back to when there is no clock to spin: see `marker`.
  */
 const MARKERS: Record<StepState, string> = {
-  pending: "·",
+  pending: "○",
   running: "▸",
   done: "✔",
   failed: "✖",
@@ -38,17 +39,18 @@ const MARKERS: Record<StepState, string> = {
 };
 
 /**
- * The colour a step is read in — marker, position and name together, because
- * a row that disagrees with itself is harder to scan than one with no colour
- * at all.
+ * The colour a step is read in — marker and title together, because a row
+ * that disagrees with itself is harder to scan than one with no colour at all.
  *
  * Green for what is finished and cyan for the one thing happening, matching
- * `styleOf`'s green for a passing gate and a done result. `dim` is kept for
- * the steps that will never run, so it goes on meaning "nothing to read here";
- * a pending step is dressed by nothing, which is how it sits between the two.
+ * `styleOf`'s green for a passing gate and a done result. Everything that has
+ * nothing to read yet, or never will, is dim — so the eye lands on the running
+ * row and the finished ones above it, and the queue below recedes. What tells
+ * a pending step from a skipped one is its marker and its detail, not its
+ * colour.
  */
 const STATES: Record<StepState, Style | undefined> = {
-  pending: undefined,
+  pending: "dim",
   running: ["bold", "cyan"],
   done: ["bold", "green"],
   failed: ["bold", "red"],
@@ -60,13 +62,23 @@ const STATES: Record<StepState, Style | undefined> = {
 const FIELD = "  ";
 /** Past three tools the list stops naming them and says how many it left out. */
 const TOOLS = 3;
+/** The margin every step row sits in, so the header at column zero reads as the row above them all. */
+const MARGIN = " ";
+/** A window's rows sit under the title, past the margin, the marker and its space. */
+const INDENT = "   ";
+/** Titles are padded to the widest one in the run, so every row's detail starts on the same column. */
+const TITLE_MAX = 20;
+/** `12m 34s` — the time column, right-aligned so seconds sit under seconds. */
+const TIME = 7;
+/** `$12.34` — the cost column, likewise. */
+const COST = 6;
 
 /** Fewer rows than this and the footer is the first thing to go. */
 const FOOTER_AT = 12;
 /** A window of one or two rows tells nobody anything; below the floor it is not drawn at all. */
 const WINDOW = 3;
 /** The keys, named once, because keys nobody can discover are keys nobody uses. */
-const KEYS = "↑↓ select  space fold  PgUp/PgDn scroll  Esc follow  Ctrl-C interrupt";
+const KEYS = "↑↓ select · space fold · PgUp/PgDn scroll · Esc follow · Ctrl-C interrupt";
 
 /** How a gate verdict reads in a summary — the same three words the gate's own line uses. */
 const VERDICTS = { pass: "ok", fail: "FAILED", skipped: "skipped" } as const;
@@ -97,10 +109,11 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   // step is being read, not watched.
   const live = open?.state === "running" ? liveness(tree, clock) : undefined;
 
+  const column = titleColumn(root.children);
   const drawn = root.children.slice(top, top + outline);
   const body: Array<string> = [];
   for (const step of drawn) {
-    body.push(row(outlineRow(step, step.key === view.selected, clock), width, dress));
+    body.push(row(outlineRow(step, column, step.key === view.selected, clock), width, dress));
     if (open && step.key === open.key) body.push(...windowRows(open, window, width, view, dress, live));
   }
   // The open step's own row can be scrolled out of the outline; its window is
@@ -108,7 +121,7 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   if (open && !drawn.includes(open)) body.push(...windowRows(open, window, width, view, dress, live));
 
   return [
-    row(header(root, tree.label), width, dress),
+    row(header(root, tree.label, clock), width, dress),
     ...[...body, ...blank(spare)].slice(0, spare),
     ...(footer ? [row([{ style: "dim", text: KEYS }], width, dress)] : []),
   ];
@@ -205,16 +218,31 @@ const windowRows = (
   const shown = rendered.slice(Math.max(end - rows, 0), end);
   // Top-aligned when the stream is shorter than the window, the way a terminal
   // fills a buffer it has not used up; the liveness row is always the last.
-  return [...shown, ...blank(rows - shown.length), ...(live === undefined ? [] : [row(live, width, dress)])];
+  return [
+    ...shown,
+    ...blank(rows - shown.length),
+    ...(live === undefined ? [] : [row([{ text: width > INDENT.length ? INDENT : "" }, ...live], width, dress)]),
+  ];
 };
 
-/** A step's stream as rows, newest last, walked back from the tail no further than `wanted` of them. */
+/**
+ * A step's stream as rows, newest last, walked back from the tail no further
+ * than `wanted` of them. Every row, a wrapped continuation included, is
+ * indented under the step's title: the stream is the step's, and the indent
+ * is what says so.
+ */
 const tail = (step: Node, wanted: number, width: number, dress: Styler): ReadonlyArray<string> => {
   const rendered: Array<string> = [];
+  // A terminal too narrow for the indent gets none: a row wider than the
+  // budget is the one thing a frame may never emit.
+  const indent = width > INDENT.length ? INDENT : "";
+  const inner = width - indent.length;
   for (let index = step.stream.length - 1; index >= 0 && rendered.length < wanted; index -= 1) {
     const entry = step.stream[index]!;
     const when = dress("dim", stamp(entry.when));
-    rendered.unshift(...display(entry.entry, dress).flatMap((line) => wrap(`${when} ${line}`, width)));
+    rendered.unshift(
+      ...display(entry.entry, dress).flatMap((line) => wrap(`${when} ${line}`, inner).map((piece) => indent + piece)),
+    );
   }
   return rendered;
 };
@@ -308,39 +336,105 @@ const wrap = (line: string, width: number): ReadonlyArray<string> => {
  * with no header and no footer, because those are devices of a live viewport
  * and this is a line an operator scrolls back to an hour later.
  */
-export const outlineRows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
+export const outlineRows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> => {
   // Nothing is selected in scrollback, and nothing spins: the run is over,
   // there is no view, and a frozen spinner on a step an interrupt left running
   // would read as a run still going.
-  stepsOf(tree).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
+  const steps = stepsOf(tree);
+  const column = titleColumn(steps);
+  return steps.map((step) => row(outlineRow(step, column, false), Math.max(columns - 1, 0), dress));
+};
 
-/** The run's own line: what the operator calls it, and the progress row every surface draws. */
-const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> => {
+/**
+ * The run's own line: what the operator calls it, the progress row every
+ * surface draws, and — on a surface with a clock — how long the run has been
+ * going and what it has cost so far, which are the two questions an operator
+ * glancing at a screen asks first.
+ */
+const header = (root: Node, label: string | undefined, clock: Clock | undefined): ReadonlyArray<Segment> => {
   const running = root.children.find((child) => child.at === root.at);
+  const usd = root.children.reduce((sum, child) => sum + (child.summary.usd ?? 0), 0);
   return [
-    ...(label ? [{ text: `${label} ` }] : []),
-    { text: progressRow({ at: root.at, of: root.of, name: running?.name ?? "" }) },
+    ...(label ? [{ style: "bold" as const, text: `${label}${FIELD}` }] : []),
+    { text: progressRow({ at: root.at, of: root.of, name: running?.title ?? "" }) },
+    ...(clock && root.since !== undefined ? [{ style: "dim" as const, text: `${FIELD}${elapsed((clock.now - root.since) / 1000)}` }] : []),
+    ...(usd > 0 ? [{ style: "dim" as const, text: `${FIELD}$${usd.toFixed(2)}` }] : []),
   ];
 };
 
 /**
- * One step, as the operator reads it: what state it is in, where it is, what
- * it is called, and — once it has finished — what it came to.
- *
- * The fields are in one order and the row is cut from the right, so the
- * marker, the position, the name and the state survive any terminal.
- *
- * The selected row is marked by dressing its marker and position rather than
- * by a field of its own: the line's text is what the operator reads, and
- * which row they are on is the surface's business, the way a failed gate's
- * red is.
+ * How wide the title column is: the widest title in the run, so the detail
+ * after every title starts on one column and the outline reads as a table.
+ * The step list is fixed by the `run` event, so the column never moves as
+ * steps finish. Capped, because one long stage name must not push every
+ * row's detail off the right edge.
  */
-const outlineRow = (step: Node, selected: boolean, clock?: Clock): ReadonlyArray<Segment> => [
-  { style: markerStyle(step.state, selected), text: `${marker(step.state, clock)} ${step.at}/${step.of}` },
-  { text: " " },
-  { style: STATES[step.state], text: step.name },
-  ...summary(step),
-];
+const titleColumn = (steps: ReadonlyArray<Node>): number =>
+  Math.min(Math.max(0, ...steps.map((step) => points(step.title).length)), TITLE_MAX);
+
+/** A title as it will be drawn — scrubbed and flattened the way `row` does it — in the code points it costs. */
+const points = (text: string): ReadonlyArray<string> => [...flattened(scrub(text))];
+
+/** The title in its column: cut to the column with an ellipsis, and padded out to it when asked. */
+const titled = (title: string, column: number, pad: boolean): string => {
+  const drawn = points(title);
+  const cut = drawn.length > column ? [...drawn.slice(0, Math.max(column - 1, 0)), "…"] : drawn;
+  return pad ? cut.join("").padEnd(column, " ") : cut.join("");
+};
+
+/**
+ * One step, as the operator reads it: what state it is in, what it is called,
+ * and after the title column what there is to say about it — what it will do
+ * while it is pending, how long it has been going while it runs, and what it
+ * came to once it has finished.
+ *
+ * No position on the row: the header carries `4/11`, and a number in front
+ * of every step is a number the operator has to read past to reach the
+ * title. The fields are in one order and the row is cut from the right, so
+ * the marker, the title and the state survive any terminal.
+ *
+ * The selected row is marked by dressing its marker and title rather than by
+ * a field of its own: the line's text is what the operator reads, and which
+ * row they are on is the surface's business, the way a failed gate's red is.
+ */
+const outlineRow = (step: Node, column: number, selected: boolean, clock?: Clock): ReadonlyArray<Segment> => {
+  const after = detail(step, clock);
+  return [
+    { text: MARGIN },
+    // Padded out to the column only when something follows: a row that ends
+    // on its title ends there, so the scrollback a screen leaves carries no
+    // trailing spaces — and a selected row's inverse still runs the column,
+    // because that is the mark the operator reads which row they are on by.
+    {
+      style: markerStyle(step.state, selected),
+      text: `${marker(step.state, clock)} ${titled(step.title, column, after.length > 0 || selected)}`,
+    },
+    ...after,
+  ];
+};
+
+/**
+ * What follows the title, by state. A pending row says what the step will
+ * do; a running row says how long it has been at it, turning with the clock;
+ * a finished row says what it came to; a row that never ran says why.
+ */
+const detail = (step: Node, clock: Clock | undefined): ReadonlyArray<Segment> => {
+  switch (step.state) {
+    case "pending":
+      return step.about ? [{ style: "dim", text: `${FIELD}${step.about}` }] : [];
+    case "running":
+      return clock && step.since !== undefined
+        ? [{ text: `${FIELD}${elapsed((clock.now - step.since) / 1000).padStart(TIME, " ")}` }]
+        : [];
+    case "skipped":
+      return [{ style: "dim", text: `${FIELD}skipped${step.summary.reason ? ` (${step.summary.reason})` : ""}` }];
+    case "already-done":
+      return [{ style: "dim", text: `${FIELD}already done` }];
+    case "done":
+    case "failed":
+      return summary(step);
+  }
+};
 
 /**
  * The running step's marker is the spinner, on a surface that has a clock to
@@ -355,26 +449,35 @@ const marker = (state: StepState, clock: Clock | undefined): string =>
  * The selected row keeps its state's colour and gains the inverse on top:
  * which row the operator is on is a mark, not a colour of its own, and
  * replacing the colour would make the selection the one row that no longer
- * says what state it is in.
+ * says what state it is in. Dim is the absence of a colour, not one, so a
+ * dim row's mark is the inverse alone: the cursor is the same brightness on
+ * every row it lands on, and the queue is where it lands most.
  */
 const markerStyle = (state: StepState, selected: boolean): Style | undefined => {
   const style = STATES[state];
   if (!selected) return style;
-  return style === undefined ? "inverse" : ["inverse", ...(typeof style === "string" ? [style] : style)];
+  return style === undefined || style === "dim" ? "inverse" : ["inverse", ...(typeof style === "string" ? [style] : style)];
 };
 
-/** What a step came to: its summary once it has finished, a reason if it never ran, nothing yet otherwise. */
+/**
+ * What a finished step came to, in the order a reader wants it: how long,
+ * how much, then what it did. The time and the cost are columns rather than
+ * fields — right-aligned, so `5s` sits under `8m 53s` and every row's calls
+ * start on the same column — and a step that cost nothing leaves its cost
+ * column blank rather than closing the gap, for the same reason.
+ */
 const summary = (step: Node): ReadonlyArray<Segment> => {
-  const { seconds, usd, calls, tools, skills, gates, reason } = step.summary;
-  if (step.state === "skipped") return [{ style: "dim", text: `${FIELD}skipped${reason ? ` (${reason})` : ""}` }];
-  if (step.state === "already-done") return [{ style: "dim", text: `${FIELD}already done` }];
-  if (step.state !== "done" && step.state !== "failed") return [];
-  return [
-    ...(seconds === undefined ? [] : [{ text: `${FIELD}${elapsed(seconds)}` }]),
-    ...(usd === undefined ? [] : [{ text: `${FIELD}$${usd.toFixed(2)}` }]),
+  const { seconds, usd, calls, tools, skills, gates } = step.summary;
+  const rest: ReadonlyArray<Segment> = [
     ...(calls === 0 ? [] : [{ text: `${FIELD}${calls} call${calls === 1 ? "" : "s"} (${named(tools)})` }]),
     ...(skills.length === 0 ? [] : [{ text: `${FIELD}${skills.join(", ")}` }]),
     ...verdicts(gates),
+  ];
+  const cost = usd === undefined ? (rest.length === 0 ? undefined : "") : `$${usd.toFixed(2)}`;
+  return [
+    ...(seconds === undefined ? [] : [{ text: `${FIELD}${elapsed(seconds).padStart(TIME, " ")}` }]),
+    ...(cost === undefined ? [] : [{ text: `${FIELD}${cost.padStart(COST, " ")}` }]),
+    ...rest,
   ];
 };
 

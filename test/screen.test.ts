@@ -91,9 +91,9 @@ test("the screen is entered by the run event and left by end(), which writes the
   assert.deepEqual(
     left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n"),
     [
-      "· 1/3 preflight",
-      "▸ 2/3 implement",
-      "· 3/3 review",
+      " ○ preflight",
+      " ▸ implement",
+      " ○ review",
       "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
     ],
     "the folded outline, then the result, last",

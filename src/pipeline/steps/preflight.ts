@@ -15,6 +15,8 @@ import type { Step } from "../step.ts";
  */
 export const preflight: Step = {
   name: "preflight",
+  title: "Preflight",
+  about: "config check",
   run: Effect.gen(function* () {
     const { ticket, config } = yield* RunContext;
     const prompts = yield* Prompts;

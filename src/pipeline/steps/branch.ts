@@ -20,6 +20,8 @@ import type { Step } from "../step.ts";
  */
 export const nameBranch: Step = {
   name: "branch",
+  title: "Branch",
+  about: "agent · branch name",
   run: Effect.gen(function* () {
     const { ticket, config } = yield* RunContext;
     const store = yield* RunStore;

@@ -10,12 +10,26 @@
 export type RunEvent =
   | {
       readonly kind: "run";
-      readonly steps: ReadonlyArray<{ readonly name: string; readonly done: boolean }>;
+      readonly steps: ReadonlyArray<{
+        readonly name: string;
+        readonly done: boolean;
+        /**
+         * What a reader calls the step, where `name` is what the run calls
+         * it: `name` keys the completed list, the config and every plain
+         * line, so a better word for the operator is a second field, never a
+         * rename. Absent, the name is the title.
+         */
+        readonly title?: string;
+        /** What the step will do, in a few words — what a pending row says until the summary replaces it. */
+        readonly about?: string;
+      }>;
       readonly completed: ReadonlyArray<string>;
     }
   | {
       readonly kind: "step";
       readonly name: string;
+      /** The reader's word for the step, as on the `run` event; the plain rendering keeps the name. */
+      readonly title?: string;
       readonly at: number;
       readonly of: number;
       readonly state: "start" | "end" | "skipped" | "already-done";

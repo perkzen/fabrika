@@ -40,6 +40,14 @@ export type StepError = Escalated | FabrikaError | AgentError;
 export type Step = {
   readonly name: string;
   /**
+   * What a screen calls the step. `name` is identity — the completed list,
+   * `replace`, the config — and is what every plain line prints; the title is
+   * only ever read. Absent, the name stands in.
+   */
+  readonly title?: string;
+  /** What the step will do, in a few dim words on its row until it has done it. */
+  readonly about?: string;
+  /**
    * What the step does, and — for the one step that decides the run is over —
    * the result line it came to. The driver logs that line after the last
    * step's `end`, because the piped contract is that the PR URL is the last
@@ -123,28 +131,36 @@ const body = (
       // Copied: `done` is the live array that `state.completed.push` mutates,
       // and an event has to say what was true when it was emitted.
       completed: [...done],
-      steps: steps.map((step) => ({ name: step.name, done: Boolean(step.once && done.includes(step.name)) })),
+      steps: steps.map((step) => ({
+        name: step.name,
+        done: Boolean(step.once && done.includes(step.name)),
+        ...(step.title === undefined ? {} : { title: step.title }),
+        ...(step.about === undefined ? {} : { about: step.about }),
+      })),
     });
     const of = steps.length;
     let result: string | undefined;
     for (const [index, step] of steps.entries()) {
       const at = index + 1;
       if (step.once && store.get().completed.includes(step.name)) {
-        yield* journal.log({ kind: "step", name: step.name, at, of, state: "already-done" });
+        yield* journal.log({ kind: "step", name: step.name, ...titled(step), at, of, state: "already-done" });
         continue;
       }
       const skip = step.skip ? yield* step.skip : undefined;
       if (skip) {
-        yield* journal.log({ kind: "step", name: step.name, at, of, state: "skipped", reason: skip });
+        yield* journal.log({ kind: "step", name: step.name, ...titled(step), at, of, state: "skipped", reason: skip });
         continue;
       }
-      yield* journal.log({ kind: "step", name: step.name, at, of, state: "start" });
+      yield* journal.log({ kind: "step", name: step.name, ...titled(step), at, of, state: "start" });
       const said = yield* timed(step, at, of, journal);
       if (typeof said === "string") result = said;
       if (step.once) yield* store.update((state) => void state.completed.push(step.name));
     }
     return result;
   });
+
+/** The title, on the events a step emits, only when the step has one: an event says no more than it knows. */
+const titled = (step: Step): { readonly title?: string } => (step.title === undefined ? {} : { title: step.title });
 
 /**
  * One step, run and timed, with its `end` emitted on every exit — success,
@@ -167,6 +183,7 @@ const timed = (
         journal.log({
           kind: "step",
           name: step.name,
+          ...titled(step),
           at,
           of,
           state: "end",

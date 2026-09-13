@@ -86,6 +86,8 @@ const withoutHostPaths = (pr: number, attachments: ReadonlyArray<string>, plain:
  */
 export const openPullRequest: Step = {
   name: "pull-request",
+  title: "Pull request",
+  about: "draft PR",
   run: Effect.gen(function* () {
     const { ticket, config } = yield* RunContext;
     const workspace = yield* Workspace;

@@ -58,3 +58,12 @@ test("a stage limited to other ticket types is skipped, with the reason", async 
   const kept = await exercise(refactor.skip!, { state: { type: "feat" } });
   assert.equal(kept.exit, undefined);
 });
+
+test("a stage is titled by its name read as a word, and says what it will do", () => {
+  assert.equal(codeStage(implement).title, "Implement");
+  assert.equal(codeStage(implement).about, "agent · gate");
+  assert.equal(codeStage({ name: "spec", prompt: "spec.md" }).about, "agent", "no gate, nothing said about one");
+  assert.equal(codeStage({ name: "refactor", prompt: "refactor.md", gate: true, only: ["feat"] }).about, "agent · gate · feat only");
+  assert.equal(codeStage({ name: "pr-body", prompt: "pr.md" }).title, "Pr body", "a kebab name reads as words");
+  assert.equal(codeStage(implement).name, "implement", "the name is the config's and stays so");
+});

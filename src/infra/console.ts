@@ -104,7 +104,7 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   /** What the live region shows next. */
   const track = (event: RunEvent) => {
     if (event.kind === "run") progress = { at: 0, of: event.steps.length, name: "" };
-    if (event.kind === "step") progress = { at: event.at, of: event.of, name: event.name };
+    if (event.kind === "step") progress = { at: event.at, of: event.of, name: event.title ?? event.name };
     if (event.kind === "wait") {
       if (event.state === "start") {
         live = { ...live, wait: { subject: event.subject, since: now(), deadlineMinutes: event.deadlineMinutes } };

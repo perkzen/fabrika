@@ -30,6 +30,8 @@ const renderFailures = (failures: ReadonlyArray<{ check: Check; log: string }>) 
  */
 export const reviewRounds: Step = {
   name: "review",
+  title: "Review loop",
+  about: "review rounds",
   run: Effect.gen(function* () {
     const { config } = yield* RunContext;
     const agent = yield* Agent;

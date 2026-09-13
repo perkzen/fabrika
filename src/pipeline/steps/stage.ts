@@ -11,6 +11,22 @@ import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
 
 /**
+ * A stage's name, read as a word: `implement` is `Implement`, `pr-body` is
+ * `Pr body`. The config's pattern keeps names to lower-case kebab, so this is
+ * the whole of what there is to undo; the name itself is still what every
+ * plain line and the completed list say.
+ */
+const titleOf = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " ");
+
+/**
+ * What a stage will do, for its row before it has done it: an agent call,
+ * the gate after it if the stage has one, and the ticket types it runs for
+ * if it does not run for all of them.
+ */
+const aboutOf = (stage: Stage): string =>
+  ["agent", ...(stage.gate ? ["gate"] : []), ...(stage.only ? [`${stage.only.join("/")} only`] : [])].join(" · ");
+
+/**
  * One configured stage: run the agent, then hand it the gate's verdict until
  * the gate is green or the run gives up.
  *
@@ -21,6 +37,8 @@ import type { Step } from "../step.ts";
  */
 export const codeStage = (stage: Stage): Step => ({
   name: stage.name,
+  title: titleOf(stage.name),
+  about: aboutOf(stage),
   once: true,
   skip: Effect.gen(function* () {
     const type = (yield* RunStore).get().type;

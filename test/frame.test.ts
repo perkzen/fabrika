@@ -32,10 +32,10 @@ test("a frame is exactly rows lines, each at most columns - 1 wide", () => {
   assert.equal(lines.length, 10, "the cursor arithmetic is only trivial while one line is one row");
   for (const line of lines) assert.ok(line.length <= 39, `"${line}" is wider than columns - 1`);
   assert.deepEqual(lines.slice(0, 4), [
-    "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "· 1/3 preflight",
-    "⠋ 2/3 implement",
-    "· 3/3 review",
+    "FAB-6  [████░░░░░░░░] 2/3 implement  1s",
+    " ○ preflight",
+    " ⠋ implement       0s",
+    " ○ review",
   ]);
   assert.deepEqual(lines.slice(4), Array<string>(6).fill(""), "the rest of the viewport is blank, not stale");
 });
@@ -44,7 +44,7 @@ test("a row too wide for the terminal is cut rather than wrapped", () => {
   const tree = script("FAB-6", [0, RUN]);
   const lines = frame(tree, view, { columns: 12, rows: 4 }, bare, { now: noon, spin: 0 });
   assert.equal(lines.length, 4);
-  assert.deepEqual(lines.slice(1), ["· 1/3 prefl", "· 2/3 imple", "· 3/3 revie"]);
+  assert.deepEqual(lines.slice(1), [" ○ prefligh", " ○ implemen", " ○ review"]);
 });
 
 const FINISHED: ReadonlyArray<readonly [number, RunEvent | string]> = [
@@ -67,7 +67,7 @@ test("a finished step's line carries its summary in field order", () => {
 
   assert.equal(
     lines[2],
-    "✔ 2/3 implement  8m 53s  $0.75  4 calls (Bash 2, Edit 1, Skill 1)  fabrika:tdd  gate: compile ok 3s, test FAILED 41s",
+    " ✔ implement   8m 53s   $0.75  4 calls (Bash 2, Edit 1, Skill 1)  fabrika:tdd  gate: compile ok 3s, test FAILED 41s",
   );
 });
 
@@ -80,7 +80,7 @@ test("a step that made one tool call says so in the singular", () => {
     [3, { kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 4, outcome: "done" }],
   );
   const lines = frame(tree, view, { columns: 200, rows: 5 }, bare, { now: noon, spin: 0 });
-  assert.equal(lines[2], "✔ 2/3 implement  4s  1 call (Skill 1)  fabrika:tdd");
+  assert.equal(lines[2], " ✔ implement       4s          1 call (Skill 1)  fabrika:tdd", "a step that cost nothing leaves its cost column blank, so the calls line up");
 });
 
 test("a summary naming more than three tools says how many it left out", () => {
@@ -96,7 +96,7 @@ test("a summary naming more than three tools says how many it left out", () => {
   );
   const lines = frame(tree, view, { columns: 200, rows: 5 }, bare, { now: noon, spin: 0 });
 
-  assert.equal(lines[2], "✖ 2/3 implement  12s  8 calls (Bash 3, Edit 2, Glob 1, +2 more)");
+  assert.equal(lines[2], " ✖ implement      12s          8 calls (Bash 3, Edit 2, Glob 1, +2 more)");
 });
 
 test("a skipped step carries its reason instead of a summary", () => {
@@ -106,14 +106,14 @@ test("a skipped step carries its reason instead of a summary", () => {
     [1, { kind: "step", name: "implement", at: 2, of: 3, state: "skipped", reason: "fix ticket; runs for feat" }],
   );
   const lines = frame(tree, view, { columns: 200, rows: 5 }, bare, { now: noon, spin: 0 });
-  assert.equal(lines[2], "– 2/3 implement  skipped (fix ticket; runs for feat)");
+  assert.equal(lines[2], " – implement  skipped (fix ticket; runs for feat)");
 });
 
-test("a summary is truncated from the right, so the marker, position, name and state survive", () => {
+test("a summary is truncated from the right, so the marker, title and state survive", () => {
   const tree = script("FAB-6", ...FINISHED);
-  const lines = frame(tree, view, { columns: 30, rows: 5 }, bare, { now: noon, spin: 0 });
+  const lines = frame(tree, view, { columns: 28, rows: 5 }, bare, { now: noon, spin: 0 });
 
-  assert.equal(lines[2], "✔ 2/3 implement  8m 53s  $0.7", "cut at columns - 1, the marker and the name intact");
+  assert.equal(lines[2], " ✔ implement   8m 53s   $0.", "cut at columns - 1, the marker and the title intact");
 });
 
 test("a failed gate stays bold red inside the summary, and the rest of the row is not", () => {
@@ -150,17 +150,17 @@ test("the open step's stream fills the rest of the frame, stamped and tail-align
   const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 3000, spin: 0 });
 
   assert.deepEqual(lines, [
-    "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "· 1/3 preflight",
-    "⠋ 2/3 implement",
-    "12:00:01   Read src/cli.ts",
-    "12:00:02 │ on it",
-    "12:00:03   Bash pnpm test",
+    "FAB-6  [████░░░░░░░░] 2/3 implement  3s",
+    " ○ preflight",
+    " ⠋ implement       3s",
+    "   12:00:01   Read src/cli.ts",
+    "   12:00:02 │ on it",
+    "   12:00:03   Bash pnpm test",
     "",
     "",
     "",
-    "· 3/3 review",
-  ], "the detail is folded under the step it belongs to, and the steps after it follow the window");
+    " ○ review",
+  ], "the detail is folded under the step it belongs to, indented under its title, and the steps after it follow the window");
 });
 
 test("a window row is wrapped rather than cut, because a window exists to read prose", () => {
@@ -173,10 +173,10 @@ test("a window row is wrapped rather than cut, because a window exists to read p
   const lines = frame(tree, watching, { columns: 30, rows: 10 }, bare, { now: noon, spin: 0 });
 
   assert.deepEqual(lines.slice(3, 6), [
-    "12:00:01 │ the gate is red an",
-    "d the fix is small",
+    "   12:00:01 │ the gate is red",
+    "    and the fix is small",
     "",
-  ], "a cut sentence defeats the one thing a window is for");
+  ], "a cut sentence defeats the one thing a window is for, and a continuation keeps the indent");
   for (const line of lines) assert.ok(line.length <= 29);
 });
 
@@ -195,7 +195,7 @@ test("wrapping counts display columns, so a styled line is not broken inside its
   const row = dressed[3]!;
   assert.ok(row.length > 29, "the escapes are really there");
   assert.equal(visible(row).length, 29, "and they cost the row no columns");
-  assert.equal(visible(dressed[4]!), "d the fix is small");
+  assert.equal(visible(dressed[4]!), "    and the fix is small");
 });
 
 test("the window shrinks before the outline does, and never below three rows", () => {
@@ -203,27 +203,27 @@ test("the window shrinks before the outline does, and never below three rows", (
 
   const roomy = frame(tree, watching, { columns: 60, rows: 8 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(roomy.slice(0, 3).concat(roomy.slice(7)), [
-    "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "· 1/3 preflight",
-    "⠋ 2/3 implement",
-    "· 3/3 review",
+    "FAB-6  [████░░░░░░░░] 2/3 implement  0s",
+    " ○ preflight",
+    " ⠋ implement       0s",
+    " ○ review",
   ], "the outline is whole and the window took the four rows left over");
 
   const cramped = frame(tree, watching, { columns: 60, rows: 5 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(cramped, [
-    "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "⠋ 2/3 implement",
-    "12:00:01   Read src/cli.ts",
-    "12:00:02 │ on it",
-    "12:00:03   Bash pnpm test",
+    "FAB-6  [████░░░░░░░░] 2/3 implement  0s",
+    " ⠋ implement       0s",
+    "   12:00:01   Read src/cli.ts",
+    "   12:00:02 │ on it",
+    "   12:00:03   Bash pnpm test",
   ], "the window keeps its three rows and the outline scrolls to the selected step, rather than losing them");
 
   const tiny = frame(tree, watching, { columns: 60, rows: 4 }, bare, { now: noon, spin: 0 });
   assert.deepEqual(tiny, [
-    "FAB-6 [████░░░░░░░░] 2/3 implement",
-    "· 1/3 preflight",
-    "⠋ 2/3 implement",
-    "· 3/3 review",
+    "FAB-6  [████░░░░░░░░] 2/3 implement  0s",
+    " ○ preflight",
+    " ⠋ implement       0s",
+    " ○ review",
   ], "under five rows a window cannot have its three, and the thing always needed is the outline");
 });
 
@@ -251,17 +251,17 @@ test("an open wait's spinner, elapsed and deadline are the window's last row", (
   const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 0 });
 
   assert.deepEqual(lines.slice(3), [
-    "12:00:01   Read src/cli.ts",
-    "12:00:01 waiting for implement agent",
+    "   12:00:01   Read src/cli.ts",
+    "   12:00:01 waiting for implement agent",
     "",
     "",
     "",
-    "⠋ waiting for implement agent — 4m 12s / 25m",
-    "· 3/3 review",
+    "   ⠋ waiting for implement agent — 4m 12s / 25m",
+    " ○ review",
   ], "the liveness moves under the running step's line, where the work is");
 
   const later = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 1 });
-  assert.notEqual(later[8]![0], lines[8]![0], "the frame advances, which is what proves the run is alive");
+  assert.notEqual(later[8]!.trimStart()[0], lines[8]!.trimStart()[0], "the frame advances, which is what proves the run is alive");
 });
 
 test("a running gate's n/N and the command it is on take that row instead", () => {
@@ -272,7 +272,7 @@ test("a running gate's n/N and the command it is on take that row instead", () =
     [1, { kind: "gate", name: "compile", at: 1, of: 2, command: "tsc --noEmit", state: "start" }],
   );
   const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 1000, spin: 0 });
-  assert.equal(lines[8], "gate 1/2 compile: tsc --noEmit", "the gate's liveness survives the new shape");
+  assert.equal(lines[8], "   gate 1/2 compile: tsc --noEmit", "the gate's liveness survives the new shape");
 
   // A gate is over when it fails or when its last step is behind it — the same
   // rule the scrollback console's live region follows.
@@ -297,7 +297,7 @@ test("a finished step's window shows its stream and no liveness, the run having 
     [2, { kind: "step", name: "implement", at: 2, of: 3, state: "end", seconds: 2, outcome: "done" }],
   );
   const lines = frame(tree, watching, { columns: 60, rows: 10 }, bare, { now: noon + 253_000, spin: 0 });
-  assert.equal(lines[3], "12:00:01 waiting for implement agent");
+  assert.equal(lines[3], "   12:00:01 waiting for implement agent");
   assert.equal(lines[8], "", "the spinner belongs to the running step, and this one is over");
 });
 
@@ -308,12 +308,12 @@ test("the running step's marker turns with the clock, and no other step's does",
   const first = frame(tree, watching, size, bare, { now: noon, spin: 0 });
   const later = frame(tree, watching, size, bare, { now: noon, spin: 1 });
 
-  assert.equal(first[2], "⠋ 2/3 implement");
-  assert.equal(later[2], "⠙ 2/3 implement", "a still marker is what a hung run looks like");
+  assert.equal(first[2], " ⠋ implement       0s");
+  assert.equal(later[2], " ⠙ implement       0s", "a still marker is what a hung run looks like");
   assert.equal(first[1], later[1], "a pending step is not doing anything, so nothing about it moves");
 });
 
-test("a step is coloured by its state, marker and name alike", () => {
+test("a step is coloured by its state, marker and title as one", () => {
   const tree = script(
     "FAB-6",
     [0, RUN],
@@ -328,11 +328,9 @@ test("a step is coloured by its state, marker and name alike", () => {
   });
 
   const styleOf = (text: string) => JSON.stringify(dressed.find(([, drawn]) => drawn === text)?.[0]);
-  assert.equal(styleOf("✔ 1/3"), '["bold","green"]', "what is finished is green");
-  assert.equal(styleOf("preflight"), '["bold","green"]');
-  assert.equal(styleOf("⠋ 2/3"), '["bold","cyan"]', "and the one thing happening is not");
-  assert.equal(styleOf("implement"), '["bold","cyan"]');
-  assert.equal(styleOf("review"), undefined, "a step that has not started is dressed by nothing");
+  assert.equal(styleOf("✔ preflight"), '["bold","green"]', "what is finished is green, marker and title in one segment");
+  assert.equal(styleOf("⠋ implement"), '["bold","cyan"]', "and the one thing happening is not");
+  assert.equal(styleOf("○ review"), '"dim"', "a step that has not started recedes, so the eye lands on the two above it");
 });
 
 test("the selected row is marked, so moving the selection is something the operator can see", () => {
@@ -342,12 +340,15 @@ test("the selected row is marked, so moving the selection is something the opera
 
   const lines = frame(tree, { ...watching, selected: "0:1" }, { columns: 60, rows: 10 }, spy, { now: noon, spin: 0 });
 
-  assert.ok(dressed.some(([style, text]) => text === "· 1/3" && style === "inverse"), "picking a step to read means seeing which one is picked");
   assert.ok(
-    !dressed.some(([style, text]) => text === "⠋ 2/3" && JSON.stringify(style).includes("inverse")),
+    dressed.some(([style, text]) => text === "○ preflight" && style === "inverse"),
+    "picking a step to read means seeing which one is picked; dim is no colour, so the mark on a queued row is the inverse alone",
+  );
+  assert.ok(
+    !dressed.some(([style, text]) => text.startsWith("⠋ implement") && JSON.stringify(style).includes("inverse")),
     "and only one is",
   );
-  assert.equal(lines[1], "· 1/3 preflight", "the marking is dressing, so the line's text is the one the spec pins");
+  assert.equal(lines[1], " ○ preflight", "the marking is dressing, so the line's text is the one the spec pins");
 });
 
 const LONG: RunEvent = {
@@ -362,15 +363,15 @@ test("an outline longer than the terminal scrolls to keep the selected step on s
 
   const bottom = frame(tree, { ...view, selected: "0:11", opened: null, top: 0 }, size, bare, { now: noon, spin: 0 });
   assert.equal(bottom.length, 8);
-  assert.equal(bottom[1], "· 5/11 step5", "a stale top is pulled down until the selection is on screen");
-  assert.equal(bottom.at(-1), "· 11/11 step11");
+  assert.equal(bottom[1], " ○ step5", "a stale top is pulled down until the selection is on screen");
+  assert.equal(bottom.at(-1), " ○ step11");
 
   const top = frame(tree, { ...view, selected: "0:1", opened: null, top: 9 }, size, bare, { now: noon, spin: 0 });
-  assert.equal(top[1], "· 1/11 step1", "and pushed back up the same way");
-  assert.equal(top.at(-1), "· 7/11 step7");
+  assert.equal(top[1], " ○ step1 ", "and pushed back up the same way; the selected title runs its column, which is where its mark is");
+  assert.equal(top.at(-1), " ○ step7");
 
   const held = frame(tree, { ...view, selected: "0:6", opened: null, top: 3 }, size, bare, { now: noon, spin: 0 });
-  assert.equal(held[1], "· 4/11 step4", "a top the selection already fits in is left where the operator put it");
+  assert.equal(held[1], " ○ step4", "a top the selection already fits in is left where the operator put it");
 });
 
 test("wrapping never splits a character in half, whatever column it lands on", () => {
@@ -412,13 +413,13 @@ test("a tab is a space by the time it reaches the terminal, because it costs mor
   assert.deepEqual(
     lines.slice(1, 8),
     [
-      "· 1/3 pre flight",
-      "⠋ 2/3 implement",
-      "12:00:01 │   go",
-      "12:00:01 │   func main() {",
-      '12:00:01 │    fmt.Println("hi',
-      '")',
-      "12:00:01 │   }",
+      " ○ pre flight",
+      " ⠋ implement        0s",
+      "   12:00:01 │   go",
+      "   12:00:01 │   func main() {",
+      "   12:00:01 │    fmt.Println(",
+      '   "hi")',
+      "   12:00:01 │   }",
     ],
     "a tab is one column wherever it lands, and one in a code block still indents the line it is on",
   );
@@ -440,7 +441,7 @@ test("below the window's floor the outline takes every row, so a fold costs no s
   });
 
   assert.equal(lines.length, 4);
-  assert.deepEqual(lines.slice(1), ["· 1/3 preflight", "⠋ 2/3 implement", "· 3/3 review"], "no step loses its row to a window that was not drawn");
+  assert.deepEqual(lines.slice(1), [" ○ preflight", " ⠋ implement       3s", " ○ review"], "no step loses its row to a window that was not drawn");
 });
 
 test("a scrolled outline keeps the running step on screen too, until the selection needs the room", () => {
@@ -452,14 +453,14 @@ test("a scrolled outline keeps the running step on screen too, until the selecti
   const chosen = { ...view, selected: "0:2", opened: null, chosen: true, top: 0 };
 
   const both = frame(running(6), chosen, size, bare, { now: noon, spin: 0 });
-  assert.equal(both[1], "· 2/11 step2", "the outline is pulled down far enough to hold both");
-  assert.equal(both.at(-1), "⠋ 6/11 step6", "and the running step is the last row rather than off screen");
+  assert.equal(both[1], " ○ step2 ", "the outline is pulled down far enough to hold both");
+  assert.equal(both.at(-1), " ⠋ step6        0s", "and the running step is the last row rather than off screen");
 
   // Five rows cannot hold steps 2 and 10 at once, and the selection is the
   // operator's choice while the running step already has the window.
   const apart = frame(running(10), chosen, size, bare, { now: noon, spin: 0 });
-  assert.equal(apart[1], "· 1/11 step1");
-  assert.equal(apart.at(-1), "· 5/11 step5", "too far apart, so the selection wins");
+  assert.equal(apart[1], " ○ step1");
+  assert.equal(apart.at(-1), " ○ step5", "too far apart, so the selection wins");
 });
 
 test("a resumed run reads the same as a fresh one: the step behind it says so on its own line", () => {
@@ -473,8 +474,8 @@ test("a resumed run reads the same as a fresh one: the step behind it says so on
   ], [1, { kind: "step", name: "implement", at: 2, of: 3, state: "skipped", reason: "fix ticket; runs for feat" }]);
   const lines = frame(tree, view, { columns: 80, rows: 6 }, bare, { now: noon, spin: 0 });
 
-  assert.equal(lines[1], "✔ 1/3 preflight  already done");
-  assert.equal(lines[2], "– 2/3 implement  skipped (fix ticket; runs for feat)", "a skip carries its reason instead of a summary");
+  assert.equal(lines[1], " ✔ preflight  already done");
+  assert.equal(lines[2], " – implement  skipped (fix ticket; runs for feat)", "a skip carries its reason instead of a summary");
 });
 
 test("a cut row never splits a character in half either, whatever width the terminal is", () => {
@@ -511,4 +512,65 @@ test("dressing a frame changes its bytes and never how many rows it has", () => 
 
   assert.equal(dressed.length, plain.length);
   assert.deepEqual(dressed.map(visible), plain, "the same rows, with escapes around them");
+});
+
+const TITLED: RunEvent = {
+  kind: "run",
+  completed: [],
+  steps: [
+    { name: "preflight", title: "Preflight", about: "config check", done: false },
+    { name: "implement", title: "Implement", about: "agent · gate", done: false },
+    { name: "review", title: "Review loop", about: "reviewer rounds", done: false },
+  ],
+};
+
+test("a step is called by its title, and what follows the title is by state", () => {
+  // The name keys the completed list, the config and every plain line; the
+  // title is the pipeline's word for the reader, and no row shows a position
+  // because the header already does.
+  const tree = script(
+    "FAB-6",
+    [0, TITLED],
+    [0, { kind: "step", name: "preflight", at: 1, of: 3, state: "start" }],
+    [2, { kind: "step", name: "preflight", at: 1, of: 3, state: "end", seconds: 2, outcome: "done" }],
+    [2, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "cost", stage: "implement", usd: 0.4 }],
+  );
+  const dressed: Array<[unknown, string]> = [];
+  const spy = (style: unknown, text: string) => (dressed.push([style, text]), text);
+  const lines = frame(tree, { ...view, selected: "" }, { columns: 80, rows: 6 }, spy, { now: noon + 75_000, spin: 0 });
+
+  assert.deepEqual(lines.slice(0, 4), [
+    "FAB-6  [████░░░░░░░░] 2/3 Implement  1m 15s  $0.40",
+    " ✔ Preflight         2s",
+    " ⠋ Implement     1m 13s",
+    " ○ Review loop  reviewer rounds",
+  ], "the header says what the run has taken so far; a finished row what it took, a running row how long it has been at it, a pending row what it will do");
+  assert.ok(
+    dressed.some(([style, text]) => text === "  reviewer rounds" && style === "dim"),
+    "what a pending step will do recedes with the step, so the queue reads as one dim block under the running row",
+  );
+  assert.equal(
+    frame(tree, { ...view, selected: "" }, { columns: 80, rows: 6 }, bare, { now: noon + 76_000, spin: 0 })[2],
+    " ⠋ Implement     1m 14s",
+    "the running row's time turns with the clock, so a step whose agent has said nothing for minutes still reads as alive",
+  );
+});
+
+test("titles are padded to the widest in the run, so every row's detail starts on one column", () => {
+  const wide: RunEvent = {
+    kind: "run",
+    completed: [],
+    steps: [
+      { name: "a", title: "Go", done: false },
+      { name: "b", title: "A stage with a very long name", done: false },
+      { name: "c", title: "Short", about: "agent", done: false },
+    ],
+  };
+  const tree = script("FAB-6", [0, wide], [0, { kind: "step", name: "a", at: 1, of: 3, state: "start" }]);
+  const lines = frame(tree, { ...view, selected: "" }, { columns: 80, rows: 6 }, bare, { now: noon, spin: 0 });
+
+  assert.equal(lines[1], " ⠋ Go                         0s", "the column is the widest title's, up to the cap");
+  assert.equal(lines[2], " ○ A stage with a very…", "past the cap a title is cut with an ellipsis, so one name cannot push every row's detail off the right");
+  assert.equal(lines[3], " ○ Short                 agent");
 });

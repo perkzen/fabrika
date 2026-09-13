@@ -423,3 +423,10 @@ test("the live region is scrubbed too, since a stray escape there moves the curs
   assert.doesNotMatch(out.text(), /\x1b\[1Aabc1234/, "one row up is what clearLive says; a subject must not get to say it too");
   assert.match(out.text(), /waiting for checks on \[1Aabc1234/);
 });
+
+test("the live region calls a step by its title when it has one", () => {
+  const out = sink({ isTTY: true, columns: 60 });
+  const presenter = openConsole({ stream: out.stream, interactive: true, now: noon });
+  presenter.show({ kind: "step", name: "pull-request", title: "Pull request", at: 10, of: 11, state: "start" });
+  assert.equal(visible(out.chunks.at(-1)!), "[██████████░░] 10/11 Pull request\n");
+});

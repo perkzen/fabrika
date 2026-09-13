@@ -19,8 +19,13 @@ const RUN: RunEvent = {
 const size = { columns: 80, rows: 24 };
 const fresh: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
 
-/** A run with its second step running, and the view that follows it. */
-const running = script(RUN, { kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+/** A run with its first step done and its second running, and the view that follows it. */
+const running = script(
+  RUN,
+  { kind: "step", name: "preflight", at: 1, of: 3, state: "start" },
+  { kind: "step", name: "preflight", at: 1, of: 3, state: "end", seconds: 1, outcome: "done" },
+  { kind: "step", name: "implement", at: 2, of: 3, state: "start" },
+);
 const watching = follow(fresh, running);
 
 /** The same run once the step has said more than its window can hold, which is what makes a page key mean anything. */
@@ -48,7 +53,28 @@ test("arrows and k/j move the selection and stop it following", () => {
 
   assert.equal(press("up", up, running, size).selected, "0:1", "the ends of the outline are the ends");
   const bottom = press("down", press("down", up, running, size), running, size);
-  assert.equal(press("down", bottom, running, size).selected, "0:3");
+  assert.equal(bottom.selected, "0:2", "a step that has not run has nothing to unfold, so the selection cannot land on it");
+});
+
+test("the selection steps over steps that never ran, and enters from the end it moves away from", () => {
+  const resumed = script(
+    { kind: "run", completed: ["preflight"], steps: [{ name: "preflight", done: true }, { name: "implement", done: false }, { name: "refactor", done: false }, { name: "review", done: false }] },
+    { kind: "step", name: "preflight", at: 1, of: 4, state: "already-done" },
+    { kind: "step", name: "implement", at: 2, of: 4, state: "start" },
+    { kind: "step", name: "implement", at: 2, of: 4, state: "end", seconds: 1, outcome: "done" },
+    { kind: "step", name: "refactor", at: 3, of: 4, state: "skipped", reason: "fix ticket; runs for feat" },
+    { kind: "step", name: "review", at: 4, of: 4, state: "start" },
+  );
+  const view = follow(fresh, resumed);
+  assert.equal(view.selected, "0:4");
+
+  const up = press("up", view, resumed, size);
+  assert.equal(up.selected, "0:2", "the skipped step between them is stepped over: there is nothing under its line");
+  assert.equal(press("up", up, resumed, size).selected, "0:2", "and the already-done step above is the end of what can be read");
+  assert.equal(press("down", up, resumed, size).selected, "0:4");
+
+  assert.equal(press("down", fresh, resumed, size).selected, "0:2", "nothing selected yet, a move down starts at the first readable step");
+  assert.equal(press("up", fresh, resumed, size).selected, "0:4", "and a move up at the last");
 });
 
 test("toggle opens one step and closes whatever was open", () => {
@@ -104,11 +130,18 @@ test("an interrupt is not the view's business, and an unknown byte changes nothi
 });
 
 test("moving the selection past the bottom of the outline scrolls it", () => {
-  const long = script({
-    kind: "run",
-    completed: [],
-    steps: Array.from({ length: 11 }, (_, index) => ({ name: `step${index + 1}`, done: false })),
-  });
+  // Every step has run, so every row can be landed on.
+  const long = script(
+    {
+      kind: "run",
+      completed: [],
+      steps: Array.from({ length: 11 }, (_, index) => ({ name: `step${index + 1}`, done: false })),
+    },
+    ...Array.from({ length: 11 }, (_, index): ReadonlyArray<RunEvent> => [
+      { kind: "step", name: `step${index + 1}`, at: index + 1, of: 11, state: "start" },
+      { kind: "step", name: `step${index + 1}`, at: index + 1, of: 11, state: "end", seconds: 1, outcome: "done" },
+    ]).flat(),
+  );
   const small = { columns: 60, rows: 8 };
 
   let moving = { ...fresh, selected: "0:1", top: 0 };

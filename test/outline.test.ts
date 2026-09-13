@@ -142,3 +142,30 @@ test("a second run event appends a second root", () => {
   );
   assert.equal(new Set(tree.roots.flatMap((root) => root.children.map((step) => step.key))).size, 5, "keys stay unique across roots");
 });
+
+test("a node is called by the run event's title, or by its name when the run gave none", () => {
+  const tree = script([
+    0,
+    {
+      kind: "run",
+      completed: [],
+      steps: [{ name: "implement", title: "Implement", about: "agent · gate", done: false }, { name: "review", done: false }],
+    },
+  ]);
+  const [implement, review] = tree.roots[0]!.children;
+
+  assert.equal(implement!.title, "Implement");
+  assert.equal(implement!.about, "agent · gate");
+  assert.equal(implement!.name, "implement", "the name is untouched: it is what the completed list and every plain line say");
+  assert.equal(review!.title, "review", "a step the run did not title is called by its name");
+  assert.equal(review!.about, undefined);
+});
+
+test("a step knows when it started, and the root when the run did, so a live row can say how long", () => {
+  const tree = script([0, RUN], [7, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }]);
+  const root = tree.roots[0]!;
+
+  assert.equal(root.since, noon, "the run's own clock starts at its event");
+  assert.equal(root.children[1]!.since, noon + 7000, "and a step's at its start");
+  assert.equal(root.children[2]!.since, undefined, "a step that has not started has no since to count from");
+});
