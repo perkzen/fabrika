@@ -166,6 +166,32 @@ did not seek.
 A failed CI run is rerun once first, for flakes. The host never resolves a
 thread the agent did not address.
 
+### The PR shows the change, not only the diff
+
+For the half of a change a diff cannot show, the pull request carries a
+**Before / After** section: one command that renders a user-visible surface,
+run by the host twice — in a checkout of the base, and on your branch — with
+`$FABRIKA_CAPTURE_DIR` pointing at an empty directory it writes into. Images go
+up as GitHub attachments, text is fenced, and nothing is committed.
+
+It is `pr.beforeAfter` in your config, on by default:
+
+```json
+"pr": { "draft": true, "emptyCommit": true, "beforeAfter": true }
+```
+
+Nothing else to declare. Each run reads its own diff and works out whether it
+changed a surface anyone looks at and what already renders it, so a branch that
+touched only logic, tests or docs adds nothing to the PR and costs nothing. A
+repository with no user-visible surface never produces a section at all.
+
+Set `pr.capture` instead when the render is expensive enough to be worth
+pinning — a simulator boot, a full site build — and the named commands and
+their globs take over. `"beforeAfter": false` turns the whole thing off.
+
+Images need `gh` 2.99.0 or newer for `gh pr create --attach`; an older `gh`
+keeps the text and says so in the log.
+
 ### Keeping the machine awake
 
 A run is mostly waiting — on an agent call, on the reviewer, on CI — and a Mac
@@ -291,15 +317,17 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 
 ## Where things live
 
-- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, denied tools, review settings, `keepAwake`, `notify`, PR captures
+- `.fabrika/config.json` in the target repo: base branch, branch pattern, gate, stages, denied tools, review settings, `keepAwake`, `notify`, Before / After
 - `~/.fabrika/worktrees/<repo>/<ticket>/`: the worktree for a run
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
-- `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each PR capture, reused by every ticket cut from that commit
+- `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each capture, keyed by name and command, reused by every ticket cut from that commit
 - `~/.fabrika/notifier/Fabrika.app`: the bundle notifications are posted through, built on first use
-- `~/.config/fabrika/.env`: what is this machine's rather than this repo's, kept out of every repo — `FABRIKA_EDITOR="open -a WebStorm"`, the editor the screen's `o` opens the worktree in
 
 fabrika stores no credentials of its own: `claude`, `gh` and each MCP server
-hold theirs.
+hold theirs. The one thing it reads from the environment is
+`FABRIKA_EDITOR` — `FABRIKA_EDITOR="open -a WebStorm"` in your shell — the
+editor the screen's `o` opens the worktree in; on macOS it falls back to
+`open`.
 
 For source layout, exit codes, MCP and Linear setup, the smoke test and other
 operator notes, see [docs/internals.md](docs/internals.md).

@@ -71,8 +71,9 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
                 ticket: ticket.identifier,
                 worktree: dir,
                 input: process.stdin,
-                // `cli.ts` loaded `~/.config/fabrika/.env` before this ran, so
-                // `FABRIKA_EDITOR` is already in the environment read here.
+                // `FABRIKA_EDITOR` is the operator's shell's: fabrika loads no
+                // `.env` of its own (ADR-0005), so the environment read here is
+                // the one it was started in.
                 open: editorOpener(dir, process.env, process.platform),
               })
           : (options) => openConsole({ ...options, worktree: dir }),
