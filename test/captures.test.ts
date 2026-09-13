@@ -188,3 +188,13 @@ test("a file's kind is its extension, and an unknown one is not a file the body 
   assert.equal(kindOf("notes.md"), undefined);
   assert.equal(kindOf("frame"), undefined);
 });
+
+test("a name the body cannot quote is not a file the body carries", () => {
+  // Every one of these breaks out of the construct the name is rendered
+  // inside: the `\`${name}\`` cell, the `| … |` row, or the `![before](path)`
+  // destination the same name is the tail of.
+  for (const name of ["pipe|d.png", "back`tick.png", "paren).png", "my frame.png", "new\nline.png"]) {
+    assert.equal(kindOf(name), undefined, name);
+  }
+  assert.equal(kindOf("frame-2_a.png"), "image", "the names a capture actually writes still pass");
+});

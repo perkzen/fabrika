@@ -42,8 +42,17 @@ export const SECTION_CHARS = 20000;
 
 const IMAGES = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
-/** A capture's file kind, by extension; `undefined` for a file the body cannot carry. */
+/**
+ * What a name may be made of. The name is rendered inside three constructs it
+ * could otherwise close — a `` `code` `` span, a `| cell |`, and the
+ * `![before](…/name)` destination it is the tail of — and nothing upstream
+ * sanitises it: a capture writes whatever file names it likes.
+ */
+const NAME = /^[\w.\-]+$/;
+
+/** A capture's file kind, by name and extension; `undefined` for a file the body cannot carry. */
 export const kindOf = (name: string): CaptureFile["kind"] | undefined => {
+  if (!NAME.test(name)) return undefined;
   const at = name.lastIndexOf(".");
   if (at <= 0) return undefined;
   const extension = name.slice(at).toLowerCase();
