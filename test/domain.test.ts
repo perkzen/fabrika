@@ -8,6 +8,7 @@ import { classify, mergeStateOf } from "../src/adapters/gh-forge.ts";
 import { parseScore } from "../src/adapters/cubic-reviewer.ts";
 import { baseBranch, CONFIG_TEMPLATE, decodeConfig, remoteOf } from "../src/config.ts";
 import { home } from "../src/paths.ts";
+import { identified, openedByFabrika, titleOf, TRAILER } from "../src/stamp.ts";
 import { asConfig, asProposal } from "../src/configure.ts";
 import { asBranchParts, branchName, slug, type Ticket } from "../src/ticket.ts";
 
@@ -179,4 +180,28 @@ test("a run's directory is keyed by the repository's name and the run's own key"
   // The repository's basename, not its path: the scan for a pull request's
   // existing run directory lists this one directory and nothing above it.
   assert.equal(home(path, "runs", "/somewhere/else/fabrika", ""), home(path, "runs", "/Users/domen/dev/fabrika", ""));
+});
+
+test("a pull request fabrika opened reads back as the ticket it was opened for", () => {
+  const title = titleOf("FAB-5", "Conflicted PRs pile up");
+
+  assert.equal(title, "FAB-5: Conflicted PRs pile up");
+  assert.deepEqual(
+    identified(title),
+    { identifier: "FAB-5", title: "Conflicted PRs pile up" },
+    "the round trip is what a sweep keys its worktree and its merge prompt off",
+  );
+});
+
+test("a title nobody stamped carries no identifier", () => {
+  assert.equal(identified("fix: a thing"), null);
+  assert.equal(identified("2026-05-01: a dated title"), null, "an identifier starts with a letter");
+  assert.deepEqual(identified("ENG-42:no space"), { identifier: "ENG-42", title: "no space" });
+});
+
+test("the trailer is what tells a sweep whose pull request it is", () => {
+  const body = ["Linear: https://linear.app/x/FAB-5", "", "a description", "", "---", TRAILER].join("\n");
+
+  assert.equal(openedByFabrika(body), true);
+  assert.equal(openedByFabrika("a pull request somebody wrote by hand"), false);
 });

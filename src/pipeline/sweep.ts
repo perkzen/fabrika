@@ -4,6 +4,7 @@ import type { FabrikaError } from "../errors.ts";
 import { Forge, type PullRequestDetail } from "../ports/forge.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { Workspace } from "../ports/workspace.ts";
+import { identified, openedByFabrika } from "../stamp.ts";
 import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
 import { syncWithBase, type SyncServices } from "./sync.ts";
@@ -68,8 +69,8 @@ export type SweepResult = {
   readonly exitCode: 0 | 2 | 3;
 };
 
-/** Whose pull request it is, off the trailer `pull-request.ts` stamps into every body. */
-const whose = (pr: PullRequestDetail) => (pr.body.includes("Opened by fabrika") ? "[fabrika]" : "[yours]");
+/** Whose pull request it is, off the trailer fabrika stamps into every body. */
+const whose = (pr: PullRequestDetail) => (openedByFabrika(pr.body) ? "[fabrika]" : "[yours]");
 
 const label = (pr: PullRequestDetail) => `#${pr.number} ${whose(pr)} ${pr.title}`;
 
@@ -120,24 +121,20 @@ const failure = (pr: PullRequestDetail, placement: Placement | undefined, error:
     : failed;
 };
 
-/** The shape `pull-request.ts` writes: `FAB-5: Conflicted PRs pile up`. */
-const TITLED = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*:\s*(.*)$/;
-
 /**
  * The number is in the key deliberately: two open pull requests can carry the
  * same identifier in their titles, and two workers in one tree is the failure
  * this command is not allowed to have.
  */
 const targetOf = (pr: PullRequestDetail): SyncTarget => {
-  const titled = TITLED.exec(pr.title);
-  const identifier = titled ? titled[1]! : `pr-${pr.number}`;
+  const titled = identified(pr.title);
   return {
     number: pr.number,
     url: pr.url,
     branch: pr.branch,
-    identifier,
-    title: titled ? titled[2]! : pr.title,
-    key: titled ? `${identifier}-${pr.number}` : identifier,
+    identifier: titled ? titled.identifier : `pr-${pr.number}`,
+    title: titled ? titled.title : pr.title,
+    key: titled ? `${titled.identifier}-${pr.number}` : `pr-${pr.number}`,
   };
 };
 

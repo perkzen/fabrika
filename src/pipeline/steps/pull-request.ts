@@ -4,6 +4,7 @@ import { Journal } from "../../ports/journal.ts";
 import { RunContext } from "../../ports/run-context.ts";
 import { RunStore } from "../../ports/run-store.ts";
 import { Workspace } from "../../ports/workspace.ts";
+import { titleOf, TRAILER } from "../../stamp.ts";
 import { Escalated } from "../escalated.ts";
 import type { Step } from "../step.ts";
 import { syncWithBase } from "../sync.ts";
@@ -41,14 +42,14 @@ export const openPullRequest: Step = {
     const description = (yield* workspace.readArtifact("pr.md")) ?? ticket.description;
     const pr = yield* forge.open({
       branch,
-      title: `${ticket.identifier}: ${ticket.title}`,
+      title: titleOf(ticket.identifier, ticket.title),
       body: [
         ticket.url ? `Linear: ${ticket.url}` : "",
         "",
         description,
         "",
         "---",
-        "Opened by fabrika. Draft until a human reviews.",
+        TRAILER,
       ].join("\n"),
       draft: config.pr.draft,
     });
