@@ -1,8 +1,53 @@
+// Deliberate beside the Effect spawner below: `detached` is a fire-and-forget
+// fork whose child outlives this process, which is not a shape an Effect that
+// awaits an exit code can have.
+import { spawn } from "node:child_process";
 import { Data, Effect, Stream } from "effect";
 import type { PlatformError } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 export type ShellResult = { readonly code: number; readonly out: string };
+
+/**
+ * Variables whose *names* say they hold a credential. `fabrika run` loads
+ * `~/.config/fabrika/.env` into its own environment for its own Linear and
+ * Claude calls, so this process holds keys the operator's own shell does not
+ * — and every child inherits all of it unless told otherwise.
+ */
+const SECRET = /KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|_AUTH|^AUTH/;
+
+/**
+ * An environment minus anything named like a credential, and minus nothing
+ * the caller names in `keep`. The pattern is a guess at a name, so a child
+ * that needs one of its false positives says which; deciding that at the call
+ * site is what keeps "what does this child get" beside the spawn.
+ */
+export const withoutSecrets = (
+  environment: NodeJS.ProcessEnv,
+  keep: ReadonlyArray<string> = [],
+): Record<string, string> => {
+  const kept: Record<string, string> = {};
+  for (const [name, value] of Object.entries(environment)) {
+    if (value !== undefined && (keep.includes(name) || !SECRET.test(name.toUpperCase()))) kept[name] = value;
+  }
+  return kept;
+};
+
+/**
+ * Fire and forget, and never fatal: the child outlives the `process.exit`
+ * `cli.ts` is about to call, and a failure to start it is swallowed — a
+ * notification nobody sees, or an editor that never opened, is not a failed
+ * run. No shell, ever.
+ *
+ * The environment is stated rather than inherited, because neither child has
+ * any work that needs this process's keys and one of them is an editor the
+ * operator then lives inside.
+ */
+export const detached = (bin: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv): void => {
+  const child = spawn(bin, [...args], { stdio: "ignore", env });
+  child.on("error", () => {});
+  child.unref();
+};
 
 export class ShellFailed extends Data.TaggedError("ShellFailed")<{
   readonly argv: ReadonlyArray<string>;

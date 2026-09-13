@@ -129,6 +129,11 @@ test("an interrupt is not the view's business, and an unknown byte changes nothi
   assert.deepEqual(press("unknown", watching, running, size), watching);
 });
 
+test("o is a key, and opening an editor is no more a view change than an interrupt is", () => {
+  assert.deepEqual(decode("o"), ["open"]);
+  assert.deepEqual(press("open", watching, running, size), watching, "keys change nothing about the run");
+});
+
 test("moving the selection past the bottom of the outline scrolls it", () => {
   // Every step has run, so every row can be landed on.
   const long = script(

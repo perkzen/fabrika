@@ -46,7 +46,11 @@ const keyboard = () => {
   return input;
 };
 
-const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<typeof keyboard> } = {}) =>
+/** Opt-in rather than a default: the whole-scrollback assertions belong to the tests that are about them. */
+const open = (
+  out: ReturnType<typeof terminal>,
+  extra: { input?: ReturnType<typeof keyboard>; worktree?: string; open?: () => void } = {},
+) =>
   openScreen({
     stream: out.stream,
     interactive: true,
@@ -54,7 +58,11 @@ const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<type
     ticket: "FAB-6",
     input: (extra.input ?? keyboard()) as unknown as NodeJS.ReadStream,
     kill: () => {},
+    worktree: extra.worktree,
+    open: extra.open,
   });
+
+const WORKTREE = "/Users/x/.fabrika/worktrees/fabrika/FAB-6";
 
 const RUN: RunEvent = {
   kind: "run",
@@ -98,6 +106,44 @@ test("the screen is entered by the run event and left by end(), which writes the
     ],
     "the folded outline, then the result, last",
   );
+});
+
+test("the exit scrollback carries the worktree between the outline and the result", () => {
+  const out = terminal({ columns: 80, rows: 12 });
+  const presenter = open(out, { worktree: WORKTREE });
+
+  presenter.show(RUN);
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  presenter.show(RESULT);
+  assert.doesNotMatch(
+    out.text().split("\x1b[?1049h")[0]!,
+    /worktree:/,
+    "the inner console the screen leaves behind on mount never saw a run event, so primary scrollback keeps none",
+  );
+  presenter.end();
+
+  const left = out.text().slice(out.text().lastIndexOf("\x1b[?1049l"));
+  assert.deepEqual(
+    left.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n"),
+    [
+      " ○ preflight",
+      " ▸ implement",
+      " ○ review",
+      "worktree: /Users/x/.fabrika/worktrees/fabrika/FAB-6",
+      "done: checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
+    ],
+    "absolute and unstamped, where the operator can copy it, and the result still last",
+  );
+});
+
+test("a screen that never mounted writes no worktree line", () => {
+  const out = terminal();
+  const presenter = open(out, { worktree: WORKTREE });
+
+  presenter.show("already done: FAB-6 — remove ~/.fabrika/runs/fabrika/FAB-6 to rerun");
+  presenter.end();
+
+  assert.doesNotMatch(out.text(), /worktree:/, "a run that never started has no tree worth naming");
 });
 
 test("a screen that never mounted leaves no buffer and writes no outline", () => {
@@ -200,6 +246,52 @@ test("a key moves the view and nothing else, and the next frame shows it", (t) =
   keys.emit("data", " ");
   t.mock.timers.tick(80);
   assert.doesNotMatch(out.chunks.at(-1)!, /Read src\/cli\.ts/);
+
+  presenter.end();
+});
+
+test("o opens the worktree once, and the run comes to exactly what it would have anyway", () => {
+  const go = (pressed?: string) => {
+    const out = terminal({ columns: 80, rows: 12 });
+    const keys = keyboard();
+    let opened = 0;
+    const presenter = open(out, { input: keys, worktree: WORKTREE, open: () => void (opened += 1) });
+
+    presenter.show(RUN);
+    presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+    if (pressed !== undefined) keys.emit("data", pressed);
+    presenter.show(RESULT);
+    presenter.end();
+    return { opened, exit: out.text().slice(out.text().lastIndexOf("\x1b[?1049l")) };
+  };
+
+  const touched = go("o");
+  const untouched = go();
+  assert.equal(touched.opened, 1, "one press is one editor, and nothing was spawned to find that out");
+  assert.equal(untouched.opened, 0);
+  assert.equal(touched.exit, untouched.exit, "a run whose operator pressed o ends the way one nobody touched does");
+});
+
+test("a screen with no opener neither names o nor draws anything different when it is pressed", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = terminal({ columns: 80, rows: 12 });
+  const keys = keyboard();
+  const presenter = open(out, { input: keys, worktree: WORKTREE });
+
+  presenter.show(RUN);
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  t.mock.timers.tick(80);
+  const settled = out.chunks.at(-1)!;
+  assert.doesNotMatch(settled, /o open/, "a machine with no editor command is never shown a key that does nothing");
+
+  keys.emit("data", "o");
+  // Past the frame the press marked dirty: a key that did nothing has to be
+  // read after the redraw it asks for, not before it.
+  t.mock.timers.tick(80);
+  // The running step's marker turns on every tick whether or not a key was
+  // pressed, so the one glyph that is meant to differ is read as the same.
+  const still = (chunk: string) => chunk.replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/gu, "⠿");
+  assert.equal(still(out.chunks.at(-1)!), still(settled), "the frame an untouched screen would have drawn, to the byte");
 
   presenter.end();
 });

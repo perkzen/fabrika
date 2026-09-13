@@ -9,6 +9,17 @@ of the domain.
 
 ## Language
 
+### Where a run works
+
+**Worktree**:
+The git worktree a run does its work in, at
+`~/.fabrika/worktrees/<repo>/<key>` — outside the repository fabrika was
+invoked from, so nothing a run does touches the checkout the operator is
+sitting in. Its path is the address the operator wants in hand: the screen's
+header carries it, every exit prints it, and one key opens it in their editor.
+_Avoid_: checkout, working copy, sandbox — *checkout* is the repository fabrika
+was invoked from, which is a different directory a sweep also has.
+
 ### Reporting a run
 
 **Journal**:
@@ -117,8 +128,8 @@ _Avoid_: expand, collapse, open, closed.
 
 **View**:
 What the operator has selected, unfolded and scrolled to. It is the step
-tree's companion and the only thing a key press changes, so nothing on the
-keyboard can alter what the run did.
+tree's companion and the only thing on the screen a key press changes —
+nothing on the keyboard can alter what the run does or how it ends.
 _Avoid_: state, selection, mode.
 
 **Window**:

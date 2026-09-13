@@ -1,12 +1,12 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fileJournal from "../src/adapters/file-journal.ts";
 import type { Config } from "../src/config.ts";
-import { isInteractive } from "../src/infra/console.ts";
+import { isInteractive, openConsole } from "../src/infra/console.ts";
 import { openScreen } from "../src/infra/screen.ts";
 import { fabrikaPipeline } from "../src/pipeline/fabrika.ts";
 import { Agent, type AgentRequest } from "../src/ports/agent.ts";
@@ -167,9 +167,13 @@ export const rehearse = (options: RehearsalOptions) =>
       gate: GATE.map(({ name, run }) => ({ name, run })),
       review: { provider: "cubic", requireScore: 5, maxRounds: 3, timeoutMinutes: 25 },
     };
+    // Where a real run would put the tree, so the header's second row and
+    // the `o` key read as they would; nothing is ever created there.
+    const worktree = join(homedir(), ".fabrika", "worktrees", "fabrika", TICKET.identifier);
     const world = harness({
       ticket: TICKET,
       config,
+      dir: worktree,
       reviews: [
         { commit: "sha1", score: 4, threads: [{ id: "t1", path: "src/config.ts", line: 12, body: "This comment still names the old default." }] },
         { commit: "sha2", score: 5, threads: [] },
@@ -177,12 +181,27 @@ export const rehearse = (options: RehearsalOptions) =>
     });
 
     // The same verdict `run.ts` makes: a terminal gets the screen, a pipe the
-    // scrolling log — so `pnpm rehearse | cat` is what CI would see.
+    // scrolling log — so `pnpm rehearse | cat` is what CI would see. `o` opens
+    // nothing: it says so on the screen instead, which is what a rehearsal of
+    // a key can honestly do.
     const journal = fileJournal.layer(
       join(dir, "log.txt"),
       { stream: options.stream, archive: "log.txt" },
       [],
-      isInteractive(options.stream) ? (opts) => openScreen({ ...opts, ticket: TICKET.identifier, input: options.input }) : undefined,
+      isInteractive(options.stream)
+        ? (opts) => {
+            let show: ((entry: string) => void) | undefined;
+            const screen = openScreen({
+              ...opts,
+              ticket: TICKET.identifier,
+              worktree,
+              input: options.input,
+              open: () => show?.(`o: a run would open ${worktree} in the editor; a rehearsal opens nothing`),
+            });
+            show = screen.show;
+            return screen;
+          }
+        : (opts) => openConsole({ ...opts, worktree }),
     );
 
     const agent = Layer.effect(Agent)(

@@ -30,12 +30,13 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/infra/console.ts` | The scrollback console presenter: the interactivity verdict, the live region and the frame timer. The walk from an event to dressed lines is `lines.ts`'s |
 | `src/infra/lines.ts` | Every line both live surfaces share: `display()` — one run event as the dressed lines a reader sees, with the colour table, the gutter on agent speech, the markdown walk and the height cap if the surface asks for one — and `progressRow` / `livenessRow` / `spinner`, the run's progress, whatever is blocking it and the frame anything turning is on, drawn once so the console and the screen cannot drift |
 | `src/infra/screen.ts` | The screen presenter an interactive run gets: the inner console until the first `run` event, then the alternate buffer, the frame timer, raw-mode keys, SIGINT, resize, and the folded outline written to scrollback on the way out |
-| `src/infra/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
+| `src/infra/frame.ts` | `frame()` — a tree and a view into exactly `rows` lines of at most `columns - 1`: the header and, under it, the worktree's path in `~` form, the step line and its summary, the open step's window, the wrap and the cut. `layout()` is the row budget it and `keys.ts` both spend, `scrolled()` the clamp that keeps a page key inside the window, and `outlineRows()` the outline alone, for the scrollback a screen leaves behind |
 | `src/infra/keys.ts` | `decode`, `press` and `follow` — a keystroke and a view in, a view out. Pure, so the keyboard is tested without a terminal |
 | `src/infra/banner.ts` | The wordmark `run` and `init` open with, written before any presenter exists; interactive-only, one-line where the block will not fit |
 | `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
+| `src/infra/editor.ts` | `editorOpener()` — `FABRIKA_EDITOR` and the platform into the opener the screen's `o` calls, already bound to the worktree, or nothing where there is no default worth guessing |
 | `src/infra/notifier.ts` | The presenter that posts one notification when the run ends, whether or not it reached a verdict |
 | `src/infra/notifier-app.ts` | The rebranded `terminal-notifier` bundle the notification is posted through, built once per machine into `~/.fabrika/notifier` |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper, MCP resolution and the `keepAwake` assertion — implementation details of the adapters |
@@ -66,23 +67,27 @@ package carries the filesystem, path and CLI modules; subprocesses come from
 
 An interactive `fabrika run` is a **screen**: the terminal's alternate buffer,
 with a header carrying the ticket, the progress bar, the step the run is on
-and what the run has taken so far in time and money, then one line per step
-from `Preflight` to `Review loop`. A step's line is its title and, after it,
-what there is to say: a pending step says what it will do (`agent · gate`),
-the running step says how long it has been at it and is unfolded under its
-line, and a finished step says how long it took, what it cost, how many tool
-calls it made and by which tool, which skills it invoked and each gate
-command's verdict — time and cost in columns, so the rows read as a table.
-Steps are titled by the pipeline (`title` on a `Step`; a stage's is its name
-capitalised) and named by the run: the name is what the completed list, the
-config and every plain line say, and a title never replaces it.
+and what the run has taken so far in time and money, the worktree's path on
+the row under it, then one line per step from `Preflight` to `Review loop`.
+A step's line is its title and, after it, what there is to say: a pending
+step says what it will do (`agent · gate`), the running step says how long
+it has been at it and is unfolded under its line, and a finished step says
+how long it took, what it cost, how many tool calls it made and by which
+tool, which skills it invoked and each gate command's verdict — time and
+cost in columns, so the rows read as a table. Steps are titled by the
+pipeline (`title` on a `Step`; a stage's is its name capitalised) and named
+by the run: the name is what the completed list, the config and every plain
+line say, and a title never replaces it.
 
-The keys are `↑↓` (or `k`/`j`) to move the selection, space or enter to fold
-and unfold it, `PgUp`/`PgDn` to scroll the open window, `Esc` to go back to
-following the running step, and `Ctrl-C` to interrupt the run. They are
+The keys are `↑↓` (or `k`/`j`) to move the selection over the steps that
+have run, space or enter to fold and unfold it, `PgUp`/`PgDn` to scroll the
+open window, `Esc` to go back to following the running step, `o` to open the
+worktree in `FABRIKA_EDITOR`, and `Ctrl-C` to interrupt the run. They are
 optional: a run whose operator went home has the same outcome, the same exit
-code and the same last line. Leaving the screen — on every exit path — writes
-the folded outline and the result line to plain scrollback.
+code and the same last line, and one who pressed `o` has an editor open
+beside a run that is otherwise identical. Leaving the screen — on every exit
+path — writes the folded outline, the worktree's absolute path and the
+result line to plain scrollback.
 
 A pipe, `NO_COLOR`, `TERM=dumb`, CI and `fabrika init` get the scrolling log
 instead, unchanged but for one `step refactor: done (8m 53s)` line per step.

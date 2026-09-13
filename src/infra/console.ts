@@ -15,6 +15,12 @@ export type ConsoleOptions = {
   readonly now?: () => number;
   /** Where the uncapped copy lives, named in the elision line. `init` has none. */
   readonly archive?: string;
+  /**
+   * The run's worktree, absolute. An option rather than a run event: `log.txt`
+   * gets every event, and where this machine put the tree is no business of
+   * the record. A surface given none says nothing about one.
+   */
+  readonly worktree?: string;
 };
 
 /** The shape `styleText` takes, named once so every surface that dresses a line reads the same alias. */
@@ -53,6 +59,14 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   let drawn = 0;
   let hidden = false;
   let ended = false;
+  /**
+   * Armed by the `run` event, the way `openNotifier` is: a rerun that
+   * short-circuits before the pipeline emits one has no tree worth naming,
+   * and neither has the inner console a screen leaves behind on mount.
+   */
+  let started = false;
+  /** Whether the worktree has been named already. A run says where its tree is once. */
+  let wrote = false;
   /**
    * The three scalars the live region needs, read straight off the events
    * that carry them. This surface never shows the run's shape, so it holds no
@@ -155,8 +169,28 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     timer = undefined;
   };
 
+  /**
+   * Where the run's tree is, written once and back through `show`, so it is
+   * stamped, dressed and ordered against the live region by the same
+   * clear-write-redraw pass as every other permanent line — on a terminal and
+   * through a pipe alike, with no second rendering path.
+   */
+  const worktreeLine = () => {
+    if (!started || wrote || options.worktree === undefined) return;
+    // Before `show`, which is about to call back in here: the flag is what
+    // makes the line exactly one.
+    wrote = true;
+    show(`worktree: ${options.worktree}`);
+  };
+
   const show = (entry: RunEvent | string) => {
     if (ended) return;
+    if (typeof entry !== "string") {
+      if (entry.kind === "run") started = true;
+      // Above the result and never below it: the piped contract is that a
+      // clean run's last stdout line is the pull request's URL.
+      if (entry.kind === "result") worktreeLine();
+    }
     const at = stamp(now());
     const block = display(entry, dress, { cap: MESSAGE_LINES, archive: options.archive })
       .map((line) => `${dress("dim", at)} ${line}\n`)
@@ -174,6 +208,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
 
   const end = () => {
     if (ended) return;
+    // Before `ended`, which `show` early-returns on, and before the pipe's
+    // return below: a run that stopped without a verdict — a Ctrl-C, a usage
+    // limit, a crash — is the one that most needs to say where its tree is.
+    worktreeLine();
     ended = true;
     disarm();
     if (!interactive) return;
