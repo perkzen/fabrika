@@ -98,6 +98,16 @@ test("the config init falls back to is runnable on a repo with no review bot", a
   assert.equal(config.review.provider, "none", "a fallback that assumed a bot would escalate by construction");
 });
 
+test("the shipped template filters refactor by what changed, and security not at all", async () => {
+  const config = await Effect.runPromise(decodeConfig(JSON.stringify(CONFIG_TEMPLATE)));
+  const stage = (name: string) => config.stages.find((s) => s.name === name)!;
+
+  assert.deepEqual(stage("refactor").when, ["src/**"], "a chore that rewrites a module gets the pass");
+  assert.equal(stage("refactor").only, undefined, "and a docs-only feat does not");
+  assert.equal(stage("security").when, undefined, "a weakness introduced by the change is not predictable from it");
+  assert.equal(stage("security").only, undefined);
+});
+
 test("a proposal keeps cubic and normalises anything else to none, without losing the rest of it", () => {
   const base = { base: "origin/main", gate: [{ name: "compile", run: "tsc" }], notes: [] };
   assert.equal(asProposal({ ...base, provider: "cubic" })?.provider, "cubic");

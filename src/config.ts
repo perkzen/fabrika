@@ -58,6 +58,13 @@ export type Config = typeof Config.Type;
 export const matchesAny = (changed: ReadonlyArray<string>, globs: ReadonlyArray<string>): boolean =>
   changed.some((file) => globs.some((glob) => matchesGlob(file, glob)));
 
+/**
+ * Where a repo's own source lives, until `init` reads the tree and says
+ * otherwise. Exported because `configure.ts` falls back to it, and a second
+ * literal there could drift from the one the template ships.
+ */
+export const DEFAULT_SOURCE: ReadonlyArray<string> = ["src/**"];
+
 export const CONFIG_PATH = ".fabrika/config.json";
 
 export class ConfigNotFound extends Data.TaggedError("ConfigNotFound")<{ readonly path: string }> {}
@@ -93,9 +100,11 @@ export const CONFIG_TEMPLATE: Config = {
     { name: "spec", prompt: "spec.md", system: "plan.system.md", mcp: ["linear-ro"] },
     { name: "plan", prompt: "plan.md", system: "plan.system.md" },
     { name: "implement", prompt: "implement.md", system: "implement.system.md", gate: true },
-    // A fix or a chore rarely has architecture worth reshaping, and the stage
-    // costs a cold start plus a full gate run; security stays on for everything.
-    { name: "refactor", prompt: "refactor.md", system: "implement.system.md", gate: true, only: ["feat"] },
+    // The pass is skipped when the change is not source — a docs-only ticket
+    // has no architecture to reshape, whatever type it was named. `init`
+    // replaces these globs with where the repo's source actually lives;
+    // security stays unfiltered for everything.
+    { name: "refactor", prompt: "refactor.md", system: "implement.system.md", gate: true, when: DEFAULT_SOURCE },
     { name: "security", prompt: "security.md", system: "implement.system.md", gate: true },
     { name: "review", prompt: "review.md", system: "implement.system.md", gate: true },
   ],
