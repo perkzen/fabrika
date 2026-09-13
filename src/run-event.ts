@@ -18,8 +18,16 @@ export type RunEvent =
       readonly name: string;
       readonly at: number;
       readonly of: number;
-      readonly state: "start" | "skipped" | "already-done";
+      readonly state: "start" | "end" | "skipped" | "already-done";
       readonly reason?: string;
+      /** `end` only: how long the step took. */
+      readonly seconds?: number;
+      /**
+       * `end` only. A step can fail as an escalation, as a usage limit or as
+       * a platform error; which of them it was is the `result` event's to
+       * say, not a step line's.
+       */
+      readonly outcome?: "done" | "failed";
     }
   | {
       readonly kind: "gate";
@@ -94,6 +102,8 @@ const render = (entry: RunEvent | string): ReadonlyArray<string> => {
       switch (entry.state) {
         case "start":
           return [`step ${entry.at}/${entry.of}: ${entry.name}`];
+        case "end":
+          return [`step ${entry.name}: ${entry.outcome} (${elapsed(entry.seconds ?? 0)})`];
         case "skipped":
           return [`${entry.name}: skipped (${entry.reason})`];
         case "already-done":
