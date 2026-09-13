@@ -65,6 +65,17 @@ test("the worktree is the header's second row, abbreviated against the operator'
   );
 });
 
+test("only the home directory and what is under it is written as ~", () => {
+  const started = script("FAB-7", [0, RUN]);
+  const size = { columns: 80, rows: 12 };
+  const at = (worktree: string, home?: string) =>
+    frame({ ...started, worktree }, view, size, bare, { now: noon, spin: 0 }, home === undefined ? {} : { home })[1];
+
+  assert.equal(at("/Users/xtra/work/FAB-7", "/Users/x"), "/Users/xtra/work/FAB-7", "a neighbour of home is not under it");
+  assert.equal(at("/Users/x", "/Users/x"), "~", "home itself is the one the operator writes as ~");
+  assert.equal(at(WORKTREE), WORKTREE, "no home to write it against, so it is written whole");
+});
+
 test("a row too wide for the terminal is cut rather than wrapped", () => {
   const tree = script("FAB-6", [0, RUN]);
   const lines = frame(tree, view, { columns: 12, rows: 4 }, bare, { now: noon, spin: 0 });
