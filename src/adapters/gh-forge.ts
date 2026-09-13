@@ -120,6 +120,46 @@ const POLL = Duration.seconds(60);
 const REFRESH_GAP = Duration.seconds(3);
 const REFRESH_ATTEMPTS = 2;
 
+/**
+ * One listing, asked again until every merge state is settled.
+ *
+ * GitHub computes mergeability lazily and the query itself is what triggers
+ * it, so a pull request it has not got to yet comes back `unknown` and the
+ * refresh is the same list again — one call that resolves every pending pull
+ * request at once, where one call per pull request would cost one each.
+ * Measured 2026-09-13: a first listing of 100 came back 49 unknown, an
+ * immediate repeat all 100 resolved.
+ *
+ * This decides whether a sweep sees anything at all — every `unknown` left
+ * here is a pull request the selection rule skips — so `listed` is a
+ * parameter: it is the one true external, and everything around it is
+ * exercised by `test/forge.test.ts` exactly as the layer runs it. The gap is
+ * one too, because a test may not wait out a real one.
+ */
+export const settle = (
+  listed: Effect.Effect<ReadonlyArray<PullRequestDetail>, FabrikaError>,
+  journal: Journal,
+  gap: Duration.Duration,
+): Effect.Effect<ReadonlyArray<PullRequestDetail>, FabrikaError> =>
+  Effect.gen(function* () {
+    const first = yield* listed;
+    const pending = first.filter((pr) => pr.merge === "unknown").length;
+    if (pending === 0) return first;
+    return yield* Effect.gen(function* () {
+      const merged = new Map(first.map((pr) => [pr.number, pr] as const));
+      for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt += 1) {
+        yield* Effect.sleep(gap);
+        for (const pr of yield* listed) {
+          // A pull request opened between attempts is added; one that flakes
+          // back to unknown does not undo an answer we have.
+          if (!merged.has(pr.number) || pr.merge !== "unknown") merged.set(pr.number, pr);
+        }
+        if ([...merged.values()].every((pr) => pr.merge !== "unknown")) break;
+      }
+      return [...merged.values()];
+    }).pipe(waitFor(journal, `merge state of ${pending} pull request(s)`));
+  });
+
 export const layer = (options: ForgeOptions) =>
   Layer.effect(Forge)(
     Effect.gen(function* () {
@@ -206,33 +246,7 @@ export const layer = (options: ForgeOptions) =>
         rerun: (check: Check) =>
           check.job ? gh(["run", "rerun", check.job.id, "--failed", "-R", check.job.repo]).pipe(Effect.asVoid) : Effect.void,
 
-        // `--limit` is explicit because `gh`'s default of 30 drops pull
-        // requests silently; `--base` is deliberately absent, because a
-        // stacked pull request has to be listed to be reported.
-        authored: Effect.gen(function* () {
-          const first = yield* listed;
-          const pending = first.filter((pr) => pr.merge === "unknown").length;
-          if (pending === 0) return first;
-          // GitHub computes mergeability lazily and the query itself is what
-          // triggers it, so the refresh is the same list again — one call that
-          // resolves every pending pull request at once, where one call per
-          // pull request would cost one each. Measured 2026-09-13: a first
-          // listing of 100 came back 49 unknown, an immediate repeat all 100
-          // resolved.
-          return yield* Effect.gen(function* () {
-            const merged = new Map(first.map((pr) => [pr.number, pr] as const));
-            for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt += 1) {
-              yield* Effect.sleep(REFRESH_GAP);
-              for (const pr of yield* listed) {
-                // A pull request opened between attempts is added; one that
-                // flakes back to unknown does not undo an answer we have.
-                if (!merged.has(pr.number) || pr.merge !== "unknown") merged.set(pr.number, pr);
-              }
-              if ([...merged.values()].every((pr) => pr.merge !== "unknown")) break;
-            }
-            return [...merged.values()];
-          }).pipe(waitFor(journal, `merge state of ${pending} pull request(s)`));
-        }),
+        authored: settle(listed, journal, REFRESH_GAP),
       } satisfies Forge;
     }),
   );
