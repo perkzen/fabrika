@@ -1,4 +1,5 @@
 import { styleText } from "node:util";
+import { renderMarkdown } from "./markdown.ts";
 import { elapsed, plain, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
@@ -11,6 +12,8 @@ export type ConsoleOptions = {
   readonly stream: NodeJS.WriteStream;
   readonly interactive?: boolean;
   readonly now?: () => number;
+  /** Where the uncapped copy lives, named in the elision line. `init` has none. */
+  readonly archive?: string;
 };
 
 type Style = Parameters<typeof styleText>[0];
@@ -23,6 +26,8 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
 const FRAME_MS = 80;
 /** What the poll loops printed per poll. A pipe needs the proof of life; a file does not. */
 const HEARTBEAT_MS = 60_000;
+/** About two-thirds of a small terminal: a plan's headings arrive whole, one message still cannot own the screen. */
+const MESSAGE_LINES = 20;
 
 const stamp = (at: number) => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
 
@@ -46,6 +51,7 @@ const styleOf = (event: RunEvent): Style | undefined => {
       return event.outcome === "done" ? ["bold", "green"] : ["bold", "red"];
     case "run":
     case "wait":
+    case "agent":
       return undefined;
   }
 };
@@ -171,11 +177,28 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     timer = undefined;
   };
 
+  /**
+   * The one kind a console does not render through `plain()`. `plain()` is
+   * the archive's rendering and keeps the markdown raw; the console walks it
+   * and caps its height, in both modes, because `2>&1 | tee` is the common
+   * case and a capped message has to read the same either way.
+   */
+  const lines = (entry: RunEvent | string): ReadonlyArray<string> => {
+    if (typeof entry === "string" || entry.kind !== "agent") return plain(entry);
+    const walked = renderMarkdown(entry.markdown, dress);
+    if (walked.length <= MESSAGE_LINES) return walked;
+    const missing = walked.length - MESSAGE_LINES;
+    return [
+      ...walked.slice(0, MESSAGE_LINES),
+      dress("dim", `… ${missing} more lines${options.archive ? ` (${options.archive})` : ""}`),
+    ];
+  };
+
   const show = (entry: RunEvent | string) => {
     if (ended) return;
     const style = typeof entry === "string" ? undefined : styleOf(entry);
     const at = stamp(now());
-    const block = plain(entry)
+    const block = lines(entry)
       .map((line) => `${dress("dim", at)} ${dress(style, line)}\n`)
       .join("");
     if (!interactive) {

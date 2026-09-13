@@ -17,6 +17,9 @@ importers:
       effect:
         specifier: 4.0.0-rc.113
         version: 4.0.0-rc.113
+      marked:
+        specifier: ^18.0.13
+        version: 18.0.13
     devDependencies:
       '@types/node':
         specifier: ^24.3.0
@@ -258,6 +261,11 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  marked@18.0.13:
+    resolution: {integrity: sha512-xTxVzZsBFwunP6HDmtBkabUQEYArnP7/rMDGmPj9SlrKlQ4i8MdYVow+nJL0eOqwpUqhzBoTBRADGN6uYwPyOw==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
   redis@6.2.1:
     resolution: {integrity: sha512-Z9VHtgYs48PiQC77X9O2Er8Hj4T+5BtFjT91/vi5Is1D04N72cA946ZslM1ImJw8ZctFBZWAVjM7S5wJNeHMpg==}
     engines: {node: '>= 20.0.0'}
@@ -453,6 +461,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  marked@18.0.13: {}
 
   redis@6.2.1:
     dependencies:

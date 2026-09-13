@@ -38,6 +38,7 @@ export type RunEvent =
       readonly deadlineMinutes?: number;
       readonly seconds?: number;
     }
+  | { readonly kind: "agent"; readonly stage: string; readonly markdown: string }
   | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
   | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
 
@@ -89,6 +90,11 @@ export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
       return entry.state === "start"
         ? [`waiting for ${entry.subject}`]
         : [`waited ${elapsed(entry.seconds ?? 0)} for ${entry.subject}`];
+    // The archive gets the markdown as it was written: `- item` renders
+    // where `• item` does not, and a run is pasted into issues. The console
+    // is the one surface that walks it, and it does so without coming here.
+    case "agent":
+      return entry.markdown.split("\n");
     case "note":
       return (entry.level === "detail" ? `  ${entry.text}` : entry.text).split("\n");
     // Already written out by whoever decided the run was over: the wording of

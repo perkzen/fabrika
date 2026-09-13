@@ -223,3 +223,89 @@ test("a closed wait takes the live region's second line with it", (t) => {
   assert.equal(visible(out.chunks.at(-1)!).split("\n").length, 2, "run progress alone");
   presenter.end();
 });
+
+const NESTED = `## The plan
+
+- outer with **bold**
+  - inner one
+  - inner two
+
+3. third
+4. fourth
+
+\`\`\`ts
+const x = 1;
+\`\`\`
+
+> a quote
+`;
+
+test("agent speech is walked as markdown, and the plain walk agrees on every line break", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
+  presenter.show({ kind: "agent", stage: "plan", markdown: NESTED });
+  presenter.end();
+
+  assert.doesNotMatch(out.text(), /\x1b/);
+  assert.deepEqual(
+    out.text().trimEnd().split("\n").map((line) => line.replace("12:00:00 ", "")),
+    [
+      "## The plan",
+      "",
+      "• outer with bold",
+      "  • inner one",
+      "  • inner two",
+      "",
+      "3. third",
+      "4. fourth",
+      "",
+      "  ts",
+      "  const x = 1;",
+      "",
+      "│ a quote",
+    ],
+    "ordered lists count from where the markdown counts from, and nesting is indented",
+  );
+});
+
+test("an interactive walk styles the same lines it broke the same way", () => {
+  const plainOut = sink();
+  const dressedOut = sink({ isTTY: true, columns: 200 });
+  for (const [out, interactive] of [[plainOut, false], [dressedOut, true]] as const) {
+    const presenter = openConsole({ stream: out.stream, interactive, now: noon });
+    presenter.show({ kind: "agent", stage: "plan", markdown: NESTED });
+    presenter.end();
+  }
+  assert.equal(visible(dressedOut.text()), plainOut.text(), "the two surfaces differ in escape codes and nothing else");
+  assert.ok(dressedOut.text().includes("\x1b[1mbold\x1b[22m"), "inline bold survives the walk");
+});
+
+test("one agent message cannot own the screen", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon, archive: "log.txt" });
+  presenter.show({ kind: "agent", stage: "implement", markdown: Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n") });
+  presenter.end();
+
+  const lines = out.text().trimEnd().split("\n").map((line) => line.replace("12:00:00 ", ""));
+  assert.equal(lines.length, 21, "twenty rendered lines and the one that says what is missing");
+  assert.equal(lines[19], "line 20");
+  assert.equal(lines[20], "… 40 more lines (log.txt)");
+});
+
+test("a message that fits is printed whole, with nothing said about elision", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon, archive: "log.txt" });
+  presenter.show({ kind: "agent", stage: "implement", markdown: Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join("\n") });
+  presenter.end();
+  const lines = out.text().trimEnd().split("\n");
+  assert.equal(lines.length, 12);
+  assert.doesNotMatch(out.text(), /more lines/);
+});
+
+test("with no archive to point at, the elision line says less rather than naming a file that does not exist", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
+  presenter.show({ kind: "agent", stage: "configure", markdown: Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") });
+  presenter.end();
+  assert.ok(out.text().trimEnd().endsWith("… 10 more lines"));
+});
