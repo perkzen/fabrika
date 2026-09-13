@@ -53,6 +53,12 @@ export type Node = {
 export type Tree = {
   /** One per run. A list, so a sweep over many pull requests is this tree with more of them. */
   readonly roots: ReadonlyArray<Node>;
+  /**
+   * What the operator calls this run — the ticket identifier. No run event
+   * carries it, because an event goes to `log.txt` too and a header field has
+   * no business there; the presenter puts it on the tree it starts from.
+   */
+  readonly label?: string;
   /** Held rather than streamed, so the exit rendering can write it last. */
   readonly result?: Extract<RunEvent, { kind: "result" }>;
 };
@@ -89,9 +95,26 @@ export const take = (tree: Tree, _at: number, entry: RunEvent | string): Tree =>
       };
       return { ...tree, roots: [...tree.roots, root] };
     }
+    case "step":
+      return entry.state === "start" ? started(tree, entry.at) : tree;
     default:
       return tree;
   }
+};
+
+/** The step at that position becomes the running one, and the run's progress moves to it. */
+const started = (tree: Tree, at: number): Tree =>
+  inRoot(tree, (root) => ({
+    ...root,
+    at,
+    children: root.children.map((child) => (child.at === at ? { ...child, state: "running" } : child)),
+  }));
+
+/** Every fold but `run` changes the last root, which is the run in progress. */
+const inRoot = (tree: Tree, change: (root: Node) => Node): Tree => {
+  const last = tree.roots.length - 1;
+  if (last < 0) return tree;
+  return { ...tree, roots: tree.roots.map((root, index) => (index === last ? change(root) : root)) };
 };
 
 /** The whole stream folded at once, for a reader that has all of it already. */
