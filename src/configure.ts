@@ -122,11 +122,14 @@ const stepName = (raw: unknown): string =>
 const asStep = (raw: unknown): GateStep | null => {
   const s = raw as Partial<GateStep> | undefined;
   if (!s || typeof s.run !== "string" || !s.run.trim() || s.run.length > 300 || FORBIDDEN.test(s.run)) return null;
-  // Dropped rather than rejected, like `source`, would widen the filter the
-  // answer asked for — so a step whose `when` does not hold up loses the step.
-  if (s.when !== undefined && (!Array.isArray(s.when) || s.when.length > MAX_GLOBS || !s.when.every(isPathGlob))) return null;
+  if (s.when !== undefined && !Array.isArray(s.when)) return null;
+  // Trimmed like `run` and `source`: padding is formatting, not a malformed glob.
+  const when = s.when?.map((g) => (typeof g === "string" ? g.trim() : g));
+  // Dropping a bad glob would widen the filter the answer asked for, so an
+  // unusable one costs the whole answer instead — see `skills/configure/SKILL.md`.
+  if (when && (when.length > MAX_GLOBS || !when.every(isPathGlob))) return null;
   const step = { name: stepName(s.name), run: s.run.trim() };
-  return s.when ? { ...step, when: s.when } : step;
+  return when ? { ...step, when } : step;
 };
 
 /** Accepts the answer only if every part of it is usable; a partial one is not merged. */

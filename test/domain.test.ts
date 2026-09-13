@@ -224,3 +224,14 @@ test("a glob whose match cost explodes is dropped before it can ever be matched"
     { name: "compile", run: "tsc", when: ["src/**"] },
   ]);
 });
+
+test("a padded glob in a gate step's when is trimmed, not charged against the whole answer", () => {
+  const base = { base: "origin/main", provider: "none", notes: [] };
+  const padded = asProposal({ ...base, gate: [{ name: "compile", run: " tsc ", when: ["  src/**  ", "lib/**"] }] });
+
+  assert.deepEqual(
+    padded?.gate,
+    [{ name: "compile", run: "tsc", when: ["src/**", "lib/**"] }],
+    "whitespace is what `run` and `source` already absorb, and the gate is the expensive part of this call",
+  );
+});
