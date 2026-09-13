@@ -79,8 +79,8 @@ const node = (key: string, name: string, at: number, of: number, state: StepStat
 export const empty: Tree = { roots: [] };
 
 /** One event folded in. Returns a new tree and mutates nothing the caller holds. */
-export const take = (tree: Tree, _at: number, entry: RunEvent | string): Tree => {
-  if (typeof entry === "string") return tree;
+export const take = (tree: Tree, at: number, entry: RunEvent | string): Tree => {
+  if (typeof entry === "string") return streamed(tree, { at, entry });
   switch (entry.kind) {
     case "run": {
       const index = tree.roots.length;
@@ -95,30 +95,17 @@ export const take = (tree: Tree, _at: number, entry: RunEvent | string): Tree =>
       };
       return { ...tree, roots: [...tree.roots, root] };
     }
+    // A step's own events say what state it is in; putting them in its stream
+    // would repeat the line they are written under.
     case "step":
-      return entry.state === "start" ? started(tree, entry.at) : tree;
+      return stepped(tree, entry);
     // Held rather than streamed: the line the piped contract ends on is the
     // one the exit scrollback has to write last, after the whole outline.
     case "result":
       return { ...tree, result: entry };
     default:
-      return tree;
+      return streamed(tree, { at, entry });
   }
-};
-
-/** The step at that position becomes the running one, and the run's progress moves to it. */
-const started = (tree: Tree, at: number): Tree =>
-  inRoot(tree, (root) => ({
-    ...root,
-    at,
-    children: root.children.map((child) => (child.at === at ? { ...child, state: "running" } : child)),
-  }));
-
-/** Every fold but `run` changes the last root, which is the run in progress. */
-const inRoot = (tree: Tree, change: (root: Node) => Node): Tree => {
-  const last = tree.roots.length - 1;
-  if (last < 0) return tree;
-  return { ...tree, roots: tree.roots.map((root, index) => (index === last ? change(root) : root)) };
 };
 
 /** The whole stream folded at once, for a reader that has all of it already. */
@@ -126,4 +113,100 @@ export const outline = (entries: Iterable<Entry>): Tree => {
   let tree = empty;
   for (const { at, entry } of entries) tree = take(tree, at, entry);
   return tree;
+};
+
+const stepped = (tree: Tree, entry: Extract<RunEvent, { kind: "step" }>): Tree =>
+  inRoot(tree, (root) => ({
+    ...root,
+    // A step that ended leaves the run's progress where it was: the next
+    // `start` is what moves it on.
+    at: entry.state === "end" ? root.at : entry.at,
+    children: root.children.map((child) => (child.at === entry.at ? restated(child, entry) : child)),
+  }));
+
+const restated = (child: Node, entry: Extract<RunEvent, { kind: "step" }>): Node => {
+  switch (entry.state) {
+    case "start":
+      return { ...child, state: "running" };
+    case "end":
+      return {
+        ...child,
+        state: entry.outcome === "failed" ? "failed" : "done",
+        summary: { ...child.summary, ...(entry.seconds === undefined ? {} : { seconds: entry.seconds }) },
+      };
+    case "skipped":
+      return { ...child, state: "skipped", summary: { ...child.summary, ...(entry.reason ? { reason: entry.reason } : {}) } };
+    case "already-done":
+      return { ...child, state: "already-done" };
+  }
+};
+
+/**
+ * Attribution is by the open step, never by an event's `stage` field: `stage`
+ * is the agent's label for one call and several steps make calls under names
+ * of their own, while an event between a step's `start` and its `end` belongs
+ * to that step by construction. Before the first start and after the last end
+ * there is no open step, and the events are the root's.
+ */
+const streamed = (tree: Tree, entry: Entry): Tree =>
+  inRoot(tree, (root) => {
+    const open = root.children.findIndex((child) => child.state === "running");
+    if (open < 0) return { ...root, stream: [...root.stream, entry] };
+    return {
+      ...root,
+      children: root.children.map((child, index) =>
+        index === open
+          ? { ...child, stream: [...child.stream, entry], summary: fold(child.summary, entry.entry) }
+          : child,
+      ),
+    };
+  });
+
+/** What one event adds to the step it happened in. Everything else is stream and nothing more. */
+const fold = (summary: Summary, entry: RunEvent | string): Summary => {
+  if (typeof entry === "string") return summary;
+  switch (entry.kind) {
+    case "cost":
+      return { ...summary, usd: (summary.usd ?? 0) + entry.usd };
+    case "tool":
+      return {
+        ...summary,
+        calls: summary.calls + 1,
+        tools: counted(summary.tools, entry.tool),
+        skills: summary.skills,
+      };
+    // A gate's `start` is its liveness, not its verdict; only the three
+    // verdicts are what the step came to.
+    case "gate":
+      return entry.state === "start"
+        ? summary
+        : {
+            ...summary,
+            gates: [
+              ...summary.gates,
+              { name: entry.name, state: entry.state, ...(entry.seconds === undefined ? {} : { seconds: entry.seconds }) },
+            ],
+          };
+    default:
+      return summary;
+  }
+};
+
+/** One more call for that tool, kept in the order a summary reads in. */
+const counted = (
+  tools: Summary["tools"],
+  tool: string,
+): Summary["tools"] =>
+  (tools.some((seen) => seen.tool === tool)
+    ? tools.map((seen) => (seen.tool === tool ? { tool, count: seen.count + 1 } : seen))
+    : [...tools, { tool, count: 1 }]
+  )
+    .slice()
+    .sort((a, b) => b.count - a.count || (a.tool < b.tool ? -1 : a.tool > b.tool ? 1 : 0));
+
+/** Every fold but `run` changes the last root, which is the run in progress. */
+const inRoot = (tree: Tree, change: (root: Node) => Node): Tree => {
+  const last = tree.roots.length - 1;
+  if (last < 0) return tree;
+  return { ...tree, roots: tree.roots.map((root, index) => (index === last ? change(root) : root)) };
 };
