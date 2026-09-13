@@ -111,3 +111,26 @@ test("every skipped pull request names the rule that skipped it", async () => {
   ]);
   assert.equal(recording.log.at(-1), "sync: 1 synced, 0 already clean, 0 escalated, 0 failed, 8 skipped");
 });
+
+test("a dry run reports the selection and calls no worker", async () => {
+  let called = 0;
+  const { exit, recording } = await exercise(
+    sweep({
+      base: "origin/main",
+      concurrency: 2,
+      dryRun: true,
+      place: (target) => Effect.sync(() => (called += 1, placement(target))),
+      worker: () => Effect.sync(() => (called += 1, { pushed: "9f1c2ab3d4e5f6" })),
+    }),
+    { pullRequests: everyRule },
+  );
+
+  assert.equal((exit as { exitCode: number }).exitCode, 0);
+  assert.equal(called, 0, "the dry run's promise is that it touches nothing, the run directory scan included");
+  assert.deepEqual(recording.log.slice(-4), [
+    "sync: 2 conflicted, 7 skipped",
+    "  #43 [yours] fix: being worked on — would sync branch-43 into origin/main",
+    "  #42 [yours] FAB-5: Conflicted PRs pile up — would sync branch-42 into origin/main",
+    "dry run: 2 would be synced, 7 skipped; nothing changed",
+  ]);
+});

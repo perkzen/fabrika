@@ -129,7 +129,19 @@ export const sweep = (
       outcomes.push(outcome);
       yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
     }
-    yield* journal.log(`sync: ${selected.length} conflicted, ${selections.length - selected.length} skipped`);
+    const skipped = selections.length - selected.length;
+    yield* journal.log(`sync: ${selected.length} conflicted, ${skipped} skipped`);
+
+    // Before any path is resolved: the run-directory scan is the only
+    // filesystem read on this path, and a dry run promises to touch nothing.
+    if (options.dryRun) {
+      for (const pr of selected) {
+        const text = `${label(pr)} — would sync ${pr.branch} into ${options.base}`;
+        yield* journal.log({ kind: "note", level: "detail", text });
+      }
+      yield* journal.log(`dry run: ${selected.length} would be synced, ${skipped} skipped; nothing changed`);
+      return { outcomes, exitCode: 0 };
+    }
 
     // Each worker's line is written when *it* finishes, not when the fan-out
     // does, so a sweep of six reports as it goes.
