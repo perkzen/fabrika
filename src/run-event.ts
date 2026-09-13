@@ -16,7 +16,8 @@ export type RunEvent =
       readonly state: "start" | "skipped" | "already-done";
       readonly reason?: string;
     }
-  | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string };
+  | { readonly kind: "note"; readonly level: "info" | "detail" | "warn"; readonly text: string }
+  | { readonly kind: "result"; readonly outcome: "done" | "escalated"; readonly text: string };
 
 /**
  * A run event as ANSI-free, unstamped text lines — one element per physical
@@ -37,5 +38,9 @@ export const plain = (entry: RunEvent | string): ReadonlyArray<string> => {
       }
     case "note":
       return (entry.level === "detail" ? `  ${entry.text}` : entry.text).split("\n");
+    // Already written out by whoever decided the run was over: the wording of
+    // the `done:` line is the piped contract and nothing here may reshape it.
+    case "result":
+      return [entry.text];
   }
 };

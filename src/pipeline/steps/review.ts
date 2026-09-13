@@ -92,9 +92,11 @@ export const reviewRounds: Step = {
         const kept = yield* store.archive(workspace.artifactsDir);
         if (kept) yield* journal.log(`artifacts: ${kept}`);
         yield* workspace.remove;
-        yield* journal.log(
-          `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`,
-        );
+        yield* journal.log({
+          kind: "result",
+          outcome: "done",
+          text: `done: ${reviewer.name} ${review.score}/5, no open threads, checks green — ready for human review: ${url}`,
+        });
         return;
       }
       if (threads.length === 0 && failed.length === 0) {

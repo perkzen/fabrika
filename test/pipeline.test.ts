@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Effect } from "effect";
+import { Escalated } from "../src/pipeline/escalated.ts";
 import { pipeline, type Step } from "../src/pipeline/step.ts";
 import { RunStore } from "../src/ports/run-store.ts";
 import { exercise } from "./harness.ts";
@@ -51,4 +52,14 @@ test("replace swaps a step but keeps its place", () => {
 test("without drops a step", () => {
   const built = pipeline().step(noop("one")).step(noop("two")).without("one").build();
   assert.deepEqual(built.steps.map((step) => step.name), ["two"]);
+});
+
+test("an escalated run records the reason before it fails", async () => {
+  const escalating: Step = {
+    name: "review",
+    run: Effect.fail(new Escalated({ reason: "gate still red after 3 iterations", worktree: "/worktree" })),
+  };
+  const { failed, recording } = await exercise(pipeline().step(escalating).build().run);
+  assert.equal(failed, true);
+  assert.ok(recording.log.some((line) => line === "escalated: gate still red after 3 iterations"));
 });

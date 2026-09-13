@@ -24,3 +24,18 @@ test("a step event reaches a plain sink as the line it replaces, stamped and not
   presenter.end();
   assert.equal(out.text(), "12:00:00 refactor: skipped (fix ticket)\n");
 });
+
+test("a result event's text is written unchanged, and end() adds nothing after it", () => {
+  const out = sink();
+  const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
+  presenter.show({
+    kind: "result",
+    outcome: "done",
+    text: "done: cubic 5/5, no open threads, checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7",
+  });
+  presenter.end();
+  assert.equal(
+    out.text(),
+    "12:00:00 done: cubic 5/5, no open threads, checks green — ready for human review: https://github.com/perkzen/fabrika/pull/7\n",
+  );
+});

@@ -78,6 +78,24 @@ const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepS
   Effect.gen(function* () {
     const store = yield* RunStore;
     const journal = yield* Journal;
+    yield* body(steps, store, journal).pipe(
+      // Every `new Escalated` in the repo leaves through here, so this is the
+      // one place the reason has to be written down; it is re-raised so
+      // cli.ts still owns the stderr block and the exit code.
+      Effect.catchTag("Escalated", (error) =>
+        journal
+          .log({ kind: "result", outcome: "escalated", text: `escalated: ${error.reason}` })
+          .pipe(Effect.andThen(Effect.fail(error))),
+      ),
+    );
+  });
+
+const body = (
+  steps: ReadonlyArray<Step>,
+  store: RunStore,
+  journal: Journal,
+): Effect.Effect<void, StepError, StepServices> =>
+  Effect.gen(function* () {
     const done = store.get().completed;
     if (done.length > 0) yield* journal.log(`resuming after ${done.join(", ")}`);
     const of = steps.length;
