@@ -1,0 +1,19 @@
+test/stage.test.ts
+  s_2e9b498f273e78::t_35c2fcfe5abeb9 91-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1dec2f725a06f9ad60d34e3fd9520fa618b6b1d6",
+  "prompts": {},
+  "sessions": {
+    "s_2e9b498f273e78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e4f8c6-60a8-4fcb-8107-6b34d1224784",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
