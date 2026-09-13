@@ -1,5 +1,5 @@
 import { Effect, FileSystem, Layer, Path } from "effect";
-import { asFabrikaError } from "../errors.ts";
+import { asFabrikaError, FabrikaError } from "../errors.ts";
 import { RunStore, type RunState } from "../ports/run-store.ts";
 
 /** A function, not a constant: spreading a shared literal would hand every state the same arrays. */
@@ -71,9 +71,14 @@ export const layer = (directory: string) =>
       const path = yield* Path.Path;
       yield* fs.makeDirectory(directory, { recursive: true });
       const file = path.join(directory, "state.json");
-      const state: RunState = (yield* fs.exists(file))
-        ? { ...empty(), ...(JSON.parse(yield* fs.readFileString(file)) as Partial<RunState>) }
-        : empty();
+      const written = (yield* fs.exists(file)) ? parsed(yield* fs.readFileString(file)) : {};
+      // A file a run was killed part-way through writing. It fails rather than
+      // throwing: a defect escapes every caller's error channel, and a sweep's
+      // worker is one whose failure is meant to stay its own.
+      if (written === null) {
+        return yield* new FabrikaError({ message: `${file} is not readable JSON — remove it to start this run over` });
+      }
+      const state: RunState = { ...empty(), ...written };
       // Suspended: the state is mutated in place, so serialising it when the
       // layer is built would write the same first snapshot forever.
       const save = Effect.suspend(() => fs.writeFileString(file, JSON.stringify(state, null, 2))).pipe(
