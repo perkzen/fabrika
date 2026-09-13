@@ -63,3 +63,22 @@ test("a run with nothing to show is the run there is today", async () => {
     assert.deepEqual(recording.captures, [], "nothing was asked for, so no command ran");
   }
 });
+
+const texted: Shot = {
+  capture: "console",
+  before: [{ name: "out.txt", kind: "text", content: "old" }],
+  after: [{ name: "out.txt", kind: "text", content: "new" }],
+  cached: false,
+};
+
+const withCapture = { config: { pr: { draft: true, emptyCommit: true, capture: [console_] } } };
+
+test("an old gh drops the images and keeps the text", async () => {
+  const images = await exercise(openPullRequest.run, { ...withCapture, captures: [framed], attaches: false });
+  assert.equal(images.recording.prs[0]!.body, TODAYS_BODY, "an image-only capture leaves the body as it is today");
+  assert.deepEqual(images.recording.prs[0]!.attachments, []);
+
+  const words = await exercise(openPullRequest.run, { ...withCapture, captures: [texted], attaches: false });
+  assert.ok(words.recording.prs[0]!.body.includes("## Before / After"), "a text capture still gets its section");
+  assert.deepEqual(words.recording.prs[0]!.attachments, []);
+});

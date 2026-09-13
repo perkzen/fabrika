@@ -29,7 +29,7 @@ const composeBody = (link: string, description: string, section: string | undefi
 const captureSection = (
   captures: ReadonlyArray<CaptureStep>,
   headSha: string,
-): Effect.Effect<Section | undefined, never, Captures | Workspace> =>
+): Effect.Effect<Section | undefined, never, Captures | Forge | Workspace> =>
   Effect.gen(function* () {
     if (captures.length === 0) return undefined;
     const workspace = yield* Workspace;
@@ -41,7 +41,11 @@ const captureSection = (
     const baseSha = yield* workspace.baseSha.pipe(Effect.orElseSucceed(() => ""));
     if (!baseSha) return undefined;
     const shots = yield* (yield* Captures).take(applicable, baseSha);
-    return beforeAfter(shots, { baseSha, headSha, images: true });
+    if (shots.length === 0) return undefined;
+    // Read only now: `attaches` shells out to `gh --version`, and a run with
+    // nothing to show must touch nothing.
+    const images = yield* (yield* Forge).attaches;
+    return beforeAfter(shots, { baseSha, headSha, images });
   });
 
 /**

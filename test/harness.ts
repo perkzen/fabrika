@@ -35,6 +35,8 @@ export type Script = {
   readonly checks?: ReadonlyArray<ReadonlyArray<Check> | undefined>;
   /** What `Captures.take` answers; the fake still records what it was asked for. */
   readonly captures?: ReadonlyArray<Shot>;
+  /** False for a `gh` too old to upload an image. */
+  readonly attaches?: boolean;
   readonly agent?: (request: AgentRequest) => AgentReply;
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
@@ -213,7 +215,7 @@ export const harness = (script: Script = {}) => {
           });
           return { number: 7, url: "https://github.com/perkzen/fabrika/pull/7" };
         }),
-      attaches: Effect.succeed(true),
+      attaches: Effect.succeed(script.attaches ?? true),
       // What `gh` actually does with an attachment: the host path in the body
       // becomes the uploaded asset's URL. A default that skipped the rewrite
       // would trip the step's read-back on every happy path.
