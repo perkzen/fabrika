@@ -225,6 +225,10 @@ test("an answer the host will not act on is rejected, not run", async () => {
     assert.equal(failed, false);
     assert.deepEqual(recording.captures, [], `nothing ran for ${JSON.stringify(answer.name ?? null)}`);
     assert.equal(recording.prs[0]!.body, TODAYS_BODY);
+    assert.ok(
+      recording.log.some((line) => line.includes("rejected:")),
+      "the journal says the host refused the answer, not that the branch changed nothing",
+    );
   }
 });
 

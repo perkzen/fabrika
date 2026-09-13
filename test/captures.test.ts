@@ -213,6 +213,7 @@ test("a decision is believed only where the host can act on it", () => {
   const rejected = [
     { capture: true, name: "console", run: "git push origin main", reason: "" },
     { capture: true, name: "console", run: "gh pr merge 7", reason: "" },
+    { capture: true, name: "console", run: "gh api graphql -f query=x", reason: "" },
     { capture: true, name: "console", run: "npm publish", reason: "" },
     { capture: true, name: "console", run: "rm -rf ~", reason: "" },
     { capture: true, name: "Console Frame", run: "node x.ts", reason: "" },
@@ -237,4 +238,16 @@ test("a decision's prose is model output, and is treated as such", () => {
   assert.equal(long.reason.length, 200, "capped, because it reaches the journal");
   const multi = asCaptureDecision({ capture: false, reason: "first line\nsecond line" });
   assert.equal(multi.reason, "first line", "one line, so it cannot forge a second journal entry");
+});
+
+test("a command the host threw out does not read as a run that found no surface", () => {
+  const thrown = asCaptureDecision({ capture: true, name: "console", run: "git push origin main", reason: "the screen changed" });
+  assert.equal(thrown.capture, undefined);
+  assert.match(thrown.reason, /^rejected: the command/, "the operator is sent to the answer, not to the diff");
+  assert.match(thrown.reason, /the screen changed/, "and still sees the case the call was making");
+
+  const bad = asCaptureDecision({ capture: true, name: "Not A Name", run: "node x.ts", reason: "" });
+  assert.match(bad.reason, /^rejected: the answer/);
+
+  assert.equal(asCaptureDecision({ capture: false, reason: "docs only" }).reason, "docs only", "a real no is left alone");
 });

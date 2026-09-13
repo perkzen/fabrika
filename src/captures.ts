@@ -234,6 +234,16 @@ export type CaptureDecision = {
   readonly reason: string;
 };
 
+/**
+ * A refusal, said as one.
+ *
+ * The answer's own `reason` argues for capturing — it is the case the call
+ * made — and printing it alone would tell the operator the run found no
+ * surface when the host in fact threw a command out. The two are different
+ * things to go and look at.
+ */
+const refused = (reason: string, what: string) => `rejected: ${what} the call proposed${reason ? ` (${reason})` : ""}`;
+
 /** A decision's prose, capped and scrubbed: it is model output and it reaches the journal. */
 const reasonOf = (raw: unknown): string => (typeof raw === "string" ? scrub(raw).split("\n")[0]!.slice(0, 200) : "");
 
@@ -256,7 +266,7 @@ export const asCaptureDecision = (raw: unknown): CaptureDecision => {
   if (!r || r["capture"] !== true) return { capture: undefined, reason };
 
   const run = typeof r["run"] === "string" ? r["run"].trim() : "";
-  if (!run || run.length > 300 || FORBIDDEN.test(run)) return { capture: undefined, reason: reason || "the command was rejected" };
+  if (!run || run.length > 300 || FORBIDDEN.test(run)) return { capture: undefined, reason: refused(reason, "the command") };
 
   const minutes = r["timeoutMinutes"];
   const decoded = Schema.decodeUnknownOption(CaptureStep)({
@@ -264,5 +274,5 @@ export const asCaptureDecision = (raw: unknown): CaptureDecision => {
     run,
     ...(typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? { timeoutMinutes: minutes } : {}),
   });
-  return Option.isSome(decoded) ? { capture: decoded.value, reason } : { capture: undefined, reason: reason || "the answer was rejected" };
+  return Option.isSome(decoded) ? { capture: decoded.value, reason } : { capture: undefined, reason: refused(reason, "the answer") };
 };

@@ -182,8 +182,13 @@ It is `pr.beforeAfter` in your config, on by default:
 
 Nothing else to declare. Each run reads its own diff and works out whether it
 changed a surface anyone looks at and what already renders it, so a branch that
-touched only logic, tests or docs adds nothing to the PR and costs nothing. A
-repository with no user-visible surface never produces a section at all.
+touched only logic, tests or docs adds nothing to the PR. That decision is one
+short agent call per run, made after the push.
+
+On by default means new configs. `fabrika init` writes the key, but a config
+written before this field existed does not have it and keeps the old behaviour
+— add the line by hand to turn it on. A repository with no user-visible surface
+never produces a section either way.
 
 Set `pr.capture` instead when the render is expensive enough to be worth
 pinning — a simulator boot, a full site build — and the named commands and

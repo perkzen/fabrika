@@ -56,10 +56,12 @@ export const applies = (when: ReadonlyArray<string> | undefined, changed: Readon
  * because it now guards two callers: the proposal `init` writes, and the
  * capture a run decides for itself.
  *
- * `rm -rf dist` is an ordinary clean-build step and stays allowed; only a path
- * outside the worktree is not.
+ * The four `deny` rules, one for one — `gh api graphql` included, which this
+ * pattern went without while every command it guarded had a human's eyes on
+ * it first. `rm -rf dist` is an ordinary clean-build step and stays allowed;
+ * only a path outside the worktree is not.
  */
-export const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
+export const FORBIDDEN = /\bgit\s+push\b|\bgh\s+pr\s+(?:merge|review)\b|\bgh\s+api\s+graphql\b|\b(?:npm|pnpm|yarn|bun)\s+publish\b|\brm\s+-[rf]+\s+(?:\/|~)/;
 
 export const Config = Schema.Struct({
   base: Schema.String,
