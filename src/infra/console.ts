@@ -176,7 +176,10 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
             drawLive();
           }
         : () => {
-            if (wait) stream.write(`${stamp(now())} waiting for ${wait.subject}\n`);
+            // Through `plain()`, not a template literal that says the same
+            // thing: the heartbeat is a repetition of the `start` line, and
+            // the piped rendering of a wait gets to have one definition.
+            if (wait) for (const line of plain({ kind: "wait", state: "start", subject: wait.subject })) stream.write(`${stamp(now())} ${line}\n`);
           },
       interactive ? FRAME_MS : HEARTBEAT_MS,
     );
