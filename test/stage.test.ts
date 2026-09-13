@@ -72,3 +72,19 @@ test("a stage whose globs miss the change is skipped, and the reason names them"
   const neither = await exercise(two.skip!, { changed: ["docs/x.md"] });
   assert.equal(neither.exit, "no changed file matches src/**, lib/**", "every glob is named");
 });
+
+test("a stage carrying both guards needs both, and only answers first", async () => {
+  const both = codeStage({ name: "refactor", prompt: "refactor.md", only: ["feat"], when: ["src/**"] });
+
+  const globsMiss = await exercise(both.skip!, { state: { type: "feat" }, changed: ["docs/x.md"] });
+  assert.equal(globsMiss.exit, "no changed file matches src/**", "the type matches, so the globs decide");
+
+  const typeMisses = await exercise(both.skip!, { state: { type: "fix" }, changed: ["src/a.ts"] });
+  assert.equal(typeMisses.exit, "fix ticket; runs for feat", "the globs match, so the type decides");
+
+  const neither = await exercise(both.skip!, { state: { type: "fix" }, changed: ["docs/x.md"] });
+  assert.equal(neither.exit, "fix ticket; runs for feat", "both reject, and only is asked first");
+
+  const agree = await exercise(both.skip!, { state: { type: "feat" }, changed: ["src/a.ts"] });
+  assert.equal(agree.exit, undefined);
+});
