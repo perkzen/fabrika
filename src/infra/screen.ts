@@ -1,5 +1,6 @@
 import { styleText } from "node:util";
 import { frame, rows, type View } from "./frame.ts";
+import { decode, follow, press } from "./keys.ts";
 import { isInteractive, openConsole, type ConsoleOptions, type Presenter, type Style } from "./console.ts";
 import type { Styler } from "./markdown.ts";
 import { empty, take, type Tree } from "../outline.ts";
@@ -41,6 +42,12 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   const now = options.now ?? Date.now;
   const interactive = options.interactive ?? isInteractive(stream);
   const inner = openConsole(options);
+  const kill = options.kill ?? (() => process.kill(process.pid, "SIGINT"));
+  // Only a TTY that can be put in raw mode: a TTY stdout with a piped stdin
+  // gets the screen and no keys, because a run nobody can touch already has
+  // to end the same way.
+  const keyboard =
+    options.input?.isTTY && typeof options.input.setRawMode === "function" ? options.input : undefined;
 
   let tree: Tree = { ...empty, label: options.ticket };
   let view: View = { selected: "", opened: null, chosen: false, scroll: 0, top: 0 };
@@ -75,10 +82,27 @@ export const openScreen = (options: ScreenOptions): Presenter => {
    * cursor and takes its own SIGINT handler off, all of which belong to the
    * primary buffer it is leaving behind.
    */
+  const onKey = (chunk: string) => {
+    for (const key of decode(String(chunk))) {
+      // Not `press`'s business: raw mode stops the terminal raising SIGINT, so
+      // this does, and `runMain` interrupts the fiber. A `process.exit` here
+      // would preempt the finalisers that clean up the MCP temp files.
+      if (key === "interrupt") kill();
+      else view = press(key, view, tree, size());
+    }
+    dirty = true;
+  };
+
   const mount = () => {
     inner.end();
     stream.write(ALTERNATE_ON + HIDE_CURSOR);
     mounted = true;
+    if (keyboard) {
+      keyboard.setRawMode(true);
+      keyboard.resume();
+      keyboard.setEncoding("utf8");
+      keyboard.on("data", onKey);
+    }
     process.on("SIGINT", end);
     // A frame is a whole viewport, so it is drawn only when there is something
     // to see: the model changed, or a wait is open and its spinner is the
@@ -97,9 +121,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     if (!mounted) {
       if (typeof entry === "string" || entry.kind !== "run") return inner.show(entry);
       tree = take(tree, at, entry);
+      view = follow(view, tree);
       return mount();
     }
     tree = take(tree, at, entry);
+    view = follow(view, tree);
     dirty = true;
   };
 
@@ -111,6 +137,14 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     // Nothing was entered, so there is nothing to leave: the `already done:`
     // short-circuit emits no run event and gets the inner console's end alone.
     if (!mounted) return inner.end();
+    if (keyboard) {
+      keyboard.off("data", onKey);
+      keyboard.setRawMode(false);
+      keyboard.pause();
+      // Raw mode holds the event loop open; releasing it is the exact inverse
+      // plus this, so a clean run can exit.
+      keyboard.unref?.();
+    }
     process.off("SIGINT", end);
     stream.write(ALTERNATE_OFF + SHOW_CURSOR);
     for (const line of rows(tree, size().columns, dress)) stream.write(line + "\n");

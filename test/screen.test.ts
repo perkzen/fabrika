@@ -45,6 +45,8 @@ const open = (out: ReturnType<typeof terminal>, extra: { input?: ReturnType<type
     kill: () => {},
   });
 
+/** Every escape code the screen wrote, stripped back out. */
+
 const RUN: RunEvent = {
   kind: "run",
   completed: [],
@@ -130,5 +132,80 @@ test("a frame is drawn on the timer while a wait is open, and not otherwise", (t
   t.mock.timers.tick(160);
   assert.equal(out.chunks.length, closed, "and it stops when the wait does");
 
+  presenter.end();
+});
+
+test("raw mode is taken on mount and released on every exit path", () => {
+  const out = terminal();
+  const keys = keyboard();
+  const presenter = open(out, { input: keys });
+
+  presenter.show({ kind: "note", level: "info", text: "the branch is perkzen/feat/FAB-6" });
+  assert.deepEqual(keys.raw, [], "nothing is taken before there is a screen to take it for");
+
+  presenter.show(RUN);
+  assert.deepEqual(keys.raw, [true]);
+  assert.equal(keys.listenerCount("data"), 1);
+
+  presenter.end();
+  assert.deepEqual(keys.raw, [true, false], "raw mode holds the event loop open, so release is the exact inverse");
+  assert.equal(keys.listenerCount("data"), 0);
+});
+
+test("Ctrl-C raises SIGINT rather than exiting, so the MCP finalisers still run", () => {
+  const out = terminal();
+  const keys = keyboard();
+  let raised = 0;
+  const presenter = openScreen({
+    stream: out.stream,
+    interactive: true,
+    now: noon,
+    ticket: "FAB-6",
+    input: keys as unknown as NodeJS.ReadStream,
+    kill: () => void (raised += 1),
+  });
+
+  presenter.show(RUN);
+  keys.emit("data", "\x03");
+  assert.equal(raised, 1, "raw mode stops the terminal raising it, so the presenter does");
+  presenter.end();
+});
+
+test("a key moves the view and nothing else, and the next frame shows it", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = terminal({ columns: 60, rows: 10 });
+  const keys = keyboard();
+  const presenter = open(out, { input: keys });
+
+  presenter.show(RUN);
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  presenter.show({ kind: "tool", stage: "implement", tool: "Read", subject: "src/cli.ts" });
+  t.mock.timers.tick(80);
+  assert.match(out.chunks.at(-1)!, /Read src\/cli\.ts/, "the running step is unfolded by default");
+
+  // Space on the step that is already open folds it, which is the only
+  // visible effect a key may have.
+  keys.emit("data", " ");
+  t.mock.timers.tick(80);
+  assert.doesNotMatch(out.chunks.at(-1)!, /Read src\/cli\.ts/);
+
+  presenter.end();
+});
+
+test("a TTY stdout with a piped stdin gets the screen and no keys", () => {
+  const out = terminal();
+  const piped = Object.assign(new EventEmitter(), { isTTY: false });
+  const presenter = openScreen({
+    stream: out.stream,
+    interactive: true,
+    now: noon,
+    ticket: "FAB-6",
+    input: piped as unknown as NodeJS.ReadStream,
+    kill: () => {},
+  });
+
+  presenter.show(RUN);
+  assert.match(out.text(), /\x1b\[\?1049h/, "the interactivity verdict is about the output surface");
+  assert.equal(piped.listenerCount("data"), 0, "and a run nobody can touch already has to end the same way");
   presenter.end();
 });
