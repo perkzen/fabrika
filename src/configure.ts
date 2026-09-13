@@ -9,7 +9,7 @@ export type ConfigProposal = {
   readonly base: string;
   readonly install: string | undefined;
   readonly gate: ReadonlyArray<GateStep>;
-  readonly provider: "cubic" | "none";
+  readonly provider: Config["review"]["provider"];
   readonly notes: ReadonlyArray<string>;
 };
 
