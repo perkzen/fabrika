@@ -1,0 +1,21 @@
+src/outline.ts
+  ai_agent 176-182
+test/outline.test.ts
+  s_452e0dc20cfb40::t_f00c1c68d3d48c 70-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c8eee2718e9740fdacf922944b85c0caf78f411d",
+  "prompts": {},
+  "sessions": {
+    "s_452e0dc20cfb40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4524da7e-3317-48d7-8fb6-368534551506",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
