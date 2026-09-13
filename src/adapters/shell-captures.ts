@@ -15,6 +15,24 @@ const CAPTURE_BYTES = 5 * 1024 * 1024;
 /** GitHub's own per-attachment limit: a larger file would fail the upload rather than be dropped quietly. */
 const ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Variables whose *names* say they hold a credential. `fabrika run` loads
+ * `~/.config/fabrika/.env` into its own environment for its own Linear and
+ * Claude calls, and a child inherits all of it — but a capture is a command
+ * that renders a surface and then has its output published on a pull request,
+ * so it is the one child that must not be holding a key when it prints.
+ */
+const SECRET = /KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|_AUTH|^AUTH/;
+
+/** The environment a capture gets: this process's, minus anything named like a credential. */
+const withoutSecrets = (environment: NodeJS.ProcessEnv): Record<string, string> => {
+  const kept: Record<string, string> = {};
+  for (const [name, value] of Object.entries(environment)) {
+    if (value !== undefined && !SECRET.test(name.toUpperCase())) kept[name] = value;
+  }
+  return kept;
+};
+
 export type CapturesOptions = {
   /** `~/.fabrika/captures/<repo>` — where a base half is kept, keyed by sha and capture name. */
   readonly cacheRoot: string;
@@ -65,7 +83,11 @@ export const layer = (options: CapturesOptions) =>
        */
       const command = (capture: CaptureStep, cwd: string, into: string) =>
         Effect.gen(function* () {
-          const result = yield* spawned(sh(cwd, capture.run, { FABRIKA_CAPTURE_DIR: into })).pipe(
+          const result = yield* spawned(
+            // `false`: the point is what the child does *not* have, and an
+            // inherited environment cannot be merged down to less than itself.
+            sh(cwd, capture.run, { ...withoutSecrets(process.env), FABRIKA_CAPTURE_DIR: into }, false),
+          ).pipe(
             Effect.timeoutOption(Duration.minutes(capture.timeoutMinutes ?? DEFAULT_CAPTURE_MINUTES)),
             Effect.orElseSucceed(() => Option.none<{ code: number; out: string }>()),
           );

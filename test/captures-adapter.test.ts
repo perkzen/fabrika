@@ -141,3 +141,28 @@ test("a base command that fails leaves nothing in the cache to become a permanen
   assert.equal(existsSync(join(cacheRoot, base.sha, "console")), false, "the staged half was never promoted");
   assert.ok(log.some((line) => line.includes("capture console: command failed (exit 1); no half")));
 });
+
+test("a capture command is not handed this machine's secrets", async () => {
+  // `fabrika run` loads `~/.config/fabrika/.env` into its own environment for
+  // its own Linear and Claude calls, and the capture child inherits it.
+  process.env.LINEAR_API_KEY = "lin_api_secret";
+  process.env.SOME_SERVICE_TOKEN = "tok_secret";
+  process.env.HOME_BREW_PREFIX = "/opt/homebrew";
+  try {
+    const { shots } = await take(
+      // Named one by one rather than dumped: `textContent` caps the file at
+      // twenty lines, so a bare `env` would pass on the cap alone.
+      [{ name: "console", run: 'printf %s "[$LINEAR_API_KEY][$SOME_SERVICE_TOKEN][$HOME_BREW_PREFIX]" > "$FABRIKA_CAPTURE_DIR/out.txt"' }],
+      () => {},
+    );
+
+    const environment = shots[0]?.after?.[0]?.content ?? "";
+    assert.ok(!environment.includes("lin_api_secret"), "the key fabrika itself needs is not the capture's to print");
+    assert.ok(!environment.includes("tok_secret"));
+    assert.ok(environment.includes("/opt/homebrew"), "and a variable a capture needs to find its tools survives");
+  } finally {
+    delete process.env.LINEAR_API_KEY;
+    delete process.env.SOME_SERVICE_TOKEN;
+    delete process.env.HOME_BREW_PREFIX;
+  }
+});
