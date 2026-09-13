@@ -298,7 +298,7 @@ The skills are adapted from [Matt Pocock's skills](https://github.com/mattpocock
 - `~/.fabrika/runs/<repo>/<ticket>/`: `state.json`, `log.txt`, raw agent transcripts, and the copied `work/` artifacts
 - `~/.fabrika/captures/<repo>/<base sha>/`: the base half of each PR capture, reused by every ticket cut from that commit
 - `~/.fabrika/notifier/Fabrika.app`: the bundle notifications are posted through, built on first use
-- `~/.config/fabrika/.env`: secrets, kept out of every repo
+- `~/.config/fabrika/.env`: what is this machine's rather than this repo's — secrets like `LINEAR_API_KEY`, and `FABRIKA_EDITOR` (`FABRIKA_EDITOR="open -a WebStorm"`), the editor the screen's `o` opens the worktree in; kept out of every repo
 
 For source layout, exit codes, MCP and Linear setup, the smoke test and other
 operator notes, see [docs/internals.md](docs/internals.md).
