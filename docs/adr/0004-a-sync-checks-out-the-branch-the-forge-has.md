@@ -32,3 +32,9 @@ is checked out anywhere on this machine — so it only ever runs against
 fabrika's own sweep worktree, never the operator's checkout and never a live
 run's tree. That rule and this reset are load-bearing for each other: dropping
 the check would make the reset unsafe.
+
+That rule reads `git worktree list` once, before the fan-out, so it fences one
+sweep and not two. `checkout` therefore resets only a tree it has just
+created: a directory already at the worktree path is one that appeared after
+the listing, which is another `fabrika sync` mid-merge in it, and the second
+sweep refuses that pull request rather than resetting over the first's work.

@@ -151,9 +151,14 @@ export const layer = (options: WorkspaceOptions) =>
          * A sweep's entry into a tree. It hard-resets to `<remote>/<branch>`:
          * the local branch that survived `worktree remove` can hold an
          * escalated run's tip or a history someone rewrote, and a merge
-         * computed against that resolves conflicts nobody has. Fenced by the
-         * selection rule that skips a branch checked out anywhere on this
-         * machine, so it only ever runs against fabrika's own tree (ADR-0004).
+         * computed against that resolves conflicts nobody has (ADR-0004).
+         *
+         * It resets only a tree it just created. The selection rule that
+         * fences the reset — skip a branch checked out anywhere on this
+         * machine — reads `git worktree list` once, before the fan-out, so a
+         * tree that is already here is one that appeared since: a second
+         * `fabrika sync`, whose agent is mid-merge in it. Refusing costs one
+         * pull request this sweep; resetting costs the other sweep's work.
          */
         checkout: (branch: string) =>
           Effect.gen(function* () {
@@ -167,17 +172,15 @@ export const layer = (options: WorkspaceOptions) =>
               return yield* new FabrikaError({ message: `${tip} does not exist — nothing to check out` });
             }
             if (yield* fs.exists(dir)) {
-              const current = yield* git(["branch", "--show-current"]);
-              if (current !== branch) {
-                return yield* new FabrikaError({ message: `${dir} exists on branch ${current}, expected ${branch}` });
-              }
-            } else {
-              yield* fs.makeDirectory(path.dirname(dir), { recursive: true });
-              const existing = yield* git(["branch", "--list", branch], repoRoot);
-              yield* existing
-                ? git(["worktree", "add", dir, branch], repoRoot)
-                : git(["worktree", "add", "-b", branch, dir, tip], repoRoot);
+              return yield* new FabrikaError({
+                message: `${dir} already exists — another sync may be working in it; remove it to retry`,
+              });
             }
+            yield* fs.makeDirectory(path.dirname(dir), { recursive: true });
+            const existing = yield* git(["branch", "--list", branch], repoRoot);
+            yield* existing
+              ? git(["worktree", "add", dir, branch], repoRoot)
+              : git(["worktree", "add", "-b", branch, dir, tip], repoRoot);
             yield* git(["reset", "--hard", tip]);
           }).pipe(Effect.mapError((e) => (e instanceof FabrikaError ? e : asFabrikaError("checking out the branch")(e)))),
 
