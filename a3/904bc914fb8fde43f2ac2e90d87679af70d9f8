@@ -1,0 +1,23 @@
+test/domain.test.ts
+  s_16d93e78d17eb1::t_496652d604a184 210-212
+skills/configure/SKILL.md
+  s_16d93e78d17eb1::t_1281901656ac06 101-108,126-130
+src/configure.ts
+  s_16d93e78d17eb1::t_1281901656ac06 24,90-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a3904bc914fb8fde43f2ac2e90d87679af70d9f8",
+  "prompts": {},
+  "sessions": {
+    "s_16d93e78d17eb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c360441-0050-4518-b061-363538da2a63",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
