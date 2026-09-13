@@ -133,9 +133,6 @@ const run = Command.make(
         Effect.catchTag("Escalated", (e) =>
           Console.error(
             [
-              // Where the worktree is was said by the presenter on the way
-              // out, whichever surface the run had; saying it again here
-              // would be the second copy of the same line.
               `ESCALATED: ${e.reason}`,
               ...(e.prUrl ? [`  PR: ${e.prUrl}`] : []),
               `  rerun the same command to resume from where it stopped.`,
