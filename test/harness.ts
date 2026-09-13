@@ -35,6 +35,8 @@ export type Script = {
   readonly merge?: ReadonlyArray<MergeOutcome>;
   /** Files reported as touched since a given sha. */
   readonly touched?: ReadonlyArray<string>;
+  /** Files reported as changed by the whole branch, `base...HEAD`. */
+  readonly changed?: ReadonlyArray<string>;
   readonly commits?: number;
   readonly worktreeExists?: boolean;
   /** Where a real adapter would spawn commands; the fakes never touch it. */
@@ -58,6 +60,8 @@ export type Recording = {
   readonly prs: Array<{ title: string; draft: boolean }>;
   readonly removed: Array<string>;
   readonly state: () => RunState;
+  /** How many times `changedFiles` was asked — a port call is behaviour too. */
+  readonly changedFilesReads: () => number;
 };
 
 const emptyState = (): RunState => ({
@@ -83,6 +87,7 @@ const queue = <A>(values: ReadonlyArray<A>, fallback: A) => {
 };
 
 export const harness = (script: Script = {}) => {
+  let changedFilesReads = 0;
   const recording: Recording = {
     log: [],
     events: [],
@@ -95,6 +100,7 @@ export const harness = (script: Script = {}) => {
     prs: [],
     removed: [],
     state: () => state,
+    changedFilesReads: () => changedFilesReads,
   };
 
   const state: RunState = { ...emptyState(), ...script.state, sessions: { ...script.state?.sessions } };
@@ -173,7 +179,7 @@ export const harness = (script: Script = {}) => {
       emptyCommit: (message: string) => Effect.sync(() => (recording.committed.push(message), moveHead())),
       head: Effect.sync(() => head),
       commitCount: Effect.succeed(script.commits ?? 1),
-      changedFiles: Effect.succeed(["src/a.ts"]),
+      changedFiles: Effect.sync(() => (changedFilesReads += 1, script.changed ?? ["src/a.ts"])),
       filesSince: () => Effect.succeed(script.touched ?? []),
       mergeBase: Effect.sync(nextMerge),
       conflictedFiles: Effect.succeed([]),

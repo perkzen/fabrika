@@ -1,4 +1,5 @@
 import { Data, Effect, FileSystem, Path, Schema } from "effect";
+import { matchesGlob } from "node:path";
 
 export const Stage = Schema.Struct({
   name: Schema.String,
@@ -8,6 +9,8 @@ export const Stage = Schema.Struct({
   gate: Schema.optional(Schema.Boolean),
   /** Ticket types this stage runs for, as the naming call decided; every type when absent. */
   only: Schema.optional(Schema.Array(Schema.Literals(["feat", "fix", "chore"]))),
+  /** Glob patterns; the stage runs only when a changed file matches one. */
+  when: Schema.optional(Schema.Array(Schema.String)),
 });
 export type Stage = typeof Stage.Type;
 
@@ -43,6 +46,17 @@ export const Config = Schema.Struct({
   maxIterations: Schema.Number,
 });
 export type Config = typeof Config.Type;
+
+/**
+ * Whether any of the changed files matches any of the globs — the one matcher
+ * behind both `when` fields, so a stage and a gate step cannot drift into two
+ * glob dialects.
+ *
+ * An empty file list matches nothing, which is the gate's behaviour; a stage
+ * guards this call with its own empty-diff rule instead. See ADR-0003.
+ */
+export const matchesAny = (changed: ReadonlyArray<string>, globs: ReadonlyArray<string>): boolean =>
+  changed.some((file) => globs.some((glob) => matchesGlob(file, glob)));
 
 export const CONFIG_PATH = ".fabrika/config.json";
 

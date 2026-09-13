@@ -58,3 +58,17 @@ test("a stage limited to other ticket types is skipped, with the reason", async 
   const kept = await exercise(refactor.skip!, { state: { type: "feat" } });
   assert.equal(kept.exit, undefined);
 });
+
+test("a stage whose globs miss the change is skipped, and the reason names them", async () => {
+  const refactor = codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**"] });
+
+  const missed = await exercise(refactor.skip!, { changed: ["docs/x.md"] });
+  assert.equal(missed.exit, "no changed file matches src/**");
+
+  const hit = await exercise(refactor.skip!, { changed: ["src/a.ts"] });
+  assert.equal(hit.exit, undefined, "a diff that touches the globs runs the stage");
+
+  const two = codeStage({ name: "refactor", prompt: "refactor.md", when: ["src/**", "lib/**"] });
+  const neither = await exercise(two.skip!, { changed: ["docs/x.md"] });
+  assert.equal(neither.exit, "no changed file matches src/**, lib/**", "every glob is named");
+});
