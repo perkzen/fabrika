@@ -251,21 +251,21 @@ test("agent speech is walked as markdown, and the plain walk agrees on every lin
   assert.deepEqual(
     out.text().trimEnd().split("\n").map((line) => line.replace("12:00:00 ", "")),
     [
-      "## The plan",
-      "",
-      "• outer with bold",
-      "  • inner one",
-      "  • inner two",
-      "",
-      "3. third",
-      "4. fourth",
-      "",
-      "  ts",
-      "  const x = 1;",
-      "",
-      "│ a quote",
+      "│ ## The plan",
+      "│ ",
+      "│ • outer with bold",
+      "│   • inner one",
+      "│   • inner two",
+      "│ ",
+      "│ 3. third",
+      "│ 4. fourth",
+      "│ ",
+      "│   ts",
+      "│   const x = 1;",
+      "│ ",
+      "│ │ a quote",
     ],
-    "ordered lists count from where the markdown counts from, and nesting is indented",
+    "the gutter marks the whole block as the agent talking; nesting and list numbering are the markdown's",
   );
 });
 
@@ -289,8 +289,8 @@ test("one agent message cannot own the screen", () => {
 
   const lines = out.text().trimEnd().split("\n").map((line) => line.replace("12:00:00 ", ""));
   assert.equal(lines.length, 21, "twenty rendered lines and the one that says what is missing");
-  assert.equal(lines[19], "line 20");
-  assert.equal(lines[20], "… 40 more lines (log.txt)");
+  assert.equal(lines[19], "│ line 20");
+  assert.equal(lines[20], "│ … 40 more lines (log.txt)");
 });
 
 test("a message that fits is printed whole, with nothing said about elision", () => {
@@ -308,7 +308,7 @@ test("with no archive to point at, the elision line says less rather than naming
   const presenter = openConsole({ stream: out.stream, interactive: false, now: noon });
   presenter.show({ kind: "agent", stage: "configure", markdown: Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") });
   presenter.end();
-  assert.ok(out.text().trimEnd().endsWith("… 10 more lines"));
+  assert.ok(out.text().trimEnd().endsWith("│ … 10 more lines"));
 });
 
 test("a dead pipe does not kill the run", () => {

@@ -1,5 +1,6 @@
 import { Effect, Layer } from "effect";
 import { appendFileSync } from "node:fs";
+import { basename } from "node:path";
 import { openConsole, type ConsoleOptions } from "../infra/console.ts";
 import { Journal } from "../ports/journal.ts";
 import { plain, type RunEvent } from "../run-event.ts";
@@ -20,7 +21,9 @@ import { plain, type RunEvent } from "../run-event.ts";
 export const layer = (file: string, console_?: ConsoleOptions) =>
   Layer.effect(Journal)(
     Effect.gen(function* () {
-      const options = console_ ?? { stream: process.stdout, archive: file };
+      // The label, not the path: the elision line points at `log.txt`, which is
+      // what the operator calls it, not a line of absolute path.
+      const options = console_ ?? { stream: process.stdout, archive: basename(file) };
       const presenter = openConsole(options);
       // One clock for both surfaces, so the file and the console never
       // disagree about when the same event happened.

@@ -101,7 +101,9 @@ const body = (
     // called `review` and only the `once` one is finished by a resume.
     yield* journal.log({
       kind: "run",
-      completed: done,
+      // Copied: `done` is the live array that `state.completed.push` mutates,
+      // and an event has to say what was true when it was emitted.
+      completed: [...done],
       steps: steps.map((step) => ({ name: step.name, done: Boolean(step.once && done.includes(step.name)) })),
     });
     const of = steps.length;

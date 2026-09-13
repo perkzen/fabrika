@@ -28,6 +28,8 @@ const FRAME_MS = 80;
 const HEARTBEAT_MS = 60_000;
 /** About two-thirds of a small terminal: a plan's headings arrive whole, one message still cannot own the screen. */
 const MESSAGE_LINES = 20;
+/** Marks the agent's own lines, so its speech is never mistaken for the run's. */
+const GUTTER = "│ ";
 
 const stamp = (at: number) => new Date(at).toLocaleTimeString("en-GB", { hour12: false });
 
@@ -186,12 +188,14 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
   const lines = (entry: RunEvent | string): ReadonlyArray<string> => {
     if (typeof entry === "string" || entry.kind !== "agent") return plain(entry);
     const walked = renderMarkdown(entry.markdown, dress);
-    if (walked.length <= MESSAGE_LINES) return walked;
     const missing = walked.length - MESSAGE_LINES;
-    return [
-      ...walked.slice(0, MESSAGE_LINES),
-      dress("dim", `… ${missing} more lines${options.archive ? ` (${options.archive})` : ""}`),
-    ];
+    const block =
+      missing <= 0
+        ? walked
+        : [...walked.slice(0, MESSAGE_LINES), dress("dim", `… ${missing} more lines${options.archive ? ` (${options.archive})` : ""}`)];
+    // The gutter is what tells the operator, at a glance, which lines are the
+    // agent's; it marks the whole block, elision line included.
+    return block.map((line) => dress("dim", GUTTER) + line);
   };
 
   const show = (entry: RunEvent | string) => {
