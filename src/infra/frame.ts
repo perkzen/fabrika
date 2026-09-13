@@ -82,7 +82,7 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   const drawn = root.children.slice(view.top, view.top + (spare - height));
   const body: Array<string> = [];
   for (const step of drawn) {
-    body.push(row(outlineRow(step), width, dress));
+    body.push(row(outlineRow(step, step.key === view.selected), width, dress));
     if (open && step.key === open.key) body.push(...windowRows(open, height, width, view, dress, live));
   }
   // The open step's own row can be scrolled out of the outline; its window is
@@ -204,7 +204,8 @@ const wrap = (line: string, width: number): ReadonlyArray<string> => {
  * and this is a line an operator scrolls back to an hour later.
  */
 export const rows = (tree: Tree, columns: number, dress: Styler): ReadonlyArray<string> =>
-  (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step), Math.max(columns - 1, 0), dress));
+  // Nothing is selected in scrollback: the run is over and there is no view.
+  (tree.roots.at(-1)?.children ?? []).map((step) => row(outlineRow(step, false), Math.max(columns - 1, 0), dress));
 
 /** The run's own line: what it is, how far through it is, and what it is doing. */
 const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> => {
@@ -223,9 +224,15 @@ const header = (root: Node, label: string | undefined): ReadonlyArray<Segment> =
  *
  * The fields are in one order and the row is cut from the right, so the
  * marker, the position, the name and the state survive any terminal.
+ *
+ * The selected row is marked by dressing its marker and position rather than
+ * by a field of its own: the line's text is what the operator reads, and
+ * which row they are on is the surface's business, the way a failed gate's
+ * red is.
  */
-const outlineRow = (step: Node): ReadonlyArray<Segment> => [
-  { text: `${MARKERS[step.state]} ${step.at}/${step.of} ` },
+const outlineRow = (step: Node, selected: boolean): ReadonlyArray<Segment> => [
+  { style: selected ? "inverse" : undefined, text: `${MARKERS[step.state]} ${step.at}/${step.of}` },
+  { text: " " },
   { style: nameStyle(step.state), text: step.name },
   ...summary(step),
 ];

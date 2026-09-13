@@ -288,3 +288,15 @@ test("a finished step's window shows its stream and no liveness, the run having 
   assert.equal(lines[3], "12:00:01 waiting for implement agent");
   assert.equal(lines[8], "", "the spinner belongs to the running step, and this one is over");
 });
+
+test("the selected row is marked, so moving the selection is something the operator can see", () => {
+  const tree = script("FAB-6", ...WATCHING);
+  const dressed: Array<[unknown, string]> = [];
+  const spy = (style: unknown, text: string) => (dressed.push([style, text]), text);
+
+  const lines = frame(tree, { ...watching, selected: "0:1" }, { columns: 60, rows: 10 }, spy, { now: noon, spin: 0 });
+
+  assert.ok(dressed.some(([style, text]) => text === "· 1/3" && style === "inverse"), "picking a step to read means seeing which one is picked");
+  assert.ok(!dressed.some(([style, text]) => text === "▸ 2/3" && style === "inverse"), "and only one is");
+  assert.equal(lines[1], "· 1/3 preflight", "the marking is dressing, so the line's text is the one the spec pins");
+});
