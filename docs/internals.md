@@ -21,8 +21,9 @@ with one adapter in production and an in-memory one in the tests; nothing in
 | `src/config.ts` | `Schema` for `.fabrika/config.json`; the `init` template, neutral where the values are repo-specific |
 | `src/configure.ts` | The `init` call: schema, the validator that rejects an unusable answer, and the guard that keeps `git push` out of a gate step |
 | `src/ticket.ts` | The `Ticket` record, the slug rules and the branch pattern |
-| `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what `log.txt` gets, and what a console gets for every kind but agent speech |
-| `src/infra/console.ts` | The presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/run-event.ts` | The `RunEvent` union and `plain()`, its ANSI-free rendering — what the archive gets, and what a console gets for every kind but agent speech; `stamp` and `elapsed` live here, so both surfaces read one definition |
+| `src/infra/console.ts` | The console presenter: the interactivity verdict, the live region, the colour table, the height cap and the frame timer |
+| `src/infra/archive.ts` | The presenter for `log.txt` — the plain rendering, stamped per physical line, uncapped |
 | `src/infra/markdown.ts` | `marked`'s lexer walked into styled lines, the same walk in both terminal modes |
 | `src/infra/transcript.ts` | An assistant message's content blocks into run events, and what one tool call is about |
 | `src/infra/` | The subprocess helper, the Claude CLI wrapper and MCP resolution — implementation details of the adapters |
