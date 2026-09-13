@@ -2,7 +2,7 @@ import { Duration, Effect, FileSystem, Layer, Option, Path } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { kindOf, linkTarget, textContent, type CaptureFile, type Shot } from "../captures.ts";
 import type { CaptureStep } from "../config.ts";
-import { run, sh } from "../infra/shell.ts";
+import { run, sh, withoutSecrets } from "../infra/shell.ts";
 import { Captures } from "../ports/captures.ts";
 import { Journal, waitFor } from "../ports/journal.ts";
 import { RunStore } from "../ports/run-store.ts";
@@ -14,24 +14,6 @@ const DEFAULT_CAPTURE_MINUTES = 2;
 const CAPTURE_BYTES = 5 * 1024 * 1024;
 /** GitHub's own per-attachment limit: a larger file would fail the upload rather than be dropped quietly. */
 const ATTACHMENT_BYTES = 10 * 1024 * 1024;
-
-/**
- * Variables whose *names* say they hold a credential. `fabrika run` loads
- * `~/.config/fabrika/.env` into its own environment for its own Linear and
- * Claude calls, and a child inherits all of it — but a capture is a command
- * that renders a surface and then has its output published on a pull request,
- * so it is the one child that must not be holding a key when it prints.
- */
-const SECRET = /KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|_AUTH|^AUTH/;
-
-/** The environment a capture gets: this process's, minus anything named like a credential. */
-const withoutSecrets = (environment: NodeJS.ProcessEnv): Record<string, string> => {
-  const kept: Record<string, string> = {};
-  for (const [name, value] of Object.entries(environment)) {
-    if (value !== undefined && !SECRET.test(name.toUpperCase())) kept[name] = value;
-  }
-  return kept;
-};
 
 export type CapturesOptions = {
   /** `~/.fabrika/captures/<repo>` — where a base half is kept, keyed by sha and capture name. */
@@ -86,6 +68,8 @@ export const layer = (options: CapturesOptions) =>
           const result = yield* spawned(
             // `false`: the point is what the child does *not* have, and an
             // inherited environment cannot be merged down to less than itself.
+            // A capture renders a surface and then has its output published on
+            // a pull request, so it must not be holding a key when it prints.
             sh(cwd, capture.run, { ...withoutSecrets(process.env), FABRIKA_CAPTURE_DIR: into }, false),
           ).pipe(
             Effect.timeoutOption(Duration.minutes(capture.timeoutMinutes ?? DEFAULT_CAPTURE_MINUTES)),

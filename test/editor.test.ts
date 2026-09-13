@@ -5,7 +5,15 @@ import { editorOpener } from "../src/infra/editor.ts";
 /** The spawn, recorded rather than taken, so this file never launches an editor. */
 const spawned = () => {
   const calls: Array<[string, ReadonlyArray<string>]> = [];
-  return { calls, spawn: (bin: string, args: ReadonlyArray<string>) => void calls.push([bin, args]) };
+  const envs: Array<NodeJS.ProcessEnv> = [];
+  return {
+    calls,
+    envs,
+    spawn: (bin: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv) => {
+      calls.push([bin, args]);
+      envs.push(env);
+    },
+  };
 };
 
 test("FABRIKA_EDITOR is the command, and the worktree is its last argument", () => {
@@ -51,4 +59,26 @@ test("the platform decides the fallback and nothing else, so a named editor work
   const { calls, spawn } = spawned();
   editorOpener("/abs/FAB-7", { FABRIKA_EDITOR: "code" }, "linux", spawn)?.();
   assert.deepEqual(calls, [["code", ["/abs/FAB-7"]]]);
+});
+
+test("the editor is handed an environment with no credentials in it", () => {
+  const { envs, spawn } = spawned();
+  editorOpener(
+    "/abs/FAB-7",
+    {
+      FABRIKA_EDITOR: "code",
+      PATH: "/usr/bin",
+      LINEAR_API_KEY: "lin_api_secret",
+      ANTHROPIC_AUTH_TOKEN: "sk-secret",
+      GH_TOKEN: "ghp_secret",
+    },
+    "linux",
+    spawn,
+  )?.();
+
+  assert.deepEqual(
+    envs,
+    [{ FABRIKA_EDITOR: "code", PATH: "/usr/bin" }],
+    "an editor is a long-lived process the operator works inside, and fabrika's keys are not its to hold",
+  );
 });

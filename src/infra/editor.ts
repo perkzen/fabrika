@@ -1,4 +1,4 @@
-import { detached } from "./shell.ts";
+import { detached, withoutSecrets } from "./shell.ts";
 
 /**
  * What `o` does, already bound to the worktree — or nothing, when this machine
@@ -12,17 +12,22 @@ import { detached } from "./shell.ts";
  * of whitespace and the worktree appended as one more entry, never handed to a
  * shell: an editor whose name has a space in it is named by a bundle id or a
  * wrapper script.
+ *
+ * The editor gets this environment minus its credentials. An editor is a
+ * process the operator then works inside — its terminal, its tasks, its
+ * extensions all inherit what it was started with — and none of that is work
+ * fabrika's Linear or Claude keys belong to.
  */
 export const editorOpener = (
   dir: string,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-  spawn: (bin: string, args: ReadonlyArray<string>) => void = detached,
+  spawn: (bin: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv) => void = detached,
 ): (() => void) | undefined => {
   const named = env.FABRIKA_EDITOR?.trim();
   // macOS already knows what opens a directory; elsewhere there is nothing
   // worth guessing, and a key that cannot do anything is worse than no key.
   const [bin, ...args] = named ? named.split(/\s+/) : platform === "darwin" ? ["open"] : [];
   if (bin === undefined) return undefined;
-  return () => spawn(bin, [...args, dir]);
+  return () => spawn(bin, [...args, dir], withoutSecrets(env));
 };

@@ -1,5 +1,5 @@
 import type { Presenter } from "./console.ts";
-import { detached } from "./shell.ts";
+import { detached, withoutSecrets } from "./shell.ts";
 import type { RunEvent } from "../run-event.ts";
 
 export type NotifierOptions = {
@@ -16,7 +16,8 @@ export type NotifierOptions = {
 };
 
 /** The bundle's own CLI. It posts as the bundle, which is where the icon comes from. */
-const viaApp = (bin: string) => (text: string, title: string) => detached(bin, ["-title", title, "-message", text]);
+const viaApp = (bin: string) => (text: string, title: string) =>
+  detached(bin, ["-title", title, "-message", text], withoutSecrets(process.env));
 
 
 /**
