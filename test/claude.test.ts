@@ -83,13 +83,13 @@ test("building the call says nothing; the credential and the model are named onc
 
 test("the model is named once, before the credential, and only when one was asked for", async () => {
   assert.deepEqual(
-    (await ran("opus")).events.map((event) => (event.kind === "note" ? event.text : event.kind)),
+    (await ran("opus")).said,
     ["[model] opus", "[credential] default"],
     "the model is the call's, the credential an attempt within it, so the model is said first",
   );
 
   assert.deepEqual(
-    (await ran()).events.map((event) => (event.kind === "note" ? event.text : event.kind)),
+    (await ran()).said,
     ["[credential] default"],
     "fabrika has nothing true to say about what the CLI's own default was",
   );
