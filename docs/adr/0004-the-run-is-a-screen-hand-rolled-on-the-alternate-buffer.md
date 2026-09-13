@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 supersedes: ADR-0001
 ---
 

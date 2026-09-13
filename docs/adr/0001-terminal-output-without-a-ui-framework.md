@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0004
 ---
 
 # Terminal output is hand-rolled over `util.styleText`, not built on Ink
