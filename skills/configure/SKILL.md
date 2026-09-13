@@ -158,6 +158,7 @@ correcting `none` to `cubic` is a one-word edit.
 
 One line per gate step saying where it came from and that it passed, plus every
 judgement a human should check: a dropped step and why, a base branch that was
-not obvious, a check that CI runs but the host cannot, and the review bot you
+not obvious, a check that CI runs but the host cannot, where you decided this
+repo's source lives and what in the tree told you, and the review bot you
 found or did not find, with what you looked at. This is the only place
 the reasoning survives — the config itself is just JSON.
