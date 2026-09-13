@@ -1,5 +1,5 @@
 import { styleText } from "node:util";
-import { renderMarkdown } from "./markdown.ts";
+import { display } from "./lines.ts";
 import { elapsed, plain, scrub, stamp, type RunEvent } from "../run-event.ts";
 
 /** The stateful owner of one output surface. One per surface; only the console's animates. */
@@ -29,8 +29,6 @@ const FRAME_MS = 80;
 const HEARTBEAT_MS = 60_000;
 /** About two-thirds of a small terminal: a plan's headings arrive whole, one message still cannot own the screen. */
 const MESSAGE_LINES = 20;
-/** Marks the agent's own lines, so its speech is never mistaken for the run's. */
-const GUTTER = "│ ";
 
 /**
  * A run is either fully dressed or fully plain, never partly: one verdict out
@@ -38,34 +36,6 @@ const GUTTER = "│ ";
  */
 export const isInteractive = (stream: NodeJS.WriteStream) =>
   Boolean(stream.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb" && !process.env.CI;
-
-/** The colour a kind is read in. Anything not named here is the terminal's own default. */
-const styleOf = (event: RunEvent): Style | undefined => {
-  switch (event.kind) {
-    case "step":
-      return "bold";
-    case "gate":
-      return event.state === "pass" ? "green" : event.state === "fail" ? ["bold", "red"] : event.state === "skipped" ? "dim" : undefined;
-    case "note":
-      return event.level === "warn" ? "yellow" : event.level === "detail" ? "dim" : undefined;
-    case "result":
-      return event.outcome === "done" ? ["bold", "green"] : ["bold", "red"];
-    // The lines a run emits most of, several per agent message: they have to
-    // recede behind the step they belong to, not compete with it.
-    case "tool":
-    case "cost":
-      return "dim";
-    case "run":
-    case "wait":
-    case "agent":
-      return undefined;
-    // `plain()` cannot fall behind the union — it returns a non-optional type,
-    // so a missing case is a compile error there. `Style | undefined` makes
-    // the same omission legal here, and this is what takes that back.
-    default:
-      return event satisfies never;
-  }
-};
 
 /**
  * A presenter over a stream. Dependencies are handed in rather than reached
@@ -192,33 +162,11 @@ export const openConsole = (options: ConsoleOptions): Presenter => {
     timer = undefined;
   };
 
-  /**
-   * The one kind a console does not render through `plain()`. `plain()` is
-   * the archive's rendering and keeps the markdown raw; the console walks it
-   * and caps its height, in both modes, because `2>&1 | tee` is the common
-   * case and a capped message has to read the same either way.
-   */
-  const lines = (entry: RunEvent | string): ReadonlyArray<string> => {
-    if (typeof entry === "string" || entry.kind !== "agent") return plain(entry);
-    // Scrubbed before the lexer, never after the walk: after it, the styling
-    // this presenter just added would be scrubbed along with the agent's.
-    const walked = renderMarkdown(scrub(entry.markdown), dress);
-    const missing = walked.length - MESSAGE_LINES;
-    const block =
-      missing <= 0
-        ? walked
-        : [...walked.slice(0, MESSAGE_LINES), dress("dim", `… ${missing} more lines${options.archive ? ` (${options.archive})` : ""}`)];
-    // The gutter is what tells the operator, at a glance, which lines are the
-    // agent's; it marks the whole block, elision line included.
-    return block.map((line) => dress("dim", GUTTER) + line);
-  };
-
   const show = (entry: RunEvent | string) => {
     if (ended) return;
-    const style = typeof entry === "string" ? undefined : styleOf(entry);
     const at = stamp(now());
-    const block = lines(entry)
-      .map((line) => `${dress("dim", at)} ${dress(style, line)}\n`)
+    const block = display(entry, dress, { cap: MESSAGE_LINES, archive: options.archive })
+      .map((line) => `${dress("dim", at)} ${line}\n`)
       .join("");
     if (!interactive) {
       stream.write(block);
