@@ -1,0 +1,19 @@
+test/captures-adapter.test.ts
+  s_5dd1191cb85828::t_446ceed2682e40 81-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2518cee63dc86a9c30312376f264b8c60c00e3a3",
+  "prompts": {},
+  "sessions": {
+    "s_5dd1191cb85828": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2fe348e-7146-469f-b2c6-1189a5d1d9df",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
