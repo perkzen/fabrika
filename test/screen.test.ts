@@ -269,16 +269,24 @@ test("o opens the worktree once, and the run comes to exactly what it would have
   assert.equal(touched.exit, untouched.exit, "a run whose operator pressed o ends the way one nobody touched does");
 });
 
-test("o on a screen with no opener does nothing, and no key press writes anything by itself", () => {
-  const out = terminal();
+test("a screen with no opener neither names o nor draws anything different when it is pressed", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const out = terminal({ columns: 80, rows: 12 });
   const keys = keyboard();
   const presenter = open(out, { input: keys, worktree: WORKTREE });
 
   presenter.show(RUN);
-  const settled = out.text();
-  keys.emit("data", "o");
+  presenter.show({ kind: "step", name: "implement", at: 2, of: 3, state: "start" });
+  t.mock.timers.tick(80);
+  const settled = out.chunks.at(-1)!;
+  assert.doesNotMatch(settled, /o open/, "a machine with no editor command is never shown a key that does nothing");
 
-  assert.equal(out.text(), settled, "draws happen on the timer, so a key writes nothing synchronously");
+  keys.emit("data", "o");
+  // Past the frame the press marked dirty: a key that did nothing has to be
+  // read after the redraw it asks for, not before it.
+  t.mock.timers.tick(80);
+  assert.equal(out.chunks.at(-1)!, settled, "the frame an untouched screen would have drawn, to the byte");
+
   presenter.end();
 });
 
