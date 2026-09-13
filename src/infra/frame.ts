@@ -67,7 +67,9 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
 
   const { window, outline, top, footer } = layout(tree, view, size);
   const spare = window + outline;
-  const open = root.children.find((child) => child.key === view.opened);
+  // Only when the budget gave it rows: below the floor there is no window at
+  // all, and a liveness row drawn anyway would cost the outline its last step.
+  const open = window > 0 ? root.children.find((child) => child.key === view.opened) : undefined;
   // The spinner belongs to the step the run is inside; an unfolded finished
   // step is being read, not watched.
   const live = open?.state === "running" ? liveness(tree, clock) : undefined;
@@ -80,7 +82,7 @@ export const frame = (tree: Tree, view: View, size: Size, dress: Styler, clock: 
   }
   // The open step's own row can be scrolled out of the outline; its window is
   // still owed the rows the budget gave it.
-  if (open && window > 0 && !drawn.includes(open)) body.push(...windowRows(open, window, width, view, dress, live));
+  if (open && !drawn.includes(open)) body.push(...windowRows(open, window, width, view, dress, live));
 
   return [
     row(header(root, tree.label), width, dress),

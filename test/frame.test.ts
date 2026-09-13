@@ -386,3 +386,22 @@ test("a tab is a space by the time it reaches the terminal, because it costs mor
     "a tab is one column wherever it lands, and one in a code block still indents the line it is on",
   );
 });
+
+test("below the window's floor the outline takes every row, so a fold costs no step its line", () => {
+  // Four rows leave a header and three: not enough for a window's floor of
+  // three, so Q24's rule is that the outline gets all of them and a fold
+  // shows nothing. The liveness row is part of the window and goes with it.
+  const tree = script(
+    "FAB-6",
+    [0, RUN],
+    [1, { kind: "step", name: "implement", at: 2, of: 3, state: "start" }],
+    [2, { kind: "wait", state: "start", subject: "implement agent", deadlineMinutes: 5 }],
+  );
+  const lines = frame(tree, { ...view, selected: "0:2", opened: "0:2" }, { columns: 60, rows: 4 }, bare, {
+    now: noon + 4000,
+    spin: 0,
+  });
+
+  assert.equal(lines.length, 4);
+  assert.deepEqual(lines.slice(1), ["· 1/3 preflight", "▸ 2/3 implement", "· 3/3 review"], "no step loses its row to a window that was not drawn");
+});
