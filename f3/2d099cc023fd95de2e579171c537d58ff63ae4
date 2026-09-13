@@ -1,0 +1,9 @@
+src/config.ts
+  ai_agent 59-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f32d099cc023fd95de2e579171c537d58ff63ae4",
+  "prompts": {}
+}
