@@ -13,7 +13,6 @@ import type { Credential } from "./infra/claude.ts";
 import { openConsole } from "./infra/console.ts";
 import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
 import { Journal } from "./ports/journal.ts";
-import type { RunState } from "./ports/run-store.ts";
 import { home } from "./paths.ts";
 
 export type SweepOptions = {
@@ -67,33 +66,17 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
         .pipe(Layer.provide(Layer.mergeAll(oneConsole, noReviewer.layer, platform))),
     );
 
-    /**
-     * The run directory a pull request already has, if it has one.
-     *
-     * There is no index from a pull request to a run directory — `prNumber`
-     * lives inside each state file — which is exactly why this is best-effort:
-     * any read error falls back to the key, and its absence changes nothing
-     * but which conversation the merge lands in.
-     */
-    const foundRunDirectory = (number: number) =>
-      Effect.gen(function* () {
-        const runs = home(path, "runs", repoRoot, "");
-        const entries = yield* fs.readDirectory(runs);
-        const matches: Array<string> = [];
-        for (const entry of entries.sort()) {
-          const state = yield* fs
-            .readFileString(path.join(runs, entry, "state.json"))
-            .pipe(Effect.map((raw) => JSON.parse(raw) as Partial<RunState>), Effect.orElseSucceed(() => null));
-          if (state?.prNumber === number) matches.push(path.join(runs, entry));
-        }
-        return matches[0];
-      }).pipe(Effect.orElseSucceed(() => undefined));
-
+    // The run directory the pull request already has, when it has one: its
+    // absence changes nothing but which conversation the merge lands in, so it
+    // is best-effort and the key is the fallback.
     const place = (target: SyncTarget): Effect.Effect<Placement> =>
-      Effect.map(foundRunDirectory(target.number), (found) => ({
-        worktree: home(path, "worktrees", repoRoot, target.key),
-        log: path.join(found ?? home(path, "runs", repoRoot, target.key), "log.txt"),
-      }));
+      fileRunStore.runDirectoryFor(home(path, "runs", repoRoot, ""), target.number).pipe(
+        Effect.provide(platform),
+        Effect.map((found) => ({
+          worktree: home(path, "worktrees", repoRoot, target.key),
+          log: path.join(found ?? home(path, "runs", repoRoot, target.key), "log.txt"),
+        })),
+      );
 
     const worker = (target: SyncTarget, placement: Placement) => {
       // The run directory is the log's own, so the sweep needs no `Path` to
