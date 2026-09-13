@@ -22,10 +22,14 @@ export { Escalated } from "./pipeline/escalated.ts";
 /**
  * Where a run keeps what it must not lose: state, logs and raw transcripts
  * outside the target repo, the worktree outside it as well. Both are keyed by
- * repository and ticket, so two tickets never share either.
+ * repository and key — a ticket identifier for a run, a pull request's key for
+ * a sweep's worker — so two of either never share a directory.
+ *
+ * A plain join over a `Path` the caller already holds, so a sweep can resolve
+ * a path inside a callback that must have no requirements of its own.
  */
-const home = (kind: "runs" | "worktrees", repoRoot: string, identifier: string) =>
-  Effect.map(Path.Path, (path) => path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), identifier));
+export const home = (path: Path.Path, kind: "runs" | "worktrees", repoRoot: string, key: string) =>
+  path.join(homedir(), ".fabrika", kind, path.basename(repoRoot), key);
 
 /**
  * Assembles one run and executes it.
@@ -41,11 +45,11 @@ export const runTicket = (config: Config, ticket: Ticket, credentials: ReadonlyA
   Effect.gen(function* () {
     const path = yield* Path.Path;
     const repoRoot = process.cwd();
-    const dir = yield* home("worktrees", repoRoot, ticket.identifier);
+    const dir = home(path, "worktrees", repoRoot, ticket.identifier);
     // Before the forge layer, because the forge no longer has a `Workspace` to
     // ask: every `gh` call carries `-R`, so where it is spawned is incidental.
     const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
-    const runsDir = yield* home("runs", repoRoot, ticket.identifier);
+    const runsDir = home(path, "runs", repoRoot, ticket.identifier);
 
     const foundation = Layer.mergeAll(
       fileJournal.layer(path.join(runsDir, "log.txt")),

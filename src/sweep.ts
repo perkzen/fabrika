@@ -1,0 +1,127 @@
+import { Effect, FileSystem, Layer, Path } from "effect";
+import { ChildProcessSpawner } from "effect/unstable/process";
+import * as claudeAgent from "./adapters/claude-agent.ts";
+import * as fileJournal from "./adapters/file-journal.ts";
+import * as fileRunStore from "./adapters/file-run-store.ts";
+import * as fsPrompts from "./adapters/fs-prompts.ts";
+import * as ghForge from "./adapters/gh-forge.ts";
+import * as gitWorkspace from "./adapters/git-workspace.ts";
+import * as noReviewer from "./adapters/no-reviewer.ts";
+import * as shellGate from "./adapters/shell-gate.ts";
+import type { Config } from "./config.ts";
+import type { Credential } from "./infra/claude.ts";
+import { openConsole } from "./infra/console.ts";
+import { sweep, syncPullRequest, type Placement, type SyncTarget } from "./pipeline/sweep.ts";
+import { Journal } from "./ports/journal.ts";
+import type { RunState } from "./ports/run-store.ts";
+import { home } from "./run.ts";
+
+export type SweepOptions = {
+  readonly dryRun: boolean;
+  readonly concurrency: number;
+};
+
+/**
+ * Assembles one sweep and executes it.
+ *
+ * Two layer graphs, not one. The discovery side is the repository itself — a
+ * forge that needs no worktree and a `Workspace` over the checkout, of which
+ * only `checkedOutBranches` is ever called. Each worker then gets its own
+ * graph over its own tree, run directory and agent session, and shares nothing
+ * with its siblings but the console.
+ *
+ * The console is the sweep's alone. A worker's journal is `null` on its second
+ * argument — the archive by itself — so six of them cannot fight over the
+ * terminal, and their detail is in their own `log.txt`.
+ */
+export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>, options: SweepOptions) =>
+  Effect.gen(function* () {
+    const path = yield* Path.Path;
+    const fs = yield* FileSystem.FileSystem;
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const repoRoot = process.cwd();
+    const repo = yield* gitWorkspace.githubRepoAt(repoRoot, config.base);
+
+    // Captured as values and handed back as a layer: `place` and `worker` are
+    // closures the sweep calls with no context of its own, so everything they
+    // reach for has to be resolved here.
+    const platform = Layer.mergeAll(
+      Layer.succeed(FileSystem.FileSystem)(fs),
+      Layer.succeed(Path.Path)(path),
+      Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(spawner),
+    );
+
+    const presenter = openConsole({ stream: process.stdout });
+    const oneConsole = Layer.succeed(Journal)({
+      write: presenter.show,
+      log: (entry) => Effect.sync(() => presenter.show(entry)),
+    });
+
+    const discovery = Layer.mergeAll(
+      oneConsole,
+      gitWorkspace.layer({ repoRoot, dir: repoRoot, base: config.base }).pipe(Layer.provide(platform)),
+      // A sweep never reads checks, so there is no reviewer-owned check to
+      // exclude; the port is answered rather than made optional (ADR-0002).
+      ghForge
+        .layer({ repo, base: gitWorkspace.baseBranch(config.base), cwd: repoRoot })
+        .pipe(Layer.provide(Layer.mergeAll(oneConsole, noReviewer.layer, platform))),
+    );
+
+    /**
+     * The run directory a pull request already has, if it has one.
+     *
+     * There is no index from a pull request to a run directory — `prNumber`
+     * lives inside each state file — which is exactly why this is best-effort:
+     * any read error falls back to the key, and its absence changes nothing
+     * but which conversation the merge lands in.
+     */
+    const foundRunDirectory = (number: number) =>
+      Effect.gen(function* () {
+        const runs = home(path, "runs", repoRoot, "");
+        const entries = yield* fs.readDirectory(runs);
+        const matches: Array<string> = [];
+        for (const entry of entries.sort()) {
+          const state = yield* fs
+            .readFileString(path.join(runs, entry, "state.json"))
+            .pipe(Effect.map((raw) => JSON.parse(raw) as Partial<RunState>), Effect.orElseSucceed(() => null));
+          if (state?.prNumber === number) matches.push(path.join(runs, entry));
+        }
+        return matches[0];
+      }).pipe(Effect.orElseSucceed(() => undefined));
+
+    const place = (target: SyncTarget): Effect.Effect<Placement> =>
+      Effect.map(foundRunDirectory(target.number), (found) => ({
+        worktree: home(path, "worktrees", repoRoot, target.key),
+        log: path.join(found ?? home(path, "runs", repoRoot, target.key), "log.txt"),
+      }));
+
+    const worker = (target: SyncTarget, placement: Placement) => {
+      // The run directory is the log's own, so the sweep needs no `Path` to
+      // hand one across and the two can never point at different directories.
+      const runDir = path.dirname(placement.log);
+      const foundation = Layer.mergeAll(
+        fileJournal.layer(placement.log, null),
+        fileRunStore.layer(runDir),
+        fsPrompts.layer({ identifier: target.identifier, title: target.title, base: config.base }),
+        gitWorkspace.layer({ repoRoot, dir: placement.worktree, base: config.base }),
+      ).pipe(Layer.provide(platform));
+      const ports = Layer.mergeAll(
+        foundation,
+        shellGate.layer(config.gate).pipe(Layer.provide(Layer.merge(foundation, platform))),
+        claudeAgent
+          .layer({ repoRoot, defaultCwd: placement.worktree, credentials, deny: config.deny })
+          .pipe(Layer.provide(Layer.merge(foundation, platform))),
+      );
+      // The config is the composition root's to know, so the target carries
+      // the install command rather than the sweep reading one.
+      return syncPullRequest({ ...target, install: config.install }).pipe(Effect.provide(ports));
+    };
+
+    return yield* sweep({
+      base: config.base,
+      concurrency: options.concurrency,
+      dryRun: options.dryRun,
+      place,
+      worker,
+    }).pipe(Effect.provide(discovery), Effect.ensuring(Effect.sync(presenter.end)));
+  });
