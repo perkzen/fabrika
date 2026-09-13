@@ -80,16 +80,19 @@ const drive = (steps: ReadonlyArray<Step>): Effect.Effect<void, StepError, StepS
     const journal = yield* Journal;
     const done = store.get().completed;
     if (done.length > 0) yield* journal.log(`resuming after ${done.join(", ")}`);
-    for (const step of steps) {
+    const of = steps.length;
+    for (const [index, step] of steps.entries()) {
+      const at = index + 1;
       if (step.once && store.get().completed.includes(step.name)) {
-        yield* journal.log(`${step.name}: already done`);
+        yield* journal.log({ kind: "step", name: step.name, at, of, state: "already-done" });
         continue;
       }
       const skip = step.skip ? yield* step.skip : undefined;
       if (skip) {
-        yield* journal.log(`${step.name}: skipped (${skip})`);
+        yield* journal.log({ kind: "step", name: step.name, at, of, state: "skipped", reason: skip });
         continue;
       }
+      yield* journal.log({ kind: "step", name: step.name, at, of, state: "start" });
       yield* step.run;
       if (step.once) yield* store.update((state) => void state.completed.push(step.name));
     }

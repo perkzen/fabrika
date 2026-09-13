@@ -11,6 +11,7 @@ import { Reviewer, type Review } from "../src/ports/reviewer.ts";
 import { RunContext } from "../src/ports/run-context.ts";
 import { RunStore, type RunState } from "../src/ports/run-store.ts";
 import { Workspace, type MergeOutcome } from "../src/ports/workspace.ts";
+import { plain, type RunEvent } from "../src/run-event.ts";
 import type { Ticket } from "../src/ticket.ts";
 
 /**
@@ -39,7 +40,10 @@ export type Script = {
 };
 
 export type Recording = {
+  /** The plain rendering, one entry per physical line — the text an operator reads. */
   readonly log: Array<string>;
+  /** The entries themselves, for the counts and flags no plain line carries. */
+  readonly events: Array<RunEvent | string>;
   readonly agent: Array<AgentRequest>;
   readonly committed: Array<string>;
   readonly pushed: Array<string>;
@@ -76,6 +80,7 @@ const queue = <A>(values: ReadonlyArray<A>, fallback: A) => {
 export const harness = (script: Script = {}) => {
   const recording: Recording = {
     log: [],
+    events: [],
     agent: [],
     committed: [],
     pushed: [],
@@ -110,10 +115,16 @@ export const harness = (script: Script = {}) => {
     head = `sha${heads}`;
   };
 
+  /** Both renderings at once: the lines a test asserts on, and the events behind them. */
+  const record = (entry: RunEvent | string) => {
+    recording.events.push(entry);
+    for (const line of plain(entry)) recording.log.push(line);
+  };
+
   const layer = Layer.mergeAll(
     Layer.succeed(Journal)({
-      log: (line: string) => Effect.sync(() => void recording.log.push(line)),
-      write: (line: string) => void recording.log.push(line),
+      log: (entry: RunEvent | string) => Effect.sync(() => record(entry)),
+      write: record,
     }),
     Layer.succeed(RunStore)({
       directory: "/runs/FAB-1",
