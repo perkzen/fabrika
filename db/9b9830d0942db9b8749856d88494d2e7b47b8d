@@ -1,0 +1,19 @@
+test/claude.test.ts
+  s_2a53923097560c::t_43de79fceef949 86,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "db9b9830d0942db9b8749856d88494d2e7b47b8d",
+  "prompts": {},
+  "sessions": {
+    "s_2a53923097560c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ddd664e6-04a5-4391-bb45-29360fd0ca32",
+        "model": "claude-opus-5"
+      },
+      "human_author": "perkzen <perko.domen@gmail.com>"
+    }
+  }
+}
