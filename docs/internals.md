@@ -124,6 +124,15 @@ reviewer that opens one thread before signing off, paced like a run;
 with nothing asked. Clear a stage to watch an outline that never had it.
 It is `scripts/rehearse.ts`, and it does not ship.
 
+`pnpm rehearse:sync` is the same thing one command over: the real selection,
+the real fan-out and the real `syncPullRequest` in each of six workers, over
+the same in-memory ports with a scripted merge agent. Six pull requests, which
+is one of every row a sweep can draw — two the agent resolves and pushes, one
+whose base had not moved, one it cannot finish, and two the rules skip for two
+different reasons — so what several rows writing at once actually looks like
+can be watched rather than reasoned about. `scripts/rehearse-sync.ts`, and it
+does not ship either.
+
 ## Exit codes
 
 | Code | Meaning |

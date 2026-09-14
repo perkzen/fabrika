@@ -171,8 +171,8 @@ The whole run on a stage set: the real select, pipeline, driver, journal and
 screen over the test harness's in-memory ports, with a scripted agent and
 timed waits, so everything the command does to a terminal — the question it
 opens with included — can be looked at and a pipeline change watched end to
-end without an agent bill. `pnpm rehearse`; a script, never a command the
-CLI ships.
+end without an agent bill. `pnpm rehearse` for a run and
+`pnpm rehearse:sync` for a sweep; a script, never a command the CLI ships.
 _Avoid_: demo, dry run — a dry run implies the real ports with side effects
 off, and these are not the real ports; mock mode, simulation.
 

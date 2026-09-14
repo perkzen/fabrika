@@ -206,6 +206,11 @@ const sync = Command.make(
   },
   ({ dryRun, concurrency }) =>
     Effect.gen(function* () {
+      // The same nameplate a run opens with, and for the same reason: a sweep
+      // now draws a screen too, and the banner is what says which tool the
+      // scrollback above it belongs to. `banner` is interactive-only, so a
+      // scheduled sweep's log is untouched by it.
+      banner({ stream: process.stdout, version: VERSION });
       // `Flag` has no numeric minimum — `Flag.atLeast` is about how often a
       // flag repeats — so the handler checks, and a CLI error is exit 1.
       if (concurrency < 1) return yield* new FabrikaError({ message: "--concurrency must be at least 1" });
