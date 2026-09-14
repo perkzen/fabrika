@@ -16,7 +16,7 @@ import {
   styler,
   type Presenter,
 } from "./surface.ts";
-import { empty, steps, take, type Tree } from "../domain/outline.ts";
+import { bound, empty, steps, take, waiting, type Tree } from "../domain/outline.ts";
 import type { RunEvent } from "../domain/run-event.ts";
 
 export type ScreenOptions = ConsoleOptions & {
@@ -27,11 +27,25 @@ export type ScreenOptions = ConsoleOptions & {
   /** How `Ctrl-C` is raised, injected so a test can press it without signalling the test runner. */
   readonly kill?: () => void;
   /**
-   * What `o` does — already bound to the worktree, and injected so a test
-   * presses it without spawning anything. Its presence is also what decides
-   * whether the keys row names the key at all.
+   * What `o` does, given the tree to open — injected so a test presses it
+   * without spawning anything. Its presence is also what decides whether the
+   * keys row names the key at all; which tree it is handed is the selected
+   * row's, because a sweep has one per row and only the run has one for the
+   * whole screen.
    */
-  readonly open?: () => void;
+  readonly open?: (worktree: string) => void;
+};
+
+/**
+ * A screen, and the presenters it hands out for the rows on it.
+ *
+ * `row` is what a sweep's composition root gives each worker's journal
+ * alongside its archive: everything shown through it lands under that row and
+ * under no other. It exists because "the one child whose state is `running`"
+ * is right for a run and wrong for five workers out of six.
+ */
+export type Screen = Presenter & {
+  readonly row: (name: string, worktree?: string) => Presenter;
 };
 
 const FRAME_MS = 80;
@@ -46,7 +60,7 @@ const FRAME_MS = 80;
  * notes and the `already done:` line stay where an operator can scroll to
  * them — a screen is entered by a run that has steps, and by nothing else.
  */
-export const openScreen = (options: ScreenOptions): Presenter => {
+export const openScreen = (options: ScreenOptions): Screen => {
   const stream = options.stream;
   const now = options.now ?? Date.now;
   const interactive = options.interactive ?? isInteractive(stream);
@@ -92,6 +106,11 @@ export const openScreen = (options: ScreenOptions): Presenter => {
   // Only the redraw: the size itself is read per draw, above.
   const onResize = () => void (dirty = true);
 
+  /** A row with no tree opens nothing: an editor on nowhere is worse than a key that did not fire. */
+  const opened = (worktree: string | undefined) => {
+    if (worktree !== undefined) options.open?.(worktree);
+  };
+
   const onKey = (chunk: string) => {
     for (const key of decode(String(chunk))) {
       // Not `press`'s business: raw mode stops the terminal raising SIGINT, so
@@ -99,8 +118,9 @@ export const openScreen = (options: ScreenOptions): Presenter => {
       // would preempt the finalisers that clean up the MCP temp files.
       if (key === "interrupt") kill();
       // Not `press`'s business either: it is pure and returns a view, and an
-      // editor is not a view.
-      else if (key === "open") options.open?.();
+      // editor is not a view. The selected row's tree before the run's: a
+      // sweep's trees are one per row, and a row with none offers nothing.
+      else if (key === "open") opened(steps(tree).find((step) => step.key === view.selected)?.worktree ?? tree.worktree);
       else view = press(key, view, tree, size());
     }
     dirty = true;
@@ -130,24 +150,39 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     // like.
     timer = globalThis.setInterval(() => {
       spin += 1;
-      if (dirty || tree.wait || steps(tree).some((step) => step.state === "running")) draw();
+      if (dirty || waiting(tree) || steps(tree).some((step) => step.state === "running")) draw();
     }, FRAME_MS);
     timer.unref?.();
     draw();
   };
 
-  const show = (entry: RunEvent | string) => {
+  const show = (entry: RunEvent | string, address?: string) => {
     if (ended) return;
     const at = now();
     if (!mounted) {
+      // A row's event before the screen is up belongs to a row that does not
+      // exist yet: the `run` event is what makes the rows, and it is the
+      // sweep's own, never a worker's.
+      if (address !== undefined) return;
       if (typeof entry === "string" || entry.kind !== "run") return inner.show(entry);
       tree = take(tree, at, entry);
       view = follow(view, tree);
       return mount();
     }
-    tree = take(tree, at, entry);
+    tree = take(tree, at, entry, address);
     view = follow(view, tree);
     dirty = true;
+  };
+
+  /**
+   * One row's presenter. `end` is deliberately not the screen's: a worker
+   * finishing is its journal's layer closing, and the screen outlives every
+   * one of them.
+   */
+  const row = (name: string, worktree?: string): Presenter => {
+    tree = bound(tree, name, worktree);
+    dirty = true;
+    return { show: (entry: RunEvent | string) => show(entry, name), end: () => {} };
   };
 
   const end = () => {
@@ -181,5 +216,5 @@ export const openScreen = (options: ScreenOptions): Presenter => {
     if (tree.result) for (const line of display(tree.result, dress)) stream.write(line + "\n");
   };
 
-  return { show, end };
+  return { show: (entry: RunEvent | string) => show(entry), end, row };
 };

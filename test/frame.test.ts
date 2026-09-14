@@ -645,3 +645,134 @@ test("titles are padded to the widest in the run, so every row's detail starts o
   assert.equal(lines[2], " ○ A stage with a very…", "past the cap a title is cut with an ellipsis, so one name cannot push every row's detail off the right");
   assert.equal(lines[3], " ○ Short                 agent");
 });
+
+/**
+ * A sweep is the run with several steps open at once — the one shape a run
+ * never has. Everything below is driven the same way the rest of this file is:
+ * a scripted event list, addressed to a row where a worker wrote it, with no
+ * terminal and no clock of its own.
+ */
+const SWEEP: RunEvent = {
+  kind: "run",
+  completed: [],
+  steps: [
+    { name: "FAB-5-42", title: "#42 FAB-5", about: "[yours] Conflicted PRs pile up — would sync branch-42 into origin/main", done: false },
+    { name: "pr-41", title: "#41", about: "[fabrika] fix: second", done: false },
+    { name: "FAB-9-40", title: "#40 FAB-9", about: "[yours] A third thing — would sync branch-40 into origin/main", done: false },
+  ],
+};
+
+/** The same script, with an address on the entries a worker wrote. */
+const swept = (...events: ReadonlyArray<readonly [number, RunEvent | string, string?]>): Tree => ({
+  ...outline(events.map(([seconds, entry, address]) => ({ when: noon + seconds * 1000, entry, address }))),
+  label: "perkzen/fabrika",
+});
+
+const began = (name: string, title: string, at: number): RunEvent => ({ kind: "step", name, title, at, of: 3, state: "start" });
+
+test("a sweep's outline is one row per pull request, the skipped ones present and dimmed", () => {
+  const tree = swept(
+    [0, SWEEP],
+    [0, { kind: "step", name: "pr-41", title: "#41", at: 2, of: 3, state: "skipped", reason: "branch is checked out at /dev/fabrika" }],
+    [1, began("FAB-5-42", "#42 FAB-5", 1)],
+    [2, began("FAB-9-40", "#40 FAB-9", 3)],
+  );
+  const dressed: Array<[unknown, string]> = [];
+  const spy = (style: unknown, text: string) => (dressed.push([style, text]), text);
+  const lines = frame(tree, { ...view, selected: "" }, { columns: 90, rows: 6 }, spy, { now: noon + 5000, spin: 0 });
+
+  assert.deepEqual(lines.slice(0, 4), [
+    "perkzen/fabrika  [████████░░░░] 3/3 #40 FAB-9  5s",
+    " ⠋ #42 FAB-5       4s",
+    " – #41        skipped (branch is checked out at /dev/fabrika)",
+    " ⠋ #40 FAB-9       3s",
+  ], "the row count is the answer the scrollback's `N conflicted, M skipped` line gives");
+  assert.ok(
+    dressed.some(([style, text]) => text.startsWith("– #41") && style === "dim"),
+    "a skipped row is present and dimmed rather than absent",
+  );
+});
+
+test("several rows run at once and each one's events land under its own row", () => {
+  const events: ReadonlyArray<readonly [number, RunEvent | string, string?]> = [
+    [0, SWEEP],
+    [1, began("FAB-5-42", "#42 FAB-5", 1)],
+    [1, began("pr-41", "#41", 2)],
+    [1, began("FAB-9-40", "#40 FAB-9", 3)],
+    // Interleaved, the way three workers write: the address is the only thing
+    // that says where each one goes.
+    [2, "worktree /worktrees/pr-41", "pr-41"],
+    [3, "worktree /worktrees/FAB-5-42", "FAB-5-42"],
+    [4, { kind: "note", level: "detail", text: "base moved: 3 commit(s) behind; merging" }, "FAB-9-40"],
+    [5, { kind: "tool", stage: "sync", tool: "Edit", subject: "src/b.ts" }, "pr-41"],
+    [6, { kind: "agent", stage: "sync", markdown: "resolving src/a.ts" }, "FAB-5-42"],
+  ];
+  const tree = swept(...events);
+  const size = { columns: 90, rows: 20 };
+  const window = (key: string) =>
+    frame(tree, { ...view, selected: key, opened: key, chosen: true, scroll: 0, top: 0 }, size, bare, { now: noon + 6000, spin: 0 })
+      .join("\n");
+
+  const first = window("0:1");
+  assert.ok(first.includes("12:00:03 worktree /worktrees/FAB-5-42"), `the first row's own lines:\n${first}`);
+  assert.ok(first.includes("│ resolving src/a.ts"), "its agent's speech with it");
+  assert.ok(!first.includes("/worktrees/pr-41") && !first.includes("base moved"), "and nothing from either sibling");
+
+  const second = window("0:2");
+  assert.ok(second.includes("12:00:02 worktree /worktrees/pr-41") && second.includes("Edit src/b.ts"), `the second row's own lines:\n${second}`);
+  assert.ok(!second.includes("/worktrees/FAB-5-42") && !second.includes("base moved"), "and nothing from either sibling");
+
+  const third = window("0:3");
+  assert.ok(third.includes("base moved: 3 commit(s) behind; merging"), `the third row's own lines:\n${third}`);
+  assert.ok(!third.includes("/worktrees/pr-41") && !third.includes("/worktrees/FAB-5-42"), "and nothing from either sibling");
+});
+
+/**
+ * Six workers each have an open agent call, and a single wait per tree would
+ * have them blanking each other's liveness — `parallel-run.md` finding 1 names
+ * the same defect for a single run's two concurrent waits.
+ */
+test("one row's wait ending leaves the rows still waiting animating", () => {
+  const events: ReadonlyArray<readonly [number, RunEvent | string, string?]> = [
+    [0, SWEEP],
+    [1, began("FAB-5-42", "#42 FAB-5", 1)],
+    [1, began("pr-41", "#41", 2)],
+    [2, { kind: "wait", state: "start", subject: "the merge agent", deadlineMinutes: 25 }, "FAB-5-42"],
+    [3, { kind: "wait", state: "start", subject: "the merge agent", deadlineMinutes: 25 }, "pr-41"],
+    [4, { kind: "wait", state: "end", subject: "the merge agent", seconds: 1 }, "pr-41"],
+  ];
+  const tree = swept(...events);
+  const size = { columns: 90, rows: 20 };
+  const rows = (key: string) =>
+    frame(tree, { ...view, selected: key, opened: key, chosen: true, scroll: 0, top: 0 }, size, bare, { now: noon + 254_000, spin: 0 });
+
+  assert.equal(
+    rows("0:1").filter((line) => line.includes("waiting for")).at(-1),
+    "   ⠋ waiting for the merge agent — 4m 12s / 25m",
+    "the row that is still waiting still says so, and still turns",
+  );
+  assert.ok(
+    !rows("0:2").some((line) => line.trimStart().startsWith("⠋ waiting for")),
+    "and the row whose wait ended has no liveness row at all",
+  );
+});
+
+test("the sweep's own lines are the sweep's, not the first worker's", () => {
+  const tree = swept(
+    [0, SWEEP],
+    [1, began("FAB-5-42", "#42 FAB-5", 1)],
+    [1, began("pr-41", "#41", 2)],
+    // The fan-out's own wait, and the line a worker's outcome is reported on:
+    // neither is addressed, and with two rows open neither is any one row's.
+    [2, { kind: "wait", state: "start", subject: "syncing 2 pull request(s)" }],
+    [3, { kind: "note", level: "detail", text: "#41 [fabrika] fix: second — synced: pushed 9f1c2ab" }],
+  );
+  const size = { columns: 90, rows: 20 };
+  const shown = (key: string) =>
+    frame(tree, { ...view, selected: key, opened: key, chosen: true, scroll: 0, top: 0 }, size, bare, { now: noon + 4000, spin: 0 }).join("\n");
+
+  for (const key of ["0:1", "0:2"]) {
+    assert.ok(!shown(key).includes("synced: pushed 9f1c2ab"), `an unaddressed line is in no row's window (${key})`);
+    assert.ok(!shown(key).includes("waiting for syncing"), `and neither is the fan-out's own wait (${key})`);
+  }
+});

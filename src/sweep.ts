@@ -10,6 +10,7 @@ import * as noReviewer from "./adapters/no-reviewer.ts";
 import * as shellGate from "./adapters/shell-gate.ts";
 import { baseBranch, type Config } from "./config.ts";
 import type { Credential } from "./infra/claude.ts";
+import { editorLauncher } from "./infra/editor.ts";
 import { sweep, type Placement } from "./pipeline/sweep.ts";
 import { type SyncTarget } from "./pipeline/sweep-selection.ts";
 import { syncPullRequest } from "./pipeline/sync-worker.ts";
@@ -27,11 +28,12 @@ export type SweepOptions = {
  * forge that needs no worktree and a `Workspace` over the checkout, of which
  * only `checkedOutBranches` is ever called. Each worker then gets its own
  * graph over its own tree, run directory and agent session, and shares nothing
- * with its siblings but the console.
+ * with its siblings but the surface.
  *
- * The console is the sweep's alone. A worker's journal is `archiveOnly`, so six
- * of them cannot fight over the terminal, and their detail is in their own
- * `log.txt`.
+ * The surface is the sweep's alone, and a worker reaches it only through the
+ * row it was handed: six of them cannot fight over the terminal, the address
+ * travels with the layer graph rather than through a global, and every event
+ * still lands in that worker's own `log.txt` unchanged.
  */
 export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>, options: SweepOptions) =>
   Effect.gen(function* () {
@@ -50,19 +52,29 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(spawner),
     );
 
-    // One console for the whole sweep, ended by its own finaliser: a worker's
-    // journal is its `log.txt` alone, so six of them cannot fight over the
-    // terminal.
-    const oneConsole = fileJournal.consoleOnly();
+    // One surface for the whole sweep, ended by its own finaliser. A worker's
+    // journal is its `log.txt` plus the row this hands out, so six of them
+    // cannot fight over the terminal and each still has somewhere to be read.
+    // `o` is given the launcher rather than an opener: the tree it opens is
+    // the selected row's, and a sweep has one per row.
+    const surface = fileJournal.sweep({
+      label: repo,
+      input: process.stdin,
+      // `FABRIKA_EDITOR` is the operator's shell's: fabrika loads no `.env` of
+      // its own (ADR-0005), so the environment read here is the one it was
+      // started in.
+      open: editorLauncher(process.env, process.platform),
+    });
+    const sweepJournal = surface.layer;
 
     const discovery = Layer.mergeAll(
-      oneConsole,
+      sweepJournal,
       gitWorkspace.layer({ repoRoot, dir: repoRoot, base: config.base }).pipe(Layer.provide(platform)),
       // A sweep never reads checks, so there is no reviewer-owned check to
       // exclude; the port is answered rather than made optional (ADR-0002).
       ghForge
         .layer({ repo, base: baseBranch(config.base), cwd: repoRoot })
-        .pipe(Layer.provide(Layer.mergeAll(oneConsole, noReviewer.layer, platform))),
+        .pipe(Layer.provide(Layer.mergeAll(sweepJournal, noReviewer.layer, platform))),
     );
 
     // The run directory the pull request already has, when it has one: its
@@ -82,7 +94,10 @@ export const runSweep = (config: Config, credentials: ReadonlyArray<Credential>,
       // hand one across and the two can never point at different directories.
       const runDir = path.dirname(placement.log);
       const foundation = Layer.mergeAll(
-        fileJournal.archiveOnly(placement.log),
+        // The row is this worker's address on the sweep's surface, resolved
+        // here because the composition root is the one place that knows both
+        // which pull request this is and where its tree ended up.
+        fileJournal.archiveOnly(placement.log, [surface.row(target.key, placement.worktree)]),
         fileRunStore.layer(runDir),
         fsPrompts.layer({ identifier: target.identifier, title: target.title, base: config.base }),
         gitWorkspace.layer({ repoRoot, dir: placement.worktree, base: config.base }),

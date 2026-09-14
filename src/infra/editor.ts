@@ -26,10 +26,27 @@ export const editorOpener = (
   platform: NodeJS.Platform,
   spawn: (bin: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv) => void = detached,
 ): (() => void) | undefined => {
+  const launch = editorLauncher(env, platform, spawn);
+  return launch && (() => launch(dir));
+};
+
+/**
+ * The same editor, with the directory decided at press time.
+ *
+ * A sweep has one tree per row rather than one for the screen, so what `o`
+ * opens is not known when the presenter is built — only which rows there
+ * could be. A run binds its one directory with `editorOpener` above and is
+ * unchanged by this.
+ */
+export const editorLauncher = (
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  spawn: (bin: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv) => void = detached,
+): ((dir: string) => void) | undefined => {
   const named = env.FABRIKA_EDITOR?.trim();
   // macOS already knows what opens a directory; elsewhere there is nothing
   // worth guessing, and a key that cannot do anything is worse than no key.
   const [bin, ...args] = named ? named.split(/\s+/) : platform === "darwin" ? ["open"] : [];
   if (bin === undefined) return undefined;
-  return () => spawn(bin, [...args, dir], withoutSecrets(env, ["SSH_AUTH_SOCK"]));
+  return (dir: string) => spawn(bin, [...args, dir], withoutSecrets(env, ["SSH_AUTH_SOCK"]));
 };

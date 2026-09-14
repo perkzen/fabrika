@@ -18,7 +18,7 @@ import { Workspace } from "../ports/workspace.ts";
 import type { Escalated } from "./escalated.ts";
 import type { StepError } from "./step.ts";
 import { select, targetOf, type SyncTarget } from "./sweep-selection.ts";
-import { counts, label, reported, type SyncOutcome } from "./sweep-report.ts";
+import { counts, label, reported, rowAbout, rowTitle, type SyncOutcome } from "./sweep-report.ts";
 
 /** Where one worker's tree and log live; the composition root decides both. */
 export type Placement = {
@@ -141,7 +141,8 @@ export const sweep = (
     yield* journal.log(`sync: ${selected.length} conflicted, ${skipped} skipped`);
 
     // Before any path is resolved: the run-directory scan is the only
-    // filesystem read on this path, and a dry run promises to touch nothing.
+    // filesystem read on this path, and a dry run promises to touch nothing —
+    // a screen included, which is why this returns above the `run` event.
     if (options.dryRun) {
       for (const pr of selected) {
         const text = `${label(pr)} — would sync ${pr.branch} into ${options.base}`;
@@ -151,18 +152,52 @@ export const sweep = (
       return { outcomes, exitCode: 0 };
     }
 
+    /** A pull request's own row, by the position it holds in the selection. */
+    const rows = selections.map((selection, index) => ({
+      selection,
+      target: targetOf(selection.pr),
+      at: index + 1,
+      of: selections.length,
+    }));
+    const rowOf = (pr: PullRequestDetail) => rows.find((row) => row.selection.pr === pr)!;
+
+    // The sweep as the shape a presenter draws: one row per pull request it
+    // considered, skipped ones included, so the row count is the answer the
+    // line above just gave. The rows are what a worker's events are addressed
+    // to, so this is emitted before the first one is handed out.
+    yield* journal.log({
+      kind: "run",
+      completed: [],
+      steps: rows.map(({ selection, target }) => ({
+        name: target.key,
+        title: rowTitle(selection.pr, target),
+        about: rowAbout(selection.pr, target, options.base, selection.decision === "sync"),
+        done: false,
+      })),
+    });
+    // After the `run` event, because a row cannot be skipped before it exists;
+    // the line each of these was reported on is already in scrollback above.
+    for (const { selection, target, at, of } of rows) {
+      if (selection.decision !== "skip") continue;
+      yield* journal.log({ kind: "step", name: target.key, title: rowTitle(selection.pr, target), at, of, state: "skipped", reason: selection.reason });
+    }
+
     // Each worker's line is written when *it* finishes, not when the fan-out
     // does, so a sweep of six reports as it goes.
     yield* Effect.forEach(
       selected,
       (pr) =>
         Effect.gen(function* () {
+          const { target, at, of } = rowOf(pr);
+          const title = rowTitle(pr, target);
           if (rateLimited) {
             const stopped: SyncOutcome = { pr, kind: "skipped", detail: "skipped: usage limit hit — not started" };
             outcomes.push(stopped);
+            yield* journal.log({ kind: "step", name: target.key, title, at, of, state: "skipped", reason: "usage limit hit — not started" });
             return yield* journal.log({ kind: "note", level: "detail", text: reported(stopped) });
           }
-          const target = targetOf(pr);
+          const started = Date.now();
+          yield* journal.log({ kind: "step", name: target.key, title, at, of, state: "start" });
           const outcome = yield* options.place(target).pipe(
             Effect.flatMap((placement) =>
               options.worker(target, placement).pipe(
@@ -188,12 +223,28 @@ export const sweep = (
           );
           outcomes.push(outcome);
           rateLimited ||= outcome.rateLimited === true;
+          yield* journal.log({
+            kind: "step",
+            name: target.key,
+            title,
+            at,
+            of,
+            state: "end",
+            seconds: (Date.now() - started) / 1000,
+            // What the row's marker reads: `synced` and `already clean` are
+            // done, and everything a human has to come back to is failed.
+            outcome: outcome.kind === "synced" || outcome.kind === "clean" ? "done" : "failed",
+          });
           yield* journal.log({ kind: "note", level: "detail", text: reported(outcome) });
         }),
       { concurrency: options.concurrency },
     ).pipe(waitFor(journal, `syncing ${selected.length} pull request(s)`));
 
-    yield* journal.log(counts(outcomes));
     const needsAHuman = outcomes.some((outcome) => outcome.kind === "escalated" || outcome.kind === "failed");
+    // The counts as the `result` event rather than a line: a screen writes
+    // nothing after it mounts but the exit scrollback, and the contract is
+    // that this is the last line on stdout. Its text is unchanged, and the
+    // plain rendering of a result is its text verbatim.
+    yield* journal.log({ kind: "result", outcome: needsAHuman ? "escalated" : "done", text: counts(outcomes) });
     return { outcomes, exitCode: rateLimited ? 3 : needsAHuman ? 2 : 0 };
   });

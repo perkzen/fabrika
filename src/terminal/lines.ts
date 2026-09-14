@@ -1,6 +1,6 @@
 import { renderMarkdown } from "./markdown.ts";
 import type { Style, Styler } from "./surface.ts";
-import type { Tree } from "../domain/outline.ts";
+import type { Gate, Wait } from "../domain/outline.ts";
 import { elapsed, plain, scrub, type RunEvent } from "../domain/run-event.ts";
 
 /** Marks the agent's own lines, so its speech is never mistaken for the run's. */
@@ -121,8 +121,12 @@ export const progressRow = (progress: { readonly at: number; readonly of: number
  * both be open; the row belongs to whichever one is. The screen appends the
  * gate's command, because a window is where the gate's own line is and the
  * scrollback already has it above.
+ *
+ * The pair rather than a node or a tree: the scrollback console tracks the two
+ * scalars itself and a screen reads them off the row the wait happened in, and
+ * neither wants the other's shape.
  */
-export const livenessRow = (live: Pick<Tree, "wait" | "gate">, clock: Clock): string | undefined => {
+export const livenessRow = (live: { readonly wait?: Wait; readonly gate?: Gate }, clock: Clock): string | undefined => {
   if (live.wait) {
     const against = live.wait.deadlineMinutes ? ` / ${live.wait.deadlineMinutes}m` : "";
     return `${spinner(clock)} waiting for ${live.wait.subject} — ${elapsed((clock.now - live.wait.since) / 1000)}${against}`;

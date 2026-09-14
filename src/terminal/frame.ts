@@ -145,7 +145,7 @@ export const frame = (
   const open = window > 0 ? root.children.find((child) => child.key === view.opened) : undefined;
   // The spinner belongs to the step the run is inside; an unfolded finished
   // step is being read, not watched.
-  const live = open?.state === "running" ? liveness(tree, clock) : undefined;
+  const live = open?.state === "running" ? liveness(open, clock) : undefined;
 
   const column = titleColumn(root.children);
   const drawn = root.children.slice(top, top + outline);
@@ -312,25 +312,33 @@ export const scrolled = (tree: Tree, view: View, size: Size, scroll: number): nu
   const { window } = layout(tree, view, size);
   const step = stepsOf(tree).find((child) => child.key === view.opened);
   if (!step || window <= 0) return 0;
-  const rows = window - (step.state === "running" && livenessRow(tree, { now: 0, spin: 0 }) !== undefined ? 1 : 0);
+  const rows = window - (step.state === "running" && livenessRow(blocking(step), { now: 0, spin: 0 }) !== undefined ? 1 : 0);
   if (rows <= 0) return 0;
   const height = tail(step, rows + Math.max(scroll, 0), Math.max(size.columns - 1, 0), BARE).length;
   return Math.min(Math.max(scroll, 0), Math.max(height - rows, 0));
 };
 
 /**
- * What the run is blocked on, as the window's last row — the live region's
+ * What the row is blocked on, as the window's last row — the live region's
  * second line, moved to where the work is.
+ *
+ * The row's own wait rather than the run's: a sweep has one open per worker,
+ * and a row animating a sibling's wait would be lying about what it is doing.
+ * The last one opened is the one shown, because it is the innermost — a step
+ * that opened a second wait inside the first is blocked on the second.
  *
  * The command is the window's own addition: a gate's `start` line is in the
  * stream right above this row on a screen, where on scrollback it is already
  * behind the operator.
  */
-const liveness = (tree: Tree, clock: Clock): ReadonlyArray<Segment> | undefined => {
-  const blocked = livenessRow(tree, clock);
+const liveness = (step: Node, clock: Clock): ReadonlyArray<Segment> | undefined => {
+  const blocked = livenessRow(blocking(step), clock);
   if (blocked === undefined) return undefined;
-  return [{ style: "dim", text: tree.gate ? `${blocked}: ${tree.gate.command}` : blocked }];
+  return [{ style: "dim", text: step.gate ? `${blocked}: ${step.gate.command}` : blocked }];
 };
+
+/** What a node is blocked on, in the shape `livenessRow` reads: its innermost open wait, and its gate. */
+const blocking = (step: Node) => ({ wait: step.waits.at(-1), gate: step.gate });
 
 /**
  * The two characters `scrub` keeps, as the one column a row counts them as.
